@@ -1,5 +1,5 @@
 # USDA-NRCS-Engineering-Tools---ArcGIS-Pro
-Future home of the UDSA-NRCS Engineering Tools for ArcGIS Pro
+Current status of the ArcGIS Pro migration from ArcGIS 10.x
 
 Toolset|Tool|ArcGIS Pro Compatible|
 --------------------------------------------------|-------------------------------------------------------------------|---------------------------|
