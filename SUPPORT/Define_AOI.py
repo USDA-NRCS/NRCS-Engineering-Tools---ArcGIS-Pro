@@ -4,40 +4,47 @@
 # Author: Peter Mead
 # e-mail: pemead@co.becker.mn.us
 #
-# Author: Chris Morse
-#         IN State GIS Coordinator
-#         USDA - NRCS
-# e-mail: chris.morse@usda.gov
-# phone: 317.501.1578
-#
 # Author: Adolfo.Diaz
 #         GIS Specialist
 #         National Soil Survey Center
 #         USDA - NRCS
 # e-mail: adolfo.diaz@usda.gov
 # phone: 608.662.4422 ext. 216
+#
+# Author: Chris Morse
+#         IN State GIS Coordinator
+#         USDA - NRCS
+# e-mail: chris.morse@usda.gov
+# phone: 317.501.1578
 
 # Created by Peter Mead, Adolfo Diaz, USDA NRCS, 2013
 # Updated by Chris Morse, USDA NRCS, 2019
 
 # ==========================================================================================
-# Updated  4/6/2020 - Adolfo Diaz
+# Updated  4/15/2020 - Adolfo Diaz
 #
-# - Previously in ArcMap, this tool would set the spatial reference of the FGDB Feature
-#   dataset to that of the input DEM.  In ArcGIS Pro, the spatial reference of the FGDB
-#   feature dataset will be set to the input AOI.
-# - Added functionality to utilize a DEM image service.  Added 2 new functions
-#   to handle this capability: extractDEM and extractDEMfromImageService.  Image
-#   service function could use a little more work to determine cell resolution of
-#   a service in WGS84.
+# - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
+# - Added functionality to utilize a DEM image service or a DEM in GCS.  Added 2 new
+#   function to handle this capability: extractSubsetFromGCSdem and getPCSresolutionFromGCSraster.
+# - If GCS DEM is used then the coordinate system of the FGDB will become the same as the AOI
+#   assuming the AOI is in a PCS.  If both AOI and DEM are in a GCS then the tool will exit.
 # - All temporary raster layers such as Fill and Minus are stored in Memory and no longer
 #   written to hard disk.
+# - All describe functions use the arcpy.da.Describe functionality.
+# - All field calculation expressions are in PYTHON3 format.
+# - Used acre conversiont dictionary and z-factor lookup table
+# - All cursors were updated to arcpy.da
+# - Added code to remove layers from an .aprx rather than simply deleting them
 # - Updated AddMsgAndPrint to remove ArcGIS 10 boolean and gp function
 # - Updated print_exception function.  Traceback functions slightly changed for Python 3.6.
 # - Added Snap Raster environment
 # - Added parallel processing factor environment
 # - swithced from sys.exit() to exit()
-# - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
+# - All gp functions were translated to arcpy
+# - Every function including main is in a try/except clause
+# - Main code is wrapped in if __name__ == '__main__': even though script will never be
+#   used as independent library.
+# - Normal messages are no longer Warnings unnecessarily.
 
 #
 ## ===============================================================================================================
@@ -93,7 +100,6 @@ def logBasicSettings():
         # record basic user inputs and settings to log file for future purposes
 
         import getpass, time
-
         arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
 
         f = open(textFilePath,'a+')
@@ -101,7 +107,7 @@ def logBasicSettings():
         f.write("Executing \"1.Define Area of Interest\" tool\n")
         f.write("User Name: " + getpass.getuser() + "\n")
         f.write("Date Executed: " + time.ctime() + "\n")
-        f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'])
+        f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
         f.write("\nUser Parameters:\n")
         f.write("\tWorkspace: " + userWorkspace + "\n")
         f.write("\tInput Dem: " + demPath + "\n")
@@ -152,35 +158,44 @@ def splitThousands(someNumber):
         return someNumber
 
 ## ================================================================================================================
-def extractDEMfromImageService(demSource,zUnits):
-    # This function will extract a DEM from a Web Image Service that is in WGS.  The
-    # CLU will be buffered to 410 meters and set to WGS84 GCS in order to clip the DEM.
-    # The clipped DEM will then be projected to the same coordinate system as the CLU.
-    # -- Eventually code will be added to determine the approximate cell size  of the
-    #    image service using y-distances from the center of the cells.  Cell size from
-    #    a WGS84 service is difficult to calculate.
+def extractSubsetFromGCSdem(demSource,zUnits):
+    # This function will extract a subset from a DEM that is in a GCS Coordinate System.
+    # This includes a local DEM or Web Image Service.  The DEM will be clipped to the
+    # bounding extent of the project AOI in Lat/Long.  The resolution of the GCS DEM will
+    # attempt to be determined using the 'getImageServiceResolution' function.  Once
+    # the original linear resolution has been determined the clipped DEM can be projected
+    # to the same PCS as the project AOI.  The projection tool does not honor a mask env
+    # therefore extract by mask is then executed on the newly projected DEM.
     # -- Clip is the fastest however it doesn't honor cellsize so a project is required.
     # -- Original Z-factor on WGS84 service cannot be calculated b/c linear units are
     #    unknown.  Assume linear units and z-units are the same.
     # Returns a clipped DEM and new Z-Factor
 
     try:
-
-        projectAOIext = arcpy.Describe(projectAOI).extent
-        clipExtent = str(projectAOIext.XMin) + " " + str(projectAOIext.YMin) + " " + str(projectAOIext.XMax) + " " + str(projectAOIext.YMax)
-
-        arcpy.SetProgressorLabel("Downloading DEM from " + demName + " Image Service")
-
         # Set the output CS to the input DEM i.e WGS84
         arcpy.env.outputCoordinateSystem = demSR
         arcpy.env.resamplingMethod = "BILINEAR"
 
+        # Make a copy of projectAOI so that it converts into output GCS
+        projectedAOIcopy = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("projectAOIcopy",data_type="FeatureClass",workspace=watershedGDB_path))
+        arcpy.CopyFeatures_management(projectAOI,projectedAOIcopy)
+
+        # Extent coordinates should be GCS
+        projectAOIext = arcpy.Describe(projectedAOIcopy).extent
+        clipExtent = str(projectAOIext.XMin) + " " + str(projectAOIext.YMin) + " " + str(projectAOIext.XMax) + " " + str(projectAOIext.YMax)
+
+        arcpy.SetProgressorLabel("Downloading DEM from " + demName + " Image Service")
+
         demClip = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("demClipIS",data_type="RasterDataset",workspace=watershedGDB_path))
         arcpy.Clip_management(demSource, clipExtent, demClip, "", "", "", "NO_MAINTAIN_EXTENT")
-        AddMsgAndPrint("\nSuccessfully downloaded DEM from " + demName + " Image Service")
+
+        if bImageService:
+            AddMsgAndPrint("\nSuccessfully downloaded DEM from " + demName + " Image Service")
+        else:
+            AddMsgAndPrint("\nSuccessully Clipped " + demName + " DEM using " + aoiName,1)
 
         # convert DD resolution to meters or feet
-        outputCellsize = getImageServiceResolution(demClip,aoiLinearUnits)
+        outputCellsize = getPCSresolutionFromGCSraster(demClip,aoiLinearUnits)
 
         # Set the default cell size to 3 if getImageServiceResolution returned 0
         if outputCellsize == 0:
@@ -207,11 +222,11 @@ def extractDEMfromImageService(demSource,zUnits):
 
         newZfactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get(newLinearUnits)]
 
-        AddMsgAndPrint("\t\tNew Projection Name: " + newSR.name,0)
-        AddMsgAndPrint("\t\tXY Linear Units: " + newLinearUnits)
-        AddMsgAndPrint("\t\tElevation Units (Z): " + zUnits)
-        AddMsgAndPrint("\t\tCell Size: " + str(newCellSize) + " " + newLinearUnits )
-        AddMsgAndPrint("\t\tZ-Factor: " + str(newZfactor))
+        AddMsgAndPrint("\tNew Projection Name: " + newSR.name,0)
+        AddMsgAndPrint("\tXY Linear Units: " + newLinearUnits)
+        AddMsgAndPrint("\tElevation Units (Z): " + zUnits)
+        AddMsgAndPrint("\tCell Size: " + str(newCellSize) + " " + newLinearUnits )
+        AddMsgAndPrint("\tZ-Factor: " + str(newZfactor))
 
         #AddMsgAndPrint(toc(startTime))
         return DEM_aoi,newZfactor
@@ -220,34 +235,47 @@ def extractDEMfromImageService(demSource,zUnits):
         print_exception()
 
 ## ================================================================================================================
-def getImageServiceResolution(raster,units):
-    # Calculate the great circle distance between two points
-    # on the earth (specified in decimal degrees)
+def getPCSresolutionFromGCSraster(raster,units):
+    # This function will calculate the great circle distance between two points
+    # on the earth (specified in decimal degrees).  The two points are
+    # collected from the Lower Left XY and Upper Left XY of the input raster.
+    # These points are fed into the haversine formula and result gets divided
+    # by the number of raster rows.  Output number is truncated to a whole
+    # number and returned.  Return 0 otherwise.
 
     try:
+        # Get the lower left XY and Upper Left XY coords
+        # from input raster.  This should in theory be a line
         rasterDesc = arcpy.da.Describe(raster)
         LLX = rasterDesc['extent'].lowerLeft.X
         LLY = rasterDesc['extent'].lowerLeft.Y
         ULX = rasterDesc['extent'].upperLeft.X
         ULY = rasterDesc['extent'].upperLeft.Y
 
+        # Get the # of rows present in the raster. Do not
+        # need columns we are after the distance in latitude (y)
+        rows = rasterDesc['height']
+
         # convert decimal degrees to radians
         lon1, lat1, lon2, lat2 = map(radians, [LLX, LLY, ULX, ULY])
 
-        # haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
+        # difference in lat/long from 2 points in radians
+        dlon = lon2 - lon1     # In theory, difference in long (x) should always return 0
+        dlat = lat2 - lat1     # difference will be in radians
 
+        # haversine formula
         a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
         c = 2 * asin(sqrt(a))
-        m = (6371 * c) * 1000
+        distMeters = (6371 * c) * 1000
 
         if units in ('Meter','Meters'):
-            return round(m)
+            return int(distMeters / rows)
+
         elif units in ('Foot','Foot_US','Feet'):
-            return round(m * 3.28084)
+            return int((distMeters * 3.28084) / rows)
+
         else:
-            AddMsgAndPrint("\nCould not determine appropriate cell size")
+            AddMsgAndPrint("\nCould not determine resolution of GCS DEM ",2)
             return 0
 
     except:
@@ -256,13 +284,14 @@ def getImageServiceResolution(raster,units):
 
 ## ================================================================================================================
 # Import system modules
-import arcpy, sys, os, arcgisscripting, traceback, re
+import arcpy, sys, os, traceback, re
 from arcpy.sa import *
 from math import cos, sin, asin, sqrt, radians
 
 if __name__ == '__main__':
 
     try:
+
         # Check out Spatial Analyst License
         if arcpy.CheckExtension("spatial") == "Available":
             arcpy.CheckOutExtension("spatial")
@@ -271,18 +300,18 @@ if __name__ == '__main__':
             exit()
 
         # --------------------------------------------------------------------------------------------- Input Parameters
-##        userWorkspace = arcpy.GetParameterAsText(0)    # User-input directory where FGDB will be created
-##        inputDEM = arcpy.GetParameterAsText(1)         # DEM
-##        zUnits = arcpy.GetParameterAsText(2)           # elevation z units of input DEM
-##        AOI = arcpy.GetParameterAsText(3)              # user-input AOI
-##        interval = float(arcpy.GetParameterAsText(4))  # user defined contour interval
+        userWorkspace = arcpy.GetParameterAsText(0)    # User-input directory where FGDB will be created
+        inputDEM = arcpy.GetParameterAsText(1)         # DEM
+        zUnits = arcpy.GetParameterAsText(2)           # elevation z units of input DEM
+        AOI = arcpy.GetParameterAsText(3)              # user-input AOI
+        interval = float(arcpy.GetParameterAsText(4))  # user defined contour interval
 
         # Uncomment the following 5 lines to run from pythonWin
-        userWorkspace = r'E:\NRCS_Engineering_Tools_ArcPro\Testing'
-        inputDEM = r'E:\NRCS_Engineering_Tools_ArcPro\NRCS_Engineering_Tools_ArcPro_Update.gdb\SW_WI_GCS'
-        zUnits = "Meters"
-        AOI = r'E:\NRCS_Engineering_Tools_ArcPro\NRCS_Engineering_Tools_ArcPro_Update.gdb\Layers\Testing_AOI'
-        interval = float(10)                                 # user defined contour interval
+##        userWorkspace = r'E:\NRCS_Engineering_Tools_ArcPro\Testing'
+##        inputDEM = r'E:\NRCS_Engineering_Tools_ArcPro\NRCS_Engineering_Tools_ArcPro_Update.gdb\SW_WI'
+##        zUnits = "Meters"
+##        AOI = r'E:\NRCS_Engineering_Tools_ArcPro\NRCS_Engineering_Tools_ArcPro_Update.gdb\Testing_AOI_UTM'
+##        interval = float(10)
 
         # Set environmental variables
         arcpy.env.parallelProcessingFactor = "75%"
@@ -319,14 +348,14 @@ if __name__ == '__main__':
 
         # Permanent Datasets
         projectAOI = watershedFD + os.sep + projectName + "_AOI"
-        Contours = watershedFD + os.sep + projectName + "_Contours_" + str(interval).replace(".","_") + "ft"
+        Contours = watershedFD + os.sep + projectName + "_Contours_" + str(int(interval)).replace(".","_") + "ft"
         DEM_aoi = watershedGDB_path + os.sep + projectName + "_DEM"
         Hillshade_aoi = watershedGDB_path + os.sep + projectName + "_Hillshade"
         depthGrid = watershedGDB_path + os.sep + projectName + "_DepthGrid"
 
-        # ArcGIS Pro Map Layers
+        # ArcGIS Pro Layers
         aoiOut = "" + projectName + "_AOI"
-        contoursOut = "" + projectName + "_Contours"
+        contoursOut = "" + projectName + "_Contours_" + str(int(interval)).replace(".","_") + "ft"
         demOut = "" + projectName + "_DEM"
         hillshadeOut = "" + projectName + "_Hillshade"
         depthOut = "" + projectName + "_DepthGrid"
@@ -342,7 +371,7 @@ if __name__ == '__main__':
 
         ## ---------------------------------------------------------------------------------------------- Z-factor conversion Lookup table
         # lookup dictionary to convert XY units to area.  Key = XY unit of DEM; Value = conversion factor to sq.meters
-        acreConversionDict = {'Meter':4046.8564224,'Foot':43560,'Foot_US':43560,'Centimeter':40470000,'Inch':6273000}
+        acreConversionDict = {'Meters':4046.8564224,'Meter':4046.8564224,'Foot':43560,'Foot_US':43560,'Feet':43560, 'Centimeter':40470000,'Inch':6273000}
 
         # Assign Z-factor based on XY and Z units of DEM
         # the following represents a matrix of possible z-Factors
@@ -377,7 +406,7 @@ if __name__ == '__main__':
             if aoiDemCoordType == 'Projected':
                 arcpy.env.outputCoordinateSystem = aoiSR
             else:
-                AddMsgAndPrint("\n\t" + demName + " and AOI are in a Geographic Coordinate System",2)
+                AddMsgAndPrint("\n\t" + demName + " DEM and " + aoiName + " AOI are in a Geographic Coordinate System",2)
                 AddMsgAndPrint("\tOne of these layers must be in a Projected Coordinate System",2)
                 AddMsgAndPrint("\tContact your State GIS Coordinator to resolve this issue. Exiting!",2)
                 exit()
@@ -408,26 +437,25 @@ if __name__ == '__main__':
         AddMsgAndPrint("\tCell Size: " + str(demCellSize) + " " + linearUnits,0)
         AddMsgAndPrint("\tZ-Factor used: " + str(zFactor))
 
-        # ---------------------------------------------------------------------------------------------- Remove any project layers from ArcGIS Pro
-        x = 0
-        for layer in (demOut,hillshadeOut,depthOut):
+        # --------------------------------------------------------------------------------------- Remove any project layers from aprx and workspace
+        datasetsToRemove = (demOut,hillshadeOut,depthOut,contoursOut)       # Full path of layers
+        datasetsBaseName = [os.path.basename(x) for x in datasetsToRemove]  # layer names as they would appear in .aprx
 
-            if arcpy.Exists(layer):
-                if x == 0:
-                    AddMsgAndPrint("\nRemoving previous layers from your ArcGIS Pro session " + watershedGDB_name ,1)
-                    x+=1
+        aprx = arcpy.mp.ArcGISProject("CURRENT")
 
-                try:
-                    arcpy.Delete_management(layer)
-                    AddMsgAndPrint("\tRemoving " + layer)
-                except:
-                    pass
+        # Remove layers from ArcGIS Pro Session if executed from an .aprx
+        try:
+            for maps in aprx.listMaps():
+                for lyr in maps.listLayers():
+                    if lyr.name in datasetsBaseName:
+                        maps.removeLayer(lyr)
+        except:
+            pass
 
-        # ------------------------------------------------------------------------ If project geodatabase exists remove any previous datasets
         if arcpy.Exists(watershedGDB_path):
 
             x = 0
-            for dataset in (DEM_aoi,Hillshade,depthGrid,Contours):
+            for dataset in datasetsToRemove:
 
                 if arcpy.Exists(dataset):
 
@@ -438,11 +466,29 @@ if __name__ == '__main__':
 
                     try:
                         arcpy.Delete_management(dataset)
-                        AddMsgAndPrint("\tDeleting....." + os.path.basename(dataset),0)
+                        AddMsgAndPrint("\tDeleting....." + os.path.basename(dataset),1)
                     except:
                         pass
 
-            if not arcpy.Exists(watershedFD):
+            # FGDB feature dataset exists; make sure coordinate system
+            # is the same as arcpy.env.outputCoordinateSystem
+            if arcpy.Exists(watershedFD):
+                fdDesc = arcpy.da.Describe(watershedFD)
+                fdSR = fdDesc['spatialReference']
+
+                # recreate FD to the correct output coord system
+                if fdSR != arcpy.env.outputCoordinateSystem:
+                    arcpy.Delete_management(watershedFD)
+                    arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", arcpy.env.outputCoordinateSystem)
+
+                    # Strictly formatting
+                    if x > 0:
+                        format = "\t"
+                    else:
+                        format = "\n"
+                    AddMsgAndPrint(format + "Recreated '" + os.path.basename(watershedFD) + "' Feature Dataset b/c of Coordinate System conflict",1)
+
+            else:
                 arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", arcpy.env.outputCoordinateSystem)
 
         # ------------------------------------------------------------ If project geodatabase and feature dataset do not exist, create them.
@@ -468,15 +514,15 @@ if __name__ == '__main__':
 
                 arcpy.Delete_management(projectAOI)
                 arcpy.CopyFeatures_management(AOI, projectAOI)
-                AddMsgAndPrint("\nSuccessfully Recreated \"" + str(projectName) + "_AOI\" feature class",1)
+                AddMsgAndPrint("\nSuccessfully Recreated \"" + str(projectName) + "_AOI\" feature class")
 
             else:
                 arcpy.CopyFeatures_management(AOI, projectAOI)
-                AddMsgAndPrint("\nSuccessfully Created \"" + str(projectName) + "_AOI\" feature class",1)
+                AddMsgAndPrint("\nSuccessfully Created \"" + str(projectName) + "_AOI\" feature class")
 
         # paths are the same therefore AOI is projectAOI
         else:
-            AddMsgAndPrint("\nUsing Existing \"" + str(projectName) + "_AOI\" feature class:",1)
+            AddMsgAndPrint("\nUsing Existing \"" + str(projectName) + "_AOI\" feature class:")
 
             # Use temp lyr, delete from TOC and copy back to avoid refresh issues in arcmap
             arcpy.CopyFeatures_management(AOI, "aoiTemp")
@@ -540,15 +586,15 @@ if __name__ == '__main__':
         AddMsgAndPrint("\t" + aoiName + " Acres: " + str(splitThousands(round(acres,2))) + " Acres",0)
 
         # ------------------------------------------------------------------------------------------------- Clip inputDEM
-        # Extract DEM (GCS or PCS)
+        # DEM is in PCS (Local DEM or WMS)
         if bProjectedCS:
             outExtract = ExtractByMask(inputDEM, projectAOI)
             outExtract.save(DEM_aoi)
-            AddMsgAndPrint("\nSuccessully Clipped " + os.path.basename(inputDEM) + " using " + os.path.basename(projectAOI),1)
+            AddMsgAndPrint("\nSuccessully Clipped " + os.path.basename(inputDEM) + " DEM using " + os.path.basename(projectAOI))
 
         # DEM is in GCS (Local DEM or WMS)
         else:
-            DEM_aoi,zFactor = extractDEMfromImageService(inputDEM,zUnits)
+            DEM_aoi,zFactor = extractSubsetFromGCSdem(inputDEM,zUnits)
 
         # ------------------------------------------------------------------------------------------------ Create Smoothed Contours
         # Smooth DEM and Create Contours if user-defined interval is greater than 0 and valid
@@ -570,7 +616,7 @@ if __name__ == '__main__':
             arcpy.AddField_management(Contours, "Index", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
             arcpy.Delete_management(DEMsmooth)
 
-            AddMsgAndPrint("\nSuccessfully Created " + str(interval) + " foot Contours from " + os.path.basename(DEM_aoi) + " using a Z-factor of " + str(zFactor),1)
+            AddMsgAndPrint("\nSuccessfully Created " + str(interval) + " foot Contours from " + os.path.basename(DEM_aoi) + " using a Z-factor of " + str(zFactor))
 
             # Update Contour index value; strictly for symbolizing
             with arcpy.da.UpdateCursor(Contours,['Contour','Index']) as cursor:
@@ -625,21 +671,20 @@ if __name__ == '__main__':
         # ------------------------------------------------------------------------------------------------ Compact FGDB
         try:
             arcpy.Compact_management(watershedGDB_path)
-            AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),0)
+            AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
         except:
             pass
 
         # ------------------------------------------------------------------------------------------------ Prepare to Add to Arcmap
-##        if createContours:
-##            arcpy.SetParameterAsText(5, Contours)
-##
-##        arcpy.SetParameterAsText(6, projectAOI)
-##        arcpy.SetParameterAsText(7, DEM_aoi)
-##        arcpy.SetParameterAsText(8, Hillshade_aoi)
-##        arcpy.SetParameterAsText(9, depthGrid)
-##
-##        AddMsgAndPrint("\nAdding Layers to ArcGIS Pro",0)
-##        AddMsgAndPrint("\n")
+        if createContours:
+            arcpy.SetParameterAsText(5, Contours)
+
+        arcpy.SetParameterAsText(6, projectAOI)
+        arcpy.SetParameterAsText(7, DEM_aoi)
+        arcpy.SetParameterAsText(8, Hillshade_aoi)
+        arcpy.SetParameterAsText(9, depthGrid)
+
+        AddMsgAndPrint("\nAdding Layers to ArcGIS Pro\n")
 
     except:
         print_exception()
