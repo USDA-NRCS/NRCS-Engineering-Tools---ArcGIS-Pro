@@ -2,7 +2,7 @@
 Future home of the UDSA-NRCS Engineering Tools for ArcGIS Pro
 
 Toolset|Tool|ArcGIS Pro Compatible|
---------------------------------------------------'|-------------------------------------------------------------------'|---------------------------'|
+--------------------------------------------------|-------------------------------------------------------------------|---------------------------|
 Field Office Tools|Clip DEM to AOI||
 Field Office Tools|Create Contours from AOI||
 Field Office Tools|Create Cross Section/Profile(s)||
