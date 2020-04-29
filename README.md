@@ -33,7 +33,7 @@ Watershed Tools - Delineation|3. Create Watershed|X|
 Watershed Tools - Delineation|4. Update Watershed Attributes|X|
 Watershed Tools - Runoff Curve Number|1. Prepare Soils and Landuse||
 Watershed Tools - Runoff Curve Number|2. Calculate Runoff Curve Number||
-Watershed Tools - Storage|Calculate Stage Storage||
+Watershed Tools - Storage|Calculate Stage Storage|X|
 Watershed Tools - Storage|Create Pool at Desired Elevation||
 Watershed Tools - Storage|Estimate Pool from Contours||
 Watershed Tools - Utilities|Calculate Curve Number from NLCD||
