@@ -541,21 +541,21 @@ if __name__ == '__main__':
         # --------------------------------------------------------------------------------------------  Populate AOI with DEM Properties
         # Write input DEM name to AOI
         if len(arcpy.ListFields(projectAOI,"INPUT_DEM")) < 1:
-            arcpy.AddField_management(projectAOI, "INPUT_DEM", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+            arcpy.AddField_management(projectAOI, "INPUT_DEM", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED")
 
-        arcpy.CalculateField_management(projectAOI, "INPUT_DEM", "\"" + demName + "\"", "PYTHON3", "")
+        arcpy.CalculateField_management(projectAOI, "INPUT_DEM", "\"" + demName + "\"", "PYTHON3")
 
         # Write XY Units to AOI
         if len(arcpy.ListFields(projectAOI,"XY_UNITS")) < 1:
-            arcpy.AddField_management(projectAOI, "XY_UNITS", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+            arcpy.AddField_management(projectAOI, "XY_UNITS", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED")
 
         arcpy.CalculateField_management(projectAOI, "XY_UNITS", "\"" + linearUnits + "\"", "PYTHON3", "")
 
         # Write Z Units to AOI
         if len(arcpy.ListFields(projectAOI,"Z_UNITS")) < 1:
-            arcpy.AddField_management(projectAOI, "Z_UNITS", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+            arcpy.AddField_management(projectAOI, "Z_UNITS", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED")
 
-        arcpy.CalculateField_management(projectAOI, "Z_UNITS", "\"" + str(zUnits) + "\"", "PYTHON3", "")
+        arcpy.CalculateField_management(projectAOI, "Z_UNITS", "\"" + str(zUnits) + "\"", "PYTHON3")
 
         # Delete unwanted "Id" remanant field
         if len(arcpy.ListFields(projectAOI,"Id")) > 0:

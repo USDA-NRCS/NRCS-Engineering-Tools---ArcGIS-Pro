@@ -24,17 +24,15 @@
 # Updated  4/24/2020 - Adolfo Diaz
 #
 # - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
-# - Added functionality to utilize a DEM image service or a DEM in GCS.  Added 2 new
-#   function to handle this capability: extractSubsetFromGCSdem and getPCSresolutionFromGCSraster.
-# - If GCS DEM is used then the coordinate system of the FGDB will become the same as the AOI
-#   assuming the AOI is in a PCS.  If both AOI and DEM are in a GCS then the tool will exit.
-# - All temporary raster layers such as Fill and Minus are stored in Memory and no longer
+# - All temporary raster layers such as Times and SetNull are stored in Memory and no longer
 #   written to hard disk.
 # - All describe functions use the arcpy.da.Describe functionality.
 # - All field calculation expressions are in PYTHON3 format.
 # - Used acre conversiont dictionary and z-factor lookup table
+# - Created lookup dictionaries for acreConversions, ftConversions, volConversions
 # - All cursors were updated to arcpy.da
 # - Added code to remove layers from an .aprx rather than simply deleting them
+# - Added code to add tables to an .aprx
 # - Updated AddMsgAndPrint to remove ArcGIS 10 boolean and gp function
 # - Updated print_exception function.  Traceback functions slightly changed for Python 3.6.
 # - Added Snap Raster environment
@@ -133,57 +131,23 @@ def createPool(elevationValue,storageTxtFile):
 
         global conversionFactor,acreConversion,ftConversion,volConversion
 
-        tempDEM2 = watershedGDB_path + os.sep + "tempDEM2"
-        tempDEM3 = watershedGDB_path + os.sep + "tempDEM3"
-        tempDEM4 = watershedGDB_path + os.sep + "tempDEM4"
         poolTemp = watershedFD + os.sep + "poolTemp"
         poolTempLayer = os.path.dirname(watershedGDB_path) + os.sep + "poolTemp.shp"
 
-        # Just in case they exist Remove them
-        layersToRemove = (tempDEM2,tempDEM3,tempDEM4,poolTemp,poolTempLayer)
-
-        for layer in layersToRemove:
-            if arcpy.exists(layer):
-                try:
-                    arcpy.delete_management(layer)
-                except:
-                    pass
-
         fcName =  ("Pool_" + str(round((elevationValue * conversionFactor),1))).replace(".","_")
-
         poolExit = watershedFD + os.sep + fcName
 
         # Create new raster of only values below an elevation value
         conStatement = "Value > " + str(elevationValue)
-        arcpy.SetNull_sa(tempDEM, tempDEM, tempDEM2, conStatement)
+        valuesAboveElev = SetNull(tempDEM, tempDEM, conStatement)
 
         # Multiply every pixel by 0 and convert to integer for vectorizing
-        # with geoprocessor 9.3 you need to have 0 w/out quotes.
-        arcpy.Times_sa(tempDEM2, 0, tempDEM3)
-        arcpy.Int_sa(tempDEM3, tempDEM4)
+        zeroValues = Times(valuesAboveElev, 0)
+        zeroInt = Int(zeroValues)
 
         # Convert to polygon and dissolve
-        # This continuously fails despite changing env settings.  Works fine from python win
-        # but always fails from arcgis 10 not 9.3.  Some reason ArcGIS 10 thinks that the
-        # output of RasterToPolygon is empty....WTF!!!!
-        try:
-            arcpy.RasterToPolygon_conversion(tempDEM4, poolTemp, "NO_SIMPLIFY", "VALUE")
-
-        except:
-            if arcpy.exists(poolTemp):
-                pass
-                 #AddMsgAndPrint(" ",0)
-
-            else:
-                AddMsgAndPrint("\n" + arcpy.GetMessages(2) + "\n",2)
-                exit()
-
-        if ArcGIS10:
-            arcpy.CopyFeatures_management(poolTemp,poolTempLayer)
-            arcpy.Dissolve_management(poolTempLayer, poolExit, "", "", "MULTI_PART", "DISSOLVE_LINES")
-
-        else:
-            arcpy.Dissolve_management(poolTemp, poolExit, "", "", "MULTI_PART", "DISSOLVE_LINES")
+        arcpy.RasterToPolygon_conversion(zeroInt, poolTemp, "NO_SIMPLIFY", "VALUE")
+        arcpy.Dissolve_management(poolTemp, poolExit, "", "", "MULTI_PART", "DISSOLVE_LINES")
 
         arcpy.AddField_management(poolExit, "ELEV_FEET", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
         arcpy.AddField_management(poolExit, "POOL_ACRES", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
@@ -203,35 +167,24 @@ def createPool(elevationValue,storageTxtFile):
         poolSqftCalc = round(area2D / ftConversion)
         acreFootCalc = round(volume / volConversion,1)
 
-        arcpy.CalculateField_management(poolExit, "ELEV_FEET", elevFeetCalc, "VB")
-        arcpy.CalculateField_management(poolExit, "POOL_ACRES", poolAcresCalc, "VB")
-        arcpy.CalculateField_management(poolExit, "POOL_SQFT", poolSqftCalc, "VB")
-        arcpy.CalculateField_management(poolExit, "ACRE_FOOT", acreFootCalc, "VB")
+        arcpy.CalculateField_management(poolExit, "ELEV_FEET", elevFeetCalc,  "PYTHON3")
+        arcpy.CalculateField_management(poolExit, "POOL_ACRES", poolAcresCalc,  "PYTHON3")
+        arcpy.CalculateField_management(poolExit, "POOL_SQFT", poolSqftCalc,  "PYTHON3")
+        arcpy.CalculateField_management(poolExit, "ACRE_FOOT", acreFootCalc,  "PYTHON3")
 
-        AddMsgAndPrint("\n\tCreated " + fcName + ":",1)
-        AddMsgAndPrint("\t\tArea:   " + str(splitThousands(round(poolSqftCalc,1))) + " Sq.Feet",0)
-        AddMsgAndPrint("\t\tAcres:  " + str(splitThousands(round(poolAcresCalc,1))),0)
-        AddMsgAndPrint("\t\tVolume: " + str(splitThousands(round(acreFootCalc,1))) + " Ac. Foot",0)
+        AddMsgAndPrint("\n\tCreated " + fcName + ":")
+        AddMsgAndPrint("\t\tArea:   " + str(splitThousands(round(poolSqftCalc,1))) + " Sq.Feet")
+        AddMsgAndPrint("\t\tAcres:  " + str(splitThousands(round(poolAcresCalc,1))))
+        AddMsgAndPrint("\t\tVolume: " + str(splitThousands(round(acreFootCalc,1))) + " Ac. Foot")
 
         #------------------------------------------------------------------------------------ Delete Temp Layers
-        layersToRemove = (tempDEM2,tempDEM3,tempDEM4,poolTemp,poolTempLayer)
-
-        for layer in layersToRemove:
-            if arcpy.exists(layer):
-                try:
-                    arcpy.delete_management(layer)
-                except:
-                    pass
-
-        del tempDEM2,tempDEM3,tempDEM4,poolTemp,poolTempLayer,poolExit,conStatement,file,lines,storageTxtFile
-        del area2D,volume,elevFeetCalc,poolAcresCalc,poolSqftCalc,acreFootCalc,layersToRemove
+        arcpy.Delete_management(poolTemp)
+        del valuesAboveElev,zeroValues,zeroInt
 
     except:
         AddMsgAndPrint("\nFailed to Create Pool Polygon for elevation value: " + str(elevationValue),1)
         print_exception()
-        exit()
         return False
-
 
 ## ================================================================================================================
 def splitThousands(someNumber):
@@ -267,20 +220,20 @@ if __name__ == '__main__':
             exit()
 
         #----------------------------------------------------------------------------------------- Input Parameters
-        inputDEM = arcpy.GetParameterAsText(0)
-        zUnits = arcpy.GetParameterAsText(1)
-        inPool = arcpy.GetParameterAsText(2)
-        maxElev = float(arcpy.GetParameterAsText(3))
-        userIncrement = float(arcpy.GetParameterAsText(4))
-        bCreatePools = arcpy.GetParameterAsText(5)
+##        inputDEM = arcpy.GetParameterAsText(0)
+##        zUnits = arcpy.GetParameterAsText(1)
+##        inPool = arcpy.GetParameterAsText(2)
+##        maxElev = float(arcpy.GetParameterAsText(3))
+##        userIncrement = float(arcpy.GetParameterAsText(4))
+##        bCreatePools = arcpy.GetParameterAsText(5)
 
         # Uncomment the following 6 lines to run from pythonWin
-    ##    inputDEM = r'C:\flex\final\final_EngTools.gdb\DEM_aoi'
-    ##    inPool = r'C:\flex\final\final_EngTools.gdb\Layers\stageStoragePoly'
-    ##    maxElev = 1000
-    ##    userIncrement = 20     #feet
-    ##    zUnits = "Meters"
-    ##    bCreatePools = True
+        inputDEM = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Testing_DEM'
+        inPool = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Layers\StageStorage_Input'
+        maxElev = 1150
+        userIncrement = 40     #feet
+        zUnits = "Meters"
+        bCreatePools = True
 
         # Set environmental variables
         arcpy.env.parallelProcessingFactor = "75%"
@@ -304,22 +257,17 @@ if __name__ == '__main__':
         poolName = os.path.splitext(os.path.basename(inPool))[0]
         userWorkspace = os.path.dirname(watershedGDB_path)
 
-        # ------------------------------------------- Layers in Arcmap
+        # ------------------------------------------- ArcGIS Pro Layers
         poolMergeOut = "" + arcpy.ValidateTableName(poolName) + "_All_Pools"
         storageTableView = "Stage_Storage_Table"
 
         # Path of Log file; Log file will record everything done in a workspace
         textFilePath = userWorkspace + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.txt"
 
-        # Storage CSV file
+        # ---------------------------------------------------------------------- Outputs
+        storageTable = watershedGDB_path + os.sep + arcpy.ValidateTableName(poolName) + "_storageTable"
+        PoolMerge = watershedFD + os.sep + arcpy.ValidateTableName(poolName) + "_All_Pools"
         storageCSV = userWorkspace + os.sep + poolName + "_storageCSV.txt"
-
-        # ---------------------------------------------------------------------- Datasets
-        tempDEM = watershedGDB_path + os.sep + "tempDEM"
-
-        storageTable = watershedGDB_path + os.sep + arcpy.ValidateTablename(poolName) + "_storageTable"
-        PoolMerge = watershedFD + os.sep + arcpy.ValidateTablename(poolName) + "_All_Pools"
-
 
         if str(bCreatePools).upper() == "TRUE":
             bCreatePools = True
@@ -357,7 +305,7 @@ if __name__ == '__main__':
         acreConversionDict = {'Meters':4046.8564224,'Meter':4046.8564224,'Foot':43560,'Foot_US':43560,'Feet':43560, 'Centimeter':40470000,'Inch':6273000}
         ftConversionDict = {'Meters':0.092903,'Meter':0.092903,'Foot':1,'Foot_US':1,'Feet':1}
         volConversionDict = {'Meters':1233.48184,'Meter':1233.48184,'Foot':43560,'Foot_US':43560,'Feet':43560}
-        conversionFactorDict = {'Meters':3.280839896,'Meter':3.280839896,'Foot':1,'Foot_US':1,'Feet':1, 'Centimeter':30.4800609601219, 'Centimeter':30.4800609601219, 'Inches':0.0833333, 'Inch':0.0833333}
+        conversionFactorDict = {'Meters':3.280839896,'Meter':3.280839896,'Foot':1,'Foot_US':1,'Feet':1, 'Centimeter':0.0328084, 'Centimeters':0.0328084, 'Inches':0.0833333, 'Inch':0.0833333}
 
         # Assign Z-factor based on XY and Z units of DEM
         # the following represents a matrix of possible z-Factors
@@ -372,9 +320,9 @@ if __name__ == '__main__':
         # ---------------------------------------------------
 
         unitLookUpDict = {'Meter':0,'Meters':0,'Foot':1,'Foot_US':1,'Feet':1,'Centimeter':2,'Centimeters':2,'Inch':3,'Inches':3}
-        zFactorList = [[1,0.3048,0.01,0.0254],
+        zFactorList = [[1,0.304800609601219,0.01,0.0254],
                        [3.28084,1,0.0328084,0.083333],
-                       [100,30.48,1.0,2.54],
+                       [100,30.4800609601219,1.0,2.54],
                        [39.3701,12,0.393701,1.0]]
 
         # ---------------------------------------------------------------------------------------------- Check DEM Coordinate System and Linear Units
@@ -396,12 +344,13 @@ if __name__ == '__main__':
             zUnits = linearUnits
 
         # ----------------------------------------- Retrieve DEM Properties and set Z-unit conversion Factors
-        AddMsgAndPrint("\nGathering information about DEM: " + os.path.basename(inputDEM),1)
+        AddMsgAndPrint("\nGathering information about DEM: " + os.path.basename(inputDEM))
 
         # Coordinate System must be a Projected type in order to continue.
         if demCoordType == "Projected":
 
-            zFactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get(linearUnits)]
+            # This will be used to convert elevation values to Feet.
+            zFactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get('Feet')]
             conversionFactor = conversionFactorDict.get(zUnits)
 
             AddMsgAndPrint("\tProjection Name: " + demSR.name)
@@ -418,107 +367,89 @@ if __name__ == '__main__':
         arcpy.env.cellSize = demCellSize
         arcpy.env.snapRaster = demPath
         arcpy.env.outputCoordinateSystem = demSR
-        arcpy.env.workspace = watershedGDB_path
+        arcpy.env.workspace = watershedFD
 
         # --------------------------------------------------------------------------- Create FGDB, FeatureDataset
         # Boolean - Assume FGDB already exists
         bFGDBexists = True
 
         # Create Watershed FGDB and feature dataset if it doesn't exist
-        if not arcpy.exists(watershedGDB_path):
+        if not arcpy.Exists(watershedGDB_path):
             arcpy.CreateFileGDB_management(userWorkspace, watershedGDB_name)
             arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", demSR)
             AddMsgAndPrint("\nSuccessfully created File Geodatabase: " + watershedGDB_name,1)
             bFGDBexists = False
 
         # if GDB already existed but feature dataset doesn't
-        if not arcpy.exists(watershedFD):
+        if not arcpy.Exists(watershedFD):
             arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", demSR)
 
         # --------------------------------------------------------------------- Clean old files if FGDB already existed.
         if bFGDBexists:
 
-            layersToRemove = (PoolMerge,storageTable,tempDEM,storageCSV)
+            layersToRemove = (PoolMerge,storageTable,storageCSV)
 
             x = 0
             for layer in layersToRemove:
-
-                if arcpy.exists(layer):
+                if arcpy.Exists(layer):
 
                     # strictly for formatting
                     if x == 0:
-                        AddMsgAndPrint("\nRemoving old files from FGDB: " + watershedGDB_name ,1)
+                        AddMsgAndPrint("\nRemoving old files from FGDB: " + watershedGDB_name )
                         x += 1
 
                     try:
-                        arcpy.delete_management(layer)
-                        AddMsgAndPrint("\tDeleting....." + os.path.basename(layer),0)
+                        arcpy.Delete_management(layer)
+                        AddMsgAndPrint("\tDeleting....." + os.path.basename(layer))
                     except:
                         pass
 
-            arcpy.workspace = watershedFD
+            for poolFC in arcpy.ListFeatureClasses("Pool_*"):
 
-            poolFCs = arcpy.ListFeatureClasses("Pool_*")
+                if arcpy.Exists(poolFC):
+                    arcpy.Delete_management(poolFC)
+                    AddMsgAndPrint("\tDeleting....." + poolFC)
 
-            for poolFC in poolFCs:
+        if arcpy.Exists(storageCSV):
+            arcpy.Delete_management(storageCSV)
+            AddMsgAndPrint("\tDeleting....." + storageCSV)
 
-                if arcpy.exists(poolFC):
-                    arcpy.delete_management(poolFC)
-                    AddMsgAndPrint("\tDeleting....." + poolFC,0)
-
-            if os.path.exists(storageCSV):
-                os.remove(storageCSV)
-
-            del x,layer,layersToRemove,poolFCs
-
-        if os.path.exists(storageCSV):
-            os.remove(storageCSV)
-            AddMsgAndPrint("\tDeleting....." + storageCSV,0)
-
-        # ------------------------------------- Remove layers from ArcMap if they exist
+        # ------------------------------------- Remove layers from ArcGIS Pro if they exist
         layersToRemove = (poolMergeOut,storageTableView)
+        aprx = arcpy.mp.ArcGISProject("CURRENT")
 
-        x = 0
-        for layer in layersToRemove:
+        # Remove layers from ArcGIS Pro Session if executed from an .aprx
+        try:
+            for maps in aprx.listMaps():
+                for lyr in maps.listLayers():
+                    if lyr.name in layersToRemove:
+                        maps.removeLayer(lyr)
+        except:
+            pass
 
-            if arcpy.exists(layer):
-
-                if x == 0:
-                    AddMsgAndPrint("",1)
-                    x+=1
-
-                try:
-                    arcpy.delete_management(layer)
-                    AddMsgAndPrint("Removing previous " + layer + " from your ArcMap Session",1)
-                except:
-                    pass
-
-        del x
-        del layer
-        del layersToRemove
         # --------------------------------------------------------------------------------- ClipDEM to User's Pool or Watershed
-        arcpy.ExtractByMask_sa(inputDEM, inPool, tempDEM)
+        tempDEM = ExtractByMask(inputDEM, inPool)
 
         # User specified max elevation value must be within min-max elevation range of clipped dem
-        demTempMaxElev = round(float(arcpy.GetRasterProperties_management(tempDEM, "MAXIMUM").getOutput(0)),1)
-        demTempMinElev = round(float(arcpy.GetRasterProperties_management(tempDEM, "MINIMUM").getOutput(0)),1)
+        demTempMaxElev = round(float(arcpy.GetRasterProperties_management(tempDEM, "MAXIMUM").getOutput(0)))
+        demTempMinElev = round(float(arcpy.GetRasterProperties_management(tempDEM, "MINIMUM").getOutput(0)))
 
         # convert max elev value and increment(FT) to match the native Z-units of input DEM
-        maxElevConverted = maxElev * Zfactor
-        increment = userIncrement * Zfactor
+        maxElevConverted = maxElev * zFactor
+        increment = userIncrement * zFactor
 
         # if maxElevConverted is not within elevation range exit.
         if not demTempMinElev < maxElevConverted <= demTempMaxElev:
 
             AddMsgAndPrint("\nThe Max Elevation value specified is not within the elevation range of your watershed-pool area",2)
             AddMsgAndPrint("Elevation Range of your watershed-pool polygon is:",2)
-            AddMsgAndPrint("\tMaximum Elevation: " + str(demTempMaxElev) + " " + zUnits + " ---- " + str(round(float(demTempMaxElev*conversionFactor),1)) + " Feet",0)
-            AddMsgAndPrint("\tMinimum Elevation: " + str(demTempMinElev) + " " + zUnits + " ---- " + str(round(float(demTempMinElev*conversionFactor),1)) + " Feet",0)
+            AddMsgAndPrint("\tMaximum Elevation: " + str(demTempMaxElev) + " " + zUnits + " ---- " + str(round(float(demTempMaxElev*conversionFactor),1)) + " Feet")
+            AddMsgAndPrint("\tMinimum Elevation: " + str(demTempMinElev) + " " + zUnits + " ---- " + str(round(float(demTempMinElev*conversionFactor),1)) + " Feet")
             AddMsgAndPrint("Please enter an elevation value within this range.....Exiting!\n\n",2)
             exit()
 
         else:
-            AddMsgAndPrint("\nSuccessfully clipped DEM to " + os.path.basename(inPool),1)
+            AddMsgAndPrint("\nSuccessfully clipped DEM to " + os.path.basename(inPool))
 
         # --------------------------------------------------------------------------------- Set Elevations to calculate volume and surface area
         try:
@@ -527,74 +458,56 @@ if __name__ == '__main__':
             while maxElevConverted > demTempMinElev:
 
                 if i == 1:
-                    AddMsgAndPrint("\nDeriving Surface Volume for elevation values between " + str(round(demTempMinElev * conversionFactor,1)) + " and " + str(maxElev) + " FT every " + str(userIncrement) + " FT" ,1)
+                    AddMsgAndPrint("\nDeriving Surface Volume for elevation values between " + str(round(demTempMinElev * conversionFactor,1)) + " and " + str(maxElev) + " FT every " + str(userIncrement) + " FT")
                     numOfPoolsToCreate = str(int(round((maxElevConverted - demTempMinElev)/increment)))
-                    AddMsgAndPrint(numOfPoolsToCreate + " Pool Feature Classes will be created",1)
+                    AddMsgAndPrint(numOfPoolsToCreate + " Pool Feature Classes will be created")
                     i+=1
 
                 arcpy.SurfaceVolume_3d(tempDEM, storageCSV, "BELOW", maxElevConverted, "1")
 
                 if bCreatePools:
-
                     if not createPool(maxElevConverted,storageCSV):
                         pass
 
                 maxElevConverted = maxElevConverted - increment
 
-            del i
-
         except:
             print_exception()
             exit()
 
-        if arcpy.exists(tempDEM):
-            arcpy.delete_management(tempDEM)
+        arcpy.Delete_management(tempDEM)
 
         #------------------------------------------------------------------------ Convert StorageCSV to FGDB Table and populate fields.
-        arcpy.CopyRows_management(storageCSV, storageTable, "")
-        arcpy.AddField_management(storageTable, "ELEV_FEET", "DOUBLE", "5", "1", "", "", "NULLABLE", "NON_REQUIRED", "")
-        arcpy.AddField_management(storageTable, "POOL_ACRES", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-        arcpy.AddField_management(storageTable, "POOL_SQFT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-        arcpy.AddField_management(storageTable, "ACRE_FOOT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+        arcpy.CopyRows_management(storageCSV, storageTable)
+        arcpy.AlterAliasName(storageTable,storageTableView)
 
-        elevFeetCalc = "round([Plane_Height] *" + str(conversionFactor) + ",1)"
-        poolAcresCalc = "round([Area_2D] /" + str(acreConversion) + ",1)"
-        poolSqftCalc = "round([Area_2D] /" + str(ftConversion) + ",1)"
-        acreFootCalc = "round([Volume] /" + str(volConversion) + ",1)"
+        arcpy.AddField_management(storageTable, "ELEV_FEET", "DOUBLE", "5", "1", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(storageTable, "POOL_ACRES", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(storageTable, "POOL_SQFT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(storageTable, "ACRE_FOOT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
 
-        arcpy.CalculateField_management(storageTable, "ELEV_FEET", elevFeetCalc, "VB")
-        arcpy.CalculateField_management(storageTable, "POOL_ACRES", poolAcresCalc, "VB")
-        arcpy.CalculateField_management(storageTable, "POOL_SQFT", poolSqftCalc, "VB")
-        arcpy.CalculateField_management(storageTable, "ACRE_FOOT", acreFootCalc, "VB")
+        elevFeetCalc = "round(!Plane_Height! *" + str(conversionFactor) + ",1)"
+        poolAcresCalc = "round(!Area_2D! /" + str(acreConversion) + ",1)"
+        poolSqftCalc = "round(!Area_2D! /" + str(ftConversion) + ",1)"
+        acreFootCalc = "round(!Volume! /" + str(volConversion) + ",1)"
 
-        del elevFeetCalc,poolAcresCalc,poolSqftCalc,acreFootCalc
+        arcpy.CalculateField_management(storageTable, "ELEV_FEET", elevFeetCalc, "PYTHON3")
+        arcpy.CalculateField_management(storageTable, "POOL_ACRES", poolAcresCalc, "PYTHON3")
+        arcpy.CalculateField_management(storageTable, "POOL_SQFT", poolSqftCalc, "PYTHON3")
+        arcpy.CalculateField_management(storageTable, "ACRE_FOOT", acreFootCalc, "PYTHON3")
 
-        AddMsgAndPrint("\nSuccessfully Created " + os.path.basename(storageTable),1)
+        AddMsgAndPrint("\nSuccessfully Created " + os.path.basename(storageTable))
 
-        #------------------------------------------------------------------------ Append all Pool Polygons together
+        if arcpy.Exists(storageCSV):
+            arcpy.Delete_management(storageCSV)
+
+        #------------------------------------------------------------------------ Merge all Pool Polygons together
         if bCreatePools:
 
-            mergeList = ""
-
-            i = 1
-            arcpy.workspace = watershedFD
             poolFCs = arcpy.ListFeatureClasses("Pool_*")
+            arcpy.Merge_management(poolFCs,PoolMerge)
 
-            for poolFC in poolFCs:
-
-                if i == 1:
-                    mergeList = arcpy.Describe(poolFC).CatalogPath + ";"
-
-                else:
-                    mergeList = mergeList + ";" + arcpy.Describe(poolFC).CatalogPath
-
-                i+=1
-
-            arcpy.Merge_management(mergeList,PoolMerge)
-
-            AddMsgAndPrint("\nSuccessfully Merged Pools into " + os.path.basename(PoolMerge),1)
-
-            del mergeList,poolFCs,i
+            AddMsgAndPrint("\nSuccessfully Merged Pools into " + os.path.basename(PoolMerge))
 
         # ------------------------------------------------------------------------------------------------ Compact FGDB
         try:
@@ -608,17 +521,16 @@ if __name__ == '__main__':
         if bCreatePools:
             arcpy.SetParameterAsText(7, PoolMerge)
 
-        # Create a table view from the storage table to add to Arcmap
-        arcpy.maketableview_management(storageTable,storageTableView)
+        #arcpy.MakeTableView_management(storageTable,storageTableView)
+        aprx = arcpy.mp.ArcGISProject("CURRENT")
+        tab = arcpy.mp.Table(storageTable)
 
-
-        if os.path.exists(storageCSV):
-            try:
-                os.path.remove(storageCSV)
-            except:
-                pass
-
-        del storageCSV
+        # Add Storage Table to ArcGIS Pro Map
+        for maps in aprx.listMaps():
+            for lyr in maps.listLayers():
+                if lyr.name in (demName, arcpy.da.Describe(inPool)['name']):
+                    maps.addTable(tab)
+                    break
 
     except:
         print_exception()
