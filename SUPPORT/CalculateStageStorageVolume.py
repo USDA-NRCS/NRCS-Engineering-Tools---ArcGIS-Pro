@@ -26,8 +26,12 @@
 # - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
 # - All temporary raster layers such as Times and SetNull are stored in Memory and no longer
 #   written to hard disk.
+# - Made the output pool feature classes and storage tables the same schema and added a few
+#   more fields to be more comprehensive.
 # - All describe functions use the arcpy.da.Describe functionality.
 # - All field calculation expressions are in PYTHON3 format.
+# - Created dictionaries for all conversion units and factors and renamed them to more
+# - logical names.
 # - Used acre conversiont dictionary and z-factor lookup table
 # - Created lookup dictionaries for acreConversions, ftConversions, convToAcreFootFactors
 # - All cursors were updated to arcpy.da
@@ -106,8 +110,10 @@ def logBasicSettings():
     f.write("User Parameters:\n")
     f.write("\tWorkspace: " + userWorkspace + "\n")
     f.write("\tInput Dem: " + arcpy.Describe(inputDEM).CatalogPath + "\n")
+    f.write("\tInput Watershed or Pool Polygon: " + str(inPool) + "\n")
     f.write("\tMaximum Elevation: " + str(maxElev) + " Feet\n")
     f.write("\tAnalysis Increment: " + str(userIncrement) + " Feet\n")
+
 
     if len(zUnits) > 0:
         f.write("\tElevation Z-units: " + zUnits + "\n")
@@ -540,7 +546,7 @@ if __name__ == '__main__':
         arcpy.Compact_management(watershedGDB_path)
         AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
-        # ------------------------------------------------------------------------------------------------ Prepare to Add to Arcmap
+        # ------------------------------------------------------------------------------------------------ Prepare to Add to ArcGIS Pro
 
         if bCreatePools:
             arcpy.SetParameterAsText(7, PoolMerge)
