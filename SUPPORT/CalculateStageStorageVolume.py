@@ -1,5 +1,5 @@
 # ==========================================================================================
-# Name: StageStorage.py
+# Name: CalculateStageStorage.py
 #
 # Author: Peter Mead
 # e-mail: pemead@co.becker.mn.us
@@ -29,7 +29,7 @@
 # - All describe functions use the arcpy.da.Describe functionality.
 # - All field calculation expressions are in PYTHON3 format.
 # - Used acre conversiont dictionary and z-factor lookup table
-# - Created lookup dictionaries for acreConversions, ftConversions, volConversions
+# - Created lookup dictionaries for acreConversions, ftConversions, convToAcreFootFactors
 # - All cursors were updated to arcpy.da
 # - Added code to remove layers from an .aprx rather than simply deleting them
 # - Added code to add tables to an .aprx
@@ -129,15 +129,15 @@ def createPool(elevationValue,storageTxtFile):
 
     try:
 
-        global conversionFactor,acreConversion,ftConversion,volConversion
+        global convToFeetFactor,acreConversion,ftConversion,convToAcreFootFactor
 
-        poolTemp = watershedFD + os.sep + "poolTemp"
-        poolTempLayer = os.path.dirname(watershedGDB_path) + os.sep + "poolTemp.shp"
+        poolPolygonTemp = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("poolPolygonTemp",data_type="FeatureClass",workspace=watershedGDB_path))
 
-        fcName =  ("Pool_" + str(round((elevationValue * conversionFactor),1))).replace(".","_")
+        fcName =  ("Pool_" + str(round((elevationValue * convToFeetFactor),1))).replace(".","_")
         poolExit = watershedFD + os.sep + fcName
 
-        # Create new raster of only values below an elevation value
+        # Create new raster of only values below an elevation value by nullifying
+        # cells above the desired elevation value.
         conStatement = "Value > " + str(elevationValue)
         valuesAboveElev = SetNull(tempDEM, tempDEM, conStatement)
 
@@ -146,13 +146,16 @@ def createPool(elevationValue,storageTxtFile):
         zeroInt = Int(zeroValues)
 
         # Convert to polygon and dissolve
-        arcpy.RasterToPolygon_conversion(zeroInt, poolTemp, "NO_SIMPLIFY", "VALUE")
-        arcpy.Dissolve_management(poolTemp, poolExit, "", "", "MULTI_PART", "DISSOLVE_LINES")
+        arcpy.RasterToPolygon_conversion(zeroInt, poolPolygonTemp, "NO_SIMPLIFY", "VALUE")
+        arcpy.Dissolve_management(poolPolygonTemp, poolExit, "", "", "MULTI_PART", "DISSOLVE_LINES")
 
-        arcpy.AddField_management(poolExit, "ELEV_FEET", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-        arcpy.AddField_management(poolExit, "POOL_ACRES", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-        arcpy.AddField_management(poolExit, "POOL_SQFT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-        arcpy.AddField_management(poolExit, "ACRE_FOOT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+        arcpy.AddField_management(poolExit, "ELEV_FEET", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(poolExit, "DEM_ELEV", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(poolExit, "POOL_ACRES", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(poolExit, "POOL_SQFT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(poolExit, "ACRE_FOOT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(poolExit, "CUBIC_FEET", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(poolExit, "CUBIC_METERS", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
 
         # open storageCSV file and read the last line which should represent the last pool
         file = open(storageTxtFile)
@@ -162,24 +165,34 @@ def createPool(elevationValue,storageTxtFile):
         area2D = float(lines[len(lines)-1].split(',')[4])
         volume = float(lines[len(lines)-1].split(',')[6])
 
-        elevFeetCalc = round(elevationValue * conversionFactor,1)
+        elevFeetCalc = round(elevationValue * convToFeetFactor,1)
         poolAcresCalc = round(area2D / acreConversion,1)
-        poolSqftCalc = round(area2D / ftConversion)
-        acreFootCalc = round(volume / volConversion,1)
+        poolSqftCalc = round(area2D / ftConversion,1)
+        acreFootCalc = round(volume / convToAcreFootFactor,1)
+        cubicMeterCalc = round(volume * convToCubicMeterFactor,1)
+        cubicFeetCalc = round(volume * convToCubicFeetFactor,1)
 
         arcpy.CalculateField_management(poolExit, "ELEV_FEET", elevFeetCalc,  "PYTHON3")
+        arcpy.CalculateField_management(poolExit, "DEM_ELEV", elevationValue,  "PYTHON3")
         arcpy.CalculateField_management(poolExit, "POOL_ACRES", poolAcresCalc,  "PYTHON3")
         arcpy.CalculateField_management(poolExit, "POOL_SQFT", poolSqftCalc,  "PYTHON3")
         arcpy.CalculateField_management(poolExit, "ACRE_FOOT", acreFootCalc,  "PYTHON3")
+        arcpy.CalculateField_management(poolExit, "CUBIC_METERS", cubicMeterCalc,  "PYTHON3")
+        arcpy.CalculateField_management(poolExit, "CUBIC_FEET", cubicFeetCalc,  "PYTHON3")
 
         AddMsgAndPrint("\n\tCreated " + fcName + ":")
-        AddMsgAndPrint("\t\tArea:   " + str(splitThousands(round(poolSqftCalc,1))) + " Sq.Feet")
-        AddMsgAndPrint("\t\tAcres:  " + str(splitThousands(round(poolAcresCalc,1))))
-        AddMsgAndPrint("\t\tVolume: " + str(splitThousands(round(acreFootCalc,1))) + " Ac. Foot")
+        AddMsgAndPrint("\t\tElevation " + str(elevFeetCalc) + " Ft")
+        AddMsgAndPrint("\t\tArea:   " + str(splitThousands(poolSqftCalc)) + " Sq.Feet")
+        AddMsgAndPrint("\t\tArea:   " + str(splitThousands(poolAcresCalc)) + " Acres")
+        AddMsgAndPrint("\t\tVolume: " + str(splitThousands(acreFootCalc)) + " Ac. Foot")
+        AddMsgAndPrint("\t\tVolume: " + str(splitThousands(cubicMeterCalc)) + " Cubic Meters")
+        AddMsgAndPrint("\t\tVolume: " + str(splitThousands(cubicFeetCalc)) + " Cubic Feet")
 
         #------------------------------------------------------------------------------------ Delete Temp Layers
-        arcpy.Delete_management(poolTemp)
+        arcpy.Delete_management(poolPolygonTemp)
         del valuesAboveElev,zeroValues,zeroInt
+
+        return True
 
     except:
         AddMsgAndPrint("\nFailed to Create Pool Polygon for elevation value: " + str(elevationValue),1)
@@ -220,20 +233,20 @@ if __name__ == '__main__':
             exit()
 
         #----------------------------------------------------------------------------------------- Input Parameters
-##        inputDEM = arcpy.GetParameterAsText(0)
-##        zUnits = arcpy.GetParameterAsText(1)
-##        inPool = arcpy.GetParameterAsText(2)
-##        maxElev = float(arcpy.GetParameterAsText(3))
-##        userIncrement = float(arcpy.GetParameterAsText(4))
-##        bCreatePools = arcpy.GetParameterAsText(5)
+        inputDEM = arcpy.GetParameterAsText(0)
+        zUnits = arcpy.GetParameterAsText(1)
+        inPool = arcpy.GetParameterAsText(2)
+        maxElev = float(arcpy.GetParameterAsText(3))
+        userIncrement = float(arcpy.GetParameterAsText(4))
+        bCreatePools = arcpy.GetParameterAsText(5)
 
         # Uncomment the following 6 lines to run from pythonWin
-        inputDEM = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Testing_DEM'
-        inPool = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Layers\StageStorage_Input'
-        maxElev = 1150
-        userIncrement = 40     #feet
-        zUnits = "Meters"
-        bCreatePools = True
+##        inputDEM = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Testing_DEM'
+##        inPool = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Layers\StageStorage_Input'
+##        maxElev = 1150
+##        userIncrement = 40     #feet
+##        zUnits = "Meters"
+##        bCreatePools = True
 
         # Set environmental variables
         arcpy.env.parallelProcessingFactor = "75%"
@@ -304,8 +317,10 @@ if __name__ == '__main__':
         # lookup dictionary to convert XY units to area.  Key = XY unit of DEM; Value = conversion factor to sq.meters
         acreConversionDict = {'Meters':4046.8564224,'Meter':4046.8564224,'Foot':43560,'Foot_US':43560,'Feet':43560, 'Centimeter':40470000,'Inch':6273000}
         ftConversionDict = {'Meters':0.092903,'Meter':0.092903,'Foot':1,'Foot_US':1,'Feet':1}
-        volConversionDict = {'Meters':1233.48184,'Meter':1233.48184,'Foot':43560,'Foot_US':43560,'Feet':43560}
-        conversionFactorDict = {'Meters':3.280839896,'Meter':3.280839896,'Foot':1,'Foot_US':1,'Feet':1, 'Centimeter':0.0328084, 'Centimeters':0.0328084, 'Inches':0.0833333, 'Inch':0.0833333}
+        conversionToAcreFootDict = {'Meters':1233.48184,'Meter':1233.48184,'Foot':43560,'Foot_US':43560,'Feet':43560}  # to acre Foot
+        conversionToFtFactorDict = {'Meters':3.280839896,'Meter':3.280839896,'Foot':1,'Foot_US':1,'Feet':1, 'Centimeter':0.0328084, 'Centimeters':0.0328084, 'Inches':0.0833333, 'Inch':0.0833333}
+        conversionToCubicMetersDict = {'Meters':1,'Meter':1,'Foot':0.0283168,'Foot_US':0.0283168,'Feet':0.0283168}
+        conversionToCubicFeetDict = {'Meters':35.3147,'Meter':35.3147,'Foot':1,'Foot_US':1,'Feet':1}
 
         # Assign Z-factor based on XY and Z units of DEM
         # the following represents a matrix of possible z-Factors
@@ -337,7 +352,9 @@ if __name__ == '__main__':
 
         acreConversion = acreConversionDict.get(linearUnits)
         ftConversion = ftConversionDict.get(linearUnits)
-        volConversion = volConversionDict.get(linearUnits)
+        convToAcreFootFactor = conversionToAcreFootDict.get(linearUnits)
+        convToCubicMeterFactor = conversionToCubicMetersDict.get(linearUnits)
+        convToCubicFeetFactor = conversionToCubicFeetDict.get(linearUnits)
 
         # if zUnits were left blank than assume Z-values are the same as XY units.
         if not len(zUnits) > 0:
@@ -351,7 +368,7 @@ if __name__ == '__main__':
 
             # This will be used to convert elevation values to Feet.
             zFactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get('Feet')]
-            conversionFactor = conversionFactorDict.get(zUnits)
+            convToFeetFactor = conversionToFtFactorDict.get(zUnits)
 
             AddMsgAndPrint("\tProjection Name: " + demSR.name)
             AddMsgAndPrint("\tXY Linear Units: " + linearUnits)
@@ -443,8 +460,8 @@ if __name__ == '__main__':
 
             AddMsgAndPrint("\nThe Max Elevation value specified is not within the elevation range of your watershed-pool area",2)
             AddMsgAndPrint("Elevation Range of your watershed-pool polygon is:",2)
-            AddMsgAndPrint("\tMaximum Elevation: " + str(demTempMaxElev) + " " + zUnits + " ---- " + str(round(float(demTempMaxElev*conversionFactor),1)) + " Feet")
-            AddMsgAndPrint("\tMinimum Elevation: " + str(demTempMinElev) + " " + zUnits + " ---- " + str(round(float(demTempMinElev*conversionFactor),1)) + " Feet")
+            AddMsgAndPrint("\tMaximum Elevation: " + str(demTempMaxElev) + " " + zUnits + " ---- " + str(round(float(demTempMaxElev*convToFeetFactor),1)) + " Feet")
+            AddMsgAndPrint("\tMinimum Elevation: " + str(demTempMinElev) + " " + zUnits + " ---- " + str(round(float(demTempMinElev*convToFeetFactor),1)) + " Feet")
             AddMsgAndPrint("Please enter an elevation value within this range.....Exiting!\n\n",2)
             exit()
 
@@ -458,7 +475,7 @@ if __name__ == '__main__':
             while maxElevConverted > demTempMinElev:
 
                 if i == 1:
-                    AddMsgAndPrint("\nDeriving Surface Volume for elevation values between " + str(round(demTempMinElev * conversionFactor,1)) + " and " + str(maxElev) + " FT every " + str(userIncrement) + " FT")
+                    AddMsgAndPrint("\nDeriving Surface Volume for elevation values between " + str(round(demTempMinElev * convToFeetFactor,1)) + " and " + str(maxElev) + " FT every " + str(userIncrement) + " FT")
                     numOfPoolsToCreate = str(int(round((maxElevConverted - demTempMinElev)/increment)))
                     AddMsgAndPrint(numOfPoolsToCreate + " Pool Feature Classes will be created")
                     i+=1
@@ -467,7 +484,8 @@ if __name__ == '__main__':
 
                 if bCreatePools:
                     if not createPool(maxElevConverted,storageCSV):
-                        pass
+                        AddMsgAndPrint("\nFailed To Create Pool at elevation: " + str(maxElevConverted),2)
+                        exit()
 
                 maxElevConverted = maxElevConverted - increment
 
@@ -482,19 +500,28 @@ if __name__ == '__main__':
         arcpy.AlterAliasName(storageTable,storageTableView)
 
         arcpy.AddField_management(storageTable, "ELEV_FEET", "DOUBLE", "5", "1", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(storageTable, "DEM_ELEV", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
         arcpy.AddField_management(storageTable, "POOL_ACRES", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
         arcpy.AddField_management(storageTable, "POOL_SQFT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
         arcpy.AddField_management(storageTable, "ACRE_FOOT", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.AddField_management(storageTable, "CUBIC_FEET", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+        arcpy.AddField_management(storageTable, "CUBIC_METERS", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
 
-        elevFeetCalc = "round(!Plane_Height! *" + str(conversionFactor) + ",1)"
+        demElevCalc = "round(!Plane_Height!)"
+        elevFeetCalc = "round(!Plane_Height! *" + str(convToFeetFactor) + ",1)"
         poolAcresCalc = "round(!Area_2D! /" + str(acreConversion) + ",1)"
         poolSqftCalc = "round(!Area_2D! /" + str(ftConversion) + ",1)"
-        acreFootCalc = "round(!Volume! /" + str(volConversion) + ",1)"
+        acreFootCalc = "round(!Volume! /" + str(convToAcreFootFactor) + ",1)"
+        cubicMeterCalc = "round(!Volume! *" + str(convToCubicMeterFactor) + ",1)"
+        cubicFeetCalc = "round(!Volume! *" + str(convToCubicFeetFactor) + ",1)"
 
+        arcpy.CalculateField_management(storageTable, "DEM_ELEV", demElevCalc,  "PYTHON3")
         arcpy.CalculateField_management(storageTable, "ELEV_FEET", elevFeetCalc, "PYTHON3")
         arcpy.CalculateField_management(storageTable, "POOL_ACRES", poolAcresCalc, "PYTHON3")
         arcpy.CalculateField_management(storageTable, "POOL_SQFT", poolSqftCalc, "PYTHON3")
         arcpy.CalculateField_management(storageTable, "ACRE_FOOT", acreFootCalc, "PYTHON3")
+        arcpy.CalculateField_management(storageTable, "CUBIC_METERS", cubicMeterCalc,  "PYTHON3")
+        arcpy.CalculateField_management(storageTable, "CUBIC_FEET", cubicFeetCalc,  "PYTHON3")
 
         AddMsgAndPrint("\nSuccessfully Created " + os.path.basename(storageTable))
 
@@ -510,11 +537,8 @@ if __name__ == '__main__':
             AddMsgAndPrint("\nSuccessfully Merged Pools into " + os.path.basename(PoolMerge))
 
         # ------------------------------------------------------------------------------------------------ Compact FGDB
-        try:
-            arcpy.compact_management(watershedGDB_path)
-            AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),1)
-        except:
-            pass
+        arcpy.Compact_management(watershedGDB_path)
+        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
         # ------------------------------------------------------------------------------------------------ Prepare to Add to Arcmap
 

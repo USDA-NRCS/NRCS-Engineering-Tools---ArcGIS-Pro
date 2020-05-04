@@ -288,11 +288,8 @@ if __name__ == '__main__':
         time.sleep(3)
 
         # ------------------------------------------------------------------------------------------------ Compact FGDB
-        try:
-            arcpy.compact_management(watershedGDB_path)
-            AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),1)
-        except:
-            pass
+        arcpy.Compact_management(watershedGDB_path)
+        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),1)
 
     except:
         print_exception()

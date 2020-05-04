@@ -415,11 +415,8 @@ if __name__ == '__main__':
         arcpy.Delete_management(outStreamLink)
 
         # ------------------------------------------------------------------------------------------------ Compact FGDB
-        try:
-            arcpy.Compact_management(watershedGDB_path)
-            AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
-        except:
-            pass
+        arcpy.Compact_management(watershedGDB_path)
+        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
         # ------------------------------------------------------------------------------------------------ Prepare to Add to Arcmap
 
