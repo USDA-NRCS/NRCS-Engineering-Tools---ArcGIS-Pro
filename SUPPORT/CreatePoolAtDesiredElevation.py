@@ -31,6 +31,8 @@
 # - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
 # - All temporary raster layers such as Times and SetNull are stored in Memory and no longer
 #   written to hard disk.
+# - Created new symbologoy layer CreatePoolAtDesiredElevation.lyrx b/c the old oned didn't
+#   label the output polygon.
 # - All describe functions use the arcpy.da.Describe functionality.
 # - All field calculation expressions are in PYTHON3 format.
 # - Created dictionaries for all conversion units and factors and renamed them to more
@@ -263,7 +265,6 @@ if __name__ == '__main__':
 
         watershedGDB_name = os.path.basename(watershedGDB_path)
         watershedFD = watershedGDB_path + os.sep + "Layers"
-        #poolName = os.path.splitext(os.path.basename(inPool))[0]
         poolName = os.path.basename(inPool) + "_Pool_" + str(maxElev).replace(".","_")
         poolExit = watershedFD + os.sep + poolName
 
