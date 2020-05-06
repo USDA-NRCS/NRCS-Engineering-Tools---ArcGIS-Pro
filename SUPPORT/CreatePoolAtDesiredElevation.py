@@ -103,31 +103,37 @@ def AddMsgAndPrint(msg, severity=0):
 def logBasicSettings():
     # record basic user inputs and settings to log file for future purposes
 
-    import getpass, time
-    arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
+    try:
 
-    f = open(textFilePath,'a+')
-    f.write("\n################################################################################################################\n")
-    f.write("Executing \"Calculate Stage Storage Volume\" Tool\n")
-    f.write("User Name: " + getpass.getuser() + "\n")
-    f.write("Date Executed: " + time.ctime() + "\n")
-    f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
-    f.write("User Parameters:\n")
-    f.write("\tWorkspace: " + userWorkspace + "\n")
-    f.write("\tInput Dem: " + arcpy.Describe(inputDEM).CatalogPath + "\n")
-    f.write("\tInput Watershed Boundary: " + str(inPool) + "\n")
-    f.write("\tPool Elevation: " + str(maxElev) + " Feet\n")
-    f.write("\tOutput Pool Polygon: " + str(poolExit) + "\n")
+        import getpass, time
+        arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
 
-    if len(zUnits) > 0:
-        f.write("\tElevation Z-units: " + zUnits + "\n")
-    else:
-        f.write("\tElevation Z-units: BLANK" + "\n")
+        f = open(textFilePath,'a+')
+        f.write("\n################################################################################################################\n")
+        f.write("Executing \"Calculate Stage Storage Volume\" Tool\n")
+        f.write("User Name: " + getpass.getuser() + "\n")
+        f.write("Date Executed: " + time.ctime() + "\n")
+        f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
+        f.write("User Parameters:\n")
+        f.write("\tWorkspace: " + userWorkspace + "\n")
+        f.write("\tInput Dem: " + arcpy.Describe(inputDEM).CatalogPath + "\n")
+        f.write("\tInput Watershed Boundary: " + str(inPool) + "\n")
+        f.write("\tPool Elevation: " + str(maxElev) + " Feet\n")
+        f.write("\tOutput Pool Polygon: " + str(poolExit) + "\n")
 
-    f.write("\tInput Watershed or Pool Mask: " + str(inPool) + "\n")
+        if len(zUnits) > 0:
+            f.write("\tElevation Z-units: " + zUnits + "\n")
+        else:
+            f.write("\tElevation Z-units: BLANK" + "\n")
 
-    f.close
-    del f
+        f.write("\tInput Watershed or Pool Mask: " + str(inPool) + "\n")
+
+        f.close
+        del f
+
+    except:
+        print_exception()
+        exit()
 
 ## ================================================================================================================
 def createPool(elevationValue,storageTxtFile):
