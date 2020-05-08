@@ -220,7 +220,7 @@ def splitThousands(someNumber):
 
 ## ================================================================================================================
 # Import system modules
-import sys, os, string, traceback, re
+import arcpy, sys, os, string, traceback, re
 from arcpy.sa import *
 
 if __name__ == '__main__':

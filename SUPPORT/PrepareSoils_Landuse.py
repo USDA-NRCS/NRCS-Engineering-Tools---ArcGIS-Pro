@@ -23,6 +23,13 @@
 # ==========================================================================================
 # Updated  5/4/2020 - Adolfo Diaz
 #
+# - Removed entire section of 'Remove domains from fields if they exist'  This section
+#   makes no sense b/c landuse and wssoils do NOT exist yet so there is nothing to remove
+#   from.
+# - No longer check to see if soils, clu or watershed are polygons.  The tool properties
+#   will check for this.
+# - No longer check for presence of hydrologic field since it is a dependency of the soils
+#   layer.
 # - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
 # - Added functionality to utilize a DEM image service or a DEM in GCS.  Added 2 new
 #   function to handle this capability: extractSubsetFromGCSdem and getPCSresolutionFromGCSraster.
@@ -111,7 +118,7 @@ def logBasicSettings():
         f.write("User Parameters:\n")
         f.write("\tWorkspace: " + userWorkspace + "\n")
         f.write("\tInput Soils Data: " + inSoils + "\n")
-        f.write("\tInput Hydro Groups Field: " + inputField + "\n")
+        f.write("\tInput Hydro Groups Field: " + hydroField + "\n")
 
         if bSplitLU:
             f.write("\tInput CLU Layer: " + inCLU + " \n")
@@ -127,42 +134,48 @@ def logBasicSettings():
 
 ## ================================================================================================================
 # Import system modules
-import sys, os, string, traceback
+import arcpy, sys, os, string, traceback
 from arcpy.sa import *
 
 if __name__ == '__main__':
 
     try:
-
         # Script Parameters
-        inWatershed = arcpy.getparameterAstext(0)
+        inWatershed = arcpy.GetParameterAsText(0)
         inSoils = arcpy.GetParameterAsText(1)
-        inputField = arcpy.GetParameterAsText(2)
+        hydroField = arcpy.GetParameterAsText(2)
         inCLU = arcpy.GetParameterAsText(3)
 
         # Uncomment the following 6 lines to run from pythonWin
-    ##    inWatershed = r'C:\flex\flex_EngTools.gdb\Layers\testing10_Watershed'
-    ##    inSoils = r'C:\flex\soilmu_a_wi025.shp'
-    ##    inputField = r'HydGroup'
-    ##    inCLU = r'G:\MLRAData\common_land_unit\clu_a_wi_201110.shp'
+##        inWatershed = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Layers\ProWatershed'
+##        inSoils = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Layers\WI025_soils'
+##        hydroField = r'HYDROLGRP_DCD'
+##        inCLU = ''
+
+        # Set environmental variables
+        arcpy.env.parallelProcessingFactor = "75%"
+        arcpy.env.overwriteOutput = True
 
         # --------------------------------------------------------------------------- Define Variables
-        inWatershed = arcpy.da.Describe(inWatershed)['catalogPath']
+        wshdDesc = arcpy.da.Describe(inWatershed)
+        inWatershedPath = wshdDesc['catalogPath']
+        wshdSR = wshdDesc['spatialReference']
+
         inSoils = arcpy.da.Describe(inSoils)['catalogPath']
 
-        if inWatershed.find('.gdb') > -1 or inWatershed.find('.mdb') > -1:
+        if inWatershedPath.find('.gdb') > -1 or inWatershedPath.find('.mdb') > -1:
 
-            # inWatershed was created using 'Create Watershed Tool'
-            if inWatershed.find('_EngTools'):
-                watershedGDB_path = inWatershed[:inWatershed.find('.') + 4]
+            # inWatershedPath was created using 'Create Watershed Tool'
+            if inWatershedPath.find('_EngTools'):
+                watershedGDB_path = inWatershedPath[:inWatershedPath.find('.') + 4]
 
-            # inWatershed is a fc from a DB not created using 'Create Watershed Tool'
+            # inWatershedPath is a fc from a DB not created using 'Create Watershed Tool'
             else:
-                watershedGDB_path = os.path.dirname(inWatershed[:inWatershed.find('.')+4]) + os.sep + os.path.basename(inWatershed).replace(" ","_") + "_EngTools.gdb"
+                watershedGDB_path = os.path.dirname(inWatershedPath[:inWatershedPath.find('.')+4]) + os.sep + os.path.basename(inWatershedPath).replace(" ","_") + "_EngTools.gdb"
 
-        # inWatershed is a shapefile
-        elif inWatershed.find('.shp')> -1:
-            watershedGDB_path = os.path.dirname(inWatershed[:inWatershed.find('.')+4]) + os.sep + os.path.basename(inWatershed).replace(".shp","").replace(" ","_") + "_EngTools.gdb"
+        # inWatershedPath is a shapefile
+        elif inWatershedPath.find('.shp')> -1:
+            watershedGDB_path = os.path.dirname(inWatershedPath[:inWatershedPath.find('.')+4]) + os.sep + os.path.basename(inWatershedPath).replace(".shp","").replace(" ","_") + "_EngTools.gdb"
 
         else:
             AddMsgAndPrint("\n\nWatershed Polygon must either be a feature class or shapefile!.....Exiting",2)
@@ -171,7 +184,7 @@ if __name__ == '__main__':
         watershedFD = watershedGDB_path + os.sep + "Layers"
         watershedGDB_name = os.path.basename(watershedGDB_path)
         userWorkspace = os.path.dirname(watershedGDB_path)
-        wsName = os.path.splitext(os.path.basename(inWatershed))[0]
+        wsName = os.path.splitext(os.path.basename(inWatershedPath))[0]
 
         # log File Path
         textFilePath = userWorkspace + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.txt"
@@ -193,41 +206,15 @@ if __name__ == '__main__':
         landuse = watershedFD + os.sep + wsName + "_Landuse"
         watershed = watershedFD + os.sep + wsName
 
-        # ---------------------------------------------------- Temporary Datasets
-        cluClip = watershedFD + os.sep + "cluClip"
-        watershedDissolve = watershedFD + os.sep + "watershedDissolve"
-        luUnion = watershedFD + os.sep + "luUnion"
-
         # ----------------------------------------------------------- Lookup Tables
         TR_55_LU_Lookup = os.path.join(os.path.dirname(sys.argv[0]), "Support.gdb" + os.sep + "TR_55_LU_Lookup")
         Hydro_Groups_Lookup = os.path.join(os.path.dirname(sys.argv[0]), "Support.gdb" + os.sep + "HydroGroups")
         Condition_Lookup = os.path.join(os.path.dirname(sys.argv[0]), "Support.gdb" + os.sep + "ConditionTable")
 
         # ----------------------------------------------------------------------------- Check Some Parameters
-        # Exit if any are true
-        if not int(arcpy.GetCount_management(inWatershed).getOutput(0)) > 0:
+        # Exit if watershed is empty....why would it be??
+        if not int(arcpy.GetCount_management(inWatershedPath).getOutput(0)) > 0:
             AddMsgAndPrint("\n\nWatershed Layer is empty.....Exiting!",2)
-            exit()
-
-        # Exit if wathershed layer not a polygon
-        if arcpy.Describe(inWatershed).ShapeType != "Polygon":
-            AddMsgAndPrint("\n\nYour Watershed Layer must be a polygon layer!.....Exiting!",2)
-            exit()
-
-        # Exit if soils layer not a polygon
-        if arcpy.Describe(inSoils).ShapeType != "Polygon":
-            AddMsgAndPrint("\n\nYour Soils Layer must be a polygon layer!.....Exiting!",2)
-            exit()
-
-        # Exit if CLU layer not a polygon
-        if bSplitLU:
-            if arcpy.Describe(inCLU).ShapeType != "Polygon":
-                AddMsgAndPrint("\n\nYour CLU Layer must be a polygon layer!.....Exiting!",2)
-                exit()
-
-        # Exit if Hydro Group field not present
-        if not len(arcpy.ListFields(inSoils,inputField)) > 0:
-            AddMsgAndPrint("\nThe field specified for Hydro Groups does not exist in your soils data.. please specify another name and try again..EXITING",2)
             exit()
 
         # Exit if TR55 table not found in directory.
@@ -251,177 +238,109 @@ if __name__ == '__main__':
 
         # Create Watershed FGDB and feature dataset if it doesn't exist
         if not arcpy.Exists(watershedGDB_path):
-            desc = arcpy.Describe(inWatershed)
-            sr = desc.SpatialReference
-
             arcpy.CreateFileGDB_management(userWorkspace, watershedGDB_name)
-            arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", sr)
-            AddMsgAndPrint("\nSuccessfully created File Geodatabase: " + watershedGDB_name,1)
+            arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", wshdSR)
+            AddMsgAndPrint("\nSuccessfully created File Geodatabase: " + watershedGDB_name)
             FGDBexists = False
-            del desc, sr
 
         # if GDB already existed but feature dataset doesn't
         if not arcpy.Exists(watershedFD):
-            desc = arcpy.Describe(inWatershed)
-            sr = desc.SpatialReference
-            arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", sr)
-            del desc, sr
-        # --------------------------------------------------------------------------- Remove domains from fields if they exist
-        desc = arcpy.describe(watershedGDB_path)
-        listOfDomains = []
-
-        domains = desc.Domains
-
-        for domain in domains:
-            listOfDomains.append(domain)
-
-        del desc, domains
-
-        if "LandUse_Domain" in listOfDomains:
-            try:
-                arcpy.RemoveDomainFromField(landuse, "LANDUSE")
-            except:
-                pass
-        if "Condition_Domain" in listOfDomains:
-            try:
-                arcpy.RemoveDomainFromField(landuse, "CONDITION")
-            except:
-                pass
-
-        if "Hydro_Domain" in listOfDomains:
-            try:
-                arcpy.RemoveDomainFromField(wsSoils, "HYDGROUP")
-            except:
-                pass
-
-        del listOfDomains
+            arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", wshdSR)
 
         # ---------------------------------------------------------------------------------------------- Delete any project layers from ArcMap
-        # ------------------------------- Map Layers
-        landuseOut = "" + wsName + "_Landuse"
-        soilsOut = "" + wsName + "_Soils"
+        datasetsToRemove = (wsSoils,landuse)       # Full path of layers
+        datasetsBaseName = [os.path.basename(x) for x in datasetsToRemove]  # layer names as they would appear in .aprx
 
-        # ------------------------------------- Delete previous layers from ArcMap if they exist
-        layersToRemove = (landuseOut,soilsOut)
+        # Remove layers from ArcGIS Pro Session if executed from an .aprx
+        try:
+            aprx = arcpy.mp.ArcGISProject("CURRENT")
+            for maps in aprx.listMaps():
+                for lyr in maps.listLayers():
+                    if lyr.name in datasetsBaseName:
+                        maps.removeLayer(lyr)
+        except:
+            pass
 
         x = 0
-        for layer in layersToRemove:
+        for layer in datasetsToRemove:
 
             if arcpy.Exists(layer):
                 if x == 0:
-                    AddMsgAndPrint("\nRemoving previous layers from your ArcMap session " + watershedGDB_name ,1)
+                    AddMsgAndPrint("\nRemoving old datasets from FGDB: " + watershedGDB_name )
                     x+=1
 
                 try:
-                    arcpy.delete_management(layer)
-                    AddMsgAndPrint("\tRemoving " + layer + "",0)
+                    AddMsgAndPrint("\tDeleting....." + os.path.basename(layer))
+                    #arcpy.Delete_management(layer)
                 except:
                     pass
-
-        del x
-        del layer
-        del layersToRemove
-        # -------------------------------------------------------------------------- Delete Previous Data if present
-
-        if FGDBexists:
-
-            layersToRemove = (wsSoils,landuse,cluClip,watershedDissolve,luUnion)
-
-            x = 0
-            for layer in layersToRemove:
-
-                if arcpy.Exists(layer):
-
-                    # strictly for formatting
-                    if x == 0:
-                        AddMsgAndPrint("\nRemoving old files from FGDB: " + watershedGDB_name ,1)
-                        x += 1
-
-                    try:
-                        arcpy.delete_management(layer)
-                        AddMsgAndPrint("\tDeleting....." + os.path.basename(layer),0)
-                    except:
-                        pass
-
-            del x, layersToRemove
-
-        arcpy.RefreshCatalog(watershedGDB_path)
 
         # ----------------------------------------------------------------------------------------------- Create Watershed
         # if paths are not the same then assume AOI was manually digitized
         # or input is some from some other feature class/shapefile
 
         # True if watershed was not created from this Eng tools
-        externalWshd = False
+        bExternalWatershed = False
 
-        if not arcpy.Describe(inWatershed).CatalogPath == watershed:
+        if not inWatershedPath == watershed:
 
             # delete the AOI feature class; new one will be created
             if arcpy.Exists(watershed):
 
-                try:
-                    arcpy.delete_management(watershed)
-                    arcpy.CopyFeatures_management(inWatershed, watershed)
-                    AddMsgAndPrint("\nSuccessfully Overwrote existing Watershed",1)
-                except:
-                    print_exception()
-                    arcpy.OverWriteOutput = 1
+                arcpy.Delete_management(watershed)
+                arcpy.CopyFeatures_management(inWatershedPath, watershed)
+                AddMsgAndPrint("\nSuccessfully Overwrote existing Watershed")
 
             else:
-                arcpy.CopyFeatures_management(inWatershed, watershed)
-                AddMsgAndPrint("\nSuccessfully Created Watershed " + os.path.basename(watershed) ,1)
+                arcpy.CopyFeatures_management(inWatershedPath, watershed)
+                AddMsgAndPrint("\nSuccessfully Created Watershed " + os.path.basename(watershed))
 
-            externalWshd = True
+            bExternalWatershed = True
 
         # paths are the same therefore input IS projectAOI
         else:
-            AddMsgAndPrint("\nUsing existing " + os.path.basename(watershed) + " feature class",1)
+            AddMsgAndPrint("\nUsing existing " + os.path.basename(watershed) + " feature class")
 
-        if externalWshd:
+        if bExternalWatershed:
+            watershedDesc = arcpy.da.Describe(watershed)
 
             # Delete all fields in watershed layer except for obvious ones
-            fields = arcpy.ListFields(watershed)
+            for field in [f.name for f in arcpy.ListFields(watershed)]:
 
-            for field in fields:
-
-                fieldName = field.Name
-
-                if fieldName.find("Shape") < 0 and fieldName.find("OBJECTID") < 0 and fieldName.find("Subbasin") < 0:
-                    arcpy.deletefield_management(watershed,fieldName)
-
-                del fieldName
-
-            del fields
+                # Delete all fields that are not the following
+                if not field in (watershedDesc['shapeFieldName'],watershedDesc['OIDFieldName'],"Subbasin"):
+                    arcpy.DeleteField_management(watershed,field)
 
             if not len(arcpy.ListFields(watershed,"Subbasin")) > 0:
-                arcpy.AddField_management(watershed, "Subbasin", "SHORT", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-                arcpy.CalculateField_management(watershed, "Subbasin","[OBJECTID]","VB", "")
+                arcpy.AddField_management(watershed, "Subbasin", "SHORT", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+                arcpy.CalculateField_management(watershed, "Subbasin",watershedDesc['OIDFieldName'],"PYTHON3")
 
             if not len(arcpy.ListFields(watershed,"Acres")) > 0:
-                arcpy.AddField_management(watershed, "Acres", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-                arcpy.CalculateField_management(watershed, "Acres", "!shape.area@ACRES!", "PYTHON", "")
+                arcpy.AddField_management(watershed, "Acres", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+                arcpy.CalculateField_management(watershed, "Acres", "!shape.area@ACRES!", "PYTHON3")
 
         # ------------------------------------------------------------------------------------------------ Create Landuse Layer
         if bSplitLU:
 
             # Dissolve in case the watershed has multiple polygons
-            arcpy.Dissolve_management(inWatershed, watershedDissolve, "", "", "MULTI_PART", "DISSOLVE_LINES")
+            watershedDissolve = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("watershedDissolve",data_type="FeatureClass",workspace=watershedGDB_path))
+            arcpy.Dissolve_management(inWatershedPath, watershedDissolve, "", "", "MULTI_PART", "DISSOLVE_LINES")
 
             # Clip the CLU layer to the dissolved watershed layer
-            arcpy.Clip_analysis(inCLU, watershedDissolve, cluClip, "")
-            AddMsgAndPrint("\nSuccessfully clipped the CLU to your Watershed Layer",1)
+            cluClip = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("cluClip",data_type="FeatureClass",workspace=watershedGDB_path))
+            arcpy.Clip_analysis(inCLU, watershedDissolve, cluClip)
+            AddMsgAndPrint("\nSuccessfully clipped the CLU to your Watershed Layer")
 
             # Union the CLU and dissolve watershed layer simply to fill in gaps
             arcpy.Union_analysis(cluClip +";" + watershedDissolve, landuse, "ONLY_FID", "", "GAPS")
-            AddMsgAndPrint("\nSuccessfully filled in any CLU gaps and created Landuse Layer: " + os.path.basename(landuse),1)
+            AddMsgAndPrint("\nSuccessfully filled in any CLU gaps and created Landuse Layer: " + os.path.basename(landuse))
 
             # Delete FID field
-            fields = arcpy.ListFields(landuse,"FID*")
+            fields = [f.name for f in arcpy.ListFields(landuse,"FID*")]
 
-            for field in fields:
-                arcpy.deletefield_management(landuse,field.Name)
-
-            del fields
+            if len(fields):
+                for field in fields:
+                    arcpy.DeleteField_management(landuse,field)
 
             arcpy.Delete_management(watershedDissolve)
             arcpy.Delete_management(cluClip)
@@ -429,42 +348,33 @@ if __name__ == '__main__':
         else:
             AddMsgAndPrint("\nNo CLU Layer Detected",1)
 
-            arcpy.Dissolve_management(inWatershed, landuse, "", "", "MULTI_PART", "DISSOLVE_LINES")
+            arcpy.Dissolve_management(inWatershedPath, landuse, "", "", "MULTI_PART", "DISSOLVE_LINES")
             AddMsgAndPrint("\nSuccessfully created Watershed Landuse layer: " + os.path.basename(landuse),1)
 
         arcpy.AddField_management(landuse, "LANDUSE", "TEXT", "", "", "254", "", "NULLABLE", "NON_REQUIRED", "")
-        arcpy.CalculateField_management(landuse, "LANDUSE", "\"- Select Land Use -\"", "VB", "")
+        arcpy.CalculateField_management(landuse, "LANDUSE", "\"- Select Land Use -\"", "PYTHON3")
 
         arcpy.AddField_management(landuse, "CONDITION", "TEXT", "", "", "25", "", "NULLABLE", "NON_REQUIRED", "")
-        arcpy.CalculateField_management(landuse, "CONDITION", "\"- Select Condition -\"", "VB", "")
+        arcpy.CalculateField_management(landuse, "CONDITION", "\"- Select Condition -\"", "PYTHON3")
 
         # ---------------------------------------------------------------------------------------------- Set up Domains
-        desc = arcpy.describe(watershedGDB_path)
-        listOfDomains = []
+        watershedGDBdesc = arcpy.da.Describe(watershedGDB_path)
+        domains = watershedGDBdesc['domains']
 
-        domains = desc.Domains
-
-        for domain in domains:
-            listOfDomains.append(domain)
-
-        del desc, domains
-
-        if not "LandUse_Domain" in listOfDomains:
+        if not "LandUse_Domain" in domains:
             arcpy.TableToDomain_management(TR_55_LU_Lookup, "LandUseDesc", "LandUseDesc", watershedGDB_path, "LandUse_Domain", "LandUse_Domain", "REPLACE")
 
-        if not "Hydro_Domain" in listOfDomains:
+        if not "Hydro_Domain" in domains:
             arcpy.TableToDomain_management(Hydro_Groups_Lookup, "HydrolGRP", "HydrolGRP", watershedGDB_path, "Hydro_Domain", "Hydro_Domain", "REPLACE")
 
-        if not "Condition_Domain" in listOfDomains:
+        if not "Condition_Domain" in domains:
             arcpy.TableToDomain_management(Condition_Lookup, "CONDITION", "CONDITION", watershedGDB_path, "Condition_Domain", "Condition_Domain", "REPLACE")
-
-        del listOfDomains
 
         # Assign Domain To Landuse Fields for User Edits...
         arcpy.AssignDomainToField_management(landuse, "LANDUSE", "LandUse_Domain", "")
         arcpy.AssignDomainToField_management(landuse, "CONDITION", "Condition_Domain", "")
 
-        AddMsgAndPrint("\nSuccessufully added \"LANDUSE\" and \"CONDITION\" fields to Landuse Layer and associated Domains",1)
+        AddMsgAndPrint("\nSuccessufully added \"LANDUSE\" and \"CONDITION\" fields to Landuse Layer and associated Domains")
 
         # ---------------------------------------------------------------------------------------------------------------------------------- Work with soils
 
@@ -472,119 +382,73 @@ if __name__ == '__main__':
         # Clip the soils to the dissolved (and possibly unioned) watershed
         arcpy.Clip_analysis(inSoils,landuse,wsSoils)
 
-        AddMsgAndPrint("\nSuccessfully clipped soils layer to Landuse layer and removed unnecessary fields",1)
+        AddMsgAndPrint("\nSuccessfully clipped soils layer to Landuse layer and removed unnecessary fields")
 
-        # --------------------------------------------------------------------------------------- check the soils input Field to make
-        # --------------------------------------------------------------------------------------- sure they are valid Hydrologic Group values
-        AddMsgAndPrint("\nChecking Hydrologic Group Attributes in Soil Layer.....",1)
+        # --------------------------------------------------------------------------------------- Check Hydrologic Values
+        AddMsgAndPrint("\nChecking Hydrologic Group Attributes in Soil Layer.....")
 
         validHydroValues = ['A','B','C','D','A/D','B/D','C/D','W']
         valuesToConvert = ['A/D','B/D','C/D','W']
 
-        rows = arcpy.searchcursor(wsSoils)
-        row = rows.next()
+        # List of input soil Hydrologic group values
+        soilHydValues = list(set([row[0] for row in arcpy.da.SearchCursor(wsSoils,hydroField)]))
 
-        invalidHydValues = 0
-        valuesToConvertCount = 0
-        emptyValues = 0
-        missingValues = 0
+        # List of NULL hydrologic values in input soils
+        expression = arcpy.AddFieldDelimiters(wsSoils, hydroField) + " IS NULL OR " + arcpy.AddFieldDelimiters(wsSoils, hydroField) + " = \'\'"
+        nullSoilHydValues = [row[0] for row in arcpy.da.SearchCursor(wsSoils,hydroField,where_clause=expression)]
 
-        while row:
+        # List of invalid hydrologic values relative to validHydroValues list
+        invalidHydValues = [val for val in soilHydValues if not val in validHydroValues]
+        hydValuesToConvert = [val for val in soilHydValues if val in valuesToConvert]
 
-            hydValue = str(row.GetValue(inputField))
+        if len(invalidHydValues):
+            AddMsgAndPrint("\t\tThe following Hydrologic Values are not valid: " + str(invalidHydValues),1)
 
-            if len(hydValue) > 0:  # Not NULL Value
+        if len(hydValuesToConvert):
+            AddMsgAndPrint("\t\tThe following Hydrologic Values need to be converted: " + str(hydValuesToConvert) + " to a single class i.e. \"B/D\" to \"B\"",1)
 
-                if not hydValue in validHydroValues:
-                    invalidHydValues += 1
-                    AddMsgAndPrint("\t\t" + "\"" + hydValue + "\" is not a valid Hydrologic Group Attribute",0)
-
-                if hydValue in valuesToConvert:
-                    valuesToConvertCount += 1
-                    #AddMsgAndPrint("\t" + "\"" + hydValue + "\" needs to be converted -------- " + str(valuesToConvertCount),1)
-
-            else: # NULL Value
-                emptyValues += 1
-
-            row = rows.next()
-
-        del rows, row
-
-        # ------------------------------------------------------------------------------------------- Inform the user of Hydgroup Attributes
-        if invalidHydValues > 0:
-            AddMsgAndPrint("\tThere are " + str(invalidHydValues) + " invalid attribute(s) found in your Soil's " + "\"" + inputField + "\"" + " Field",1)
-
-        if valuesToConvertCount > 0:
-            AddMsgAndPrint("\tThere are " + str(valuesToConvertCount) + " attribute(s) that need to be converted to a single class i.e. \"B/D\" to \"B\"",0)
-
-        if emptyValues > 0:
-            AddMsgAndPrint("\tThere are " + str(emptyValues) + " NULL polygon(s) that need to be attributed with a Hydrologic Group",0)
-
-        if emptyValues == int(arcpy.GetCount_management(inSoils).getOutput(0)):
-            AddMsgAndPrint("\t" + "\"" + inputField + "\"" + "Field is blank.  It must be populated before using the 2nd tool Loser!",2)
-            missingValues = 1
-
-        del validHydroValues, valuesToConvert, invalidHydValues
+        if nullSoilHydValues:
+            AddMsgAndPrint("\tThere are " + str(len(nullSoilHydValues)) + " NULL polygon(s) that need to be attributed with a Hydrologic Group Value",1)
 
         # ------------------------------------------------------------------------------------------- Compare Input Field to SSURGO HydroGroup field name
-        if inputField.upper() != "HYDGROUP":
-            arcpy.AddField_management(wsSoils, "HYDGROUP", "TEXT", "", "", "20", "", "NULLABLE", "NON_REQUIRED", "")
+        if hydroField.upper() != "HYDGROUP":
+            arcpy.AddField_management(wsSoils, "HYDGROUP", "TEXT", "", "", "20", "", "NULLABLE", "NON_REQUIRED")
+            arcpy.CalculateField_management(wsSoils, "HYDGROUP", "!" + str(hydroField) + "!", "PYTHON3")
+            AddMsgAndPrint("\n\tAdded " + "\"HYDGROUP\" to soils layer.  Please Populate the Hydrologic Group Values manually for this field")
 
-            if missingValues == 0:
-                arcpy.CalculateField_management(wsSoils, "HYDGROUP", "[" + str(inputField) + "]", "VB", "")
-
-            else:
-                AddMsgAndPrint("\n\tAdded " + "\"HYDGROUP\" to soils layer.  Please Populate the Hydrologic Group Values manually for this field",0)
-
-        # Delete any field not in the following list
+        # Delete any soil field not in the following list
         fieldsToKeep = ["MUNAME","MUKEY","HYDGROUP","MUSYM","OBJECTID"]
 
-        fields = arcpy.ListFields(wsSoils)
-
-        for field in fields:
-
-            fieldName = field.Name
-
-            if not fieldName.upper() in fieldsToKeep and fieldName.find("Shape") < 0:
-                arcpy.deletefield_management(wsSoils,fieldName)
-
-        del fields, fieldsToKeep, missingValues
+        for field in [f.name for f in arcpy.ListFields(wsSoils)]:
+            if not field.upper() in fieldsToKeep and field.find("Shape") < 0:
+                arcpy.DeleteField_management(wsSoils,field)
 
         arcpy.AssignDomainToField_management(wsSoils, "HYDGROUP", "Hydro_Domain", "")
 
         # ---------------------------------------------------------------------------------------------------------------------------- Compact FGDB
-        try:
-            arcpy.compact_management(watershedGDB_path)
-            AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),1)
-        except:
-            pass
+        arcpy.Compact_management(watershedGDB_path)
+        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
         # --------------------------------------------------------------------------------------------------------------------------- Prepare to Add to Arcmap
-
         arcpy.SetParameterAsText(4, landuse)
         arcpy.SetParameterAsText(5, wsSoils)
 
-        if externalWshd:
+        if bExternalWatershed:
             arcpy.SetParameterAsText(6, watershed)
 
-        AddMsgAndPrint("\nAdding Layers to ArcMap",1)
-        AddMsgAndPrint("\n\t=========================================================================",0)
+        AddMsgAndPrint("\nAdding Layers to ArcGIS Pro")
+        AddMsgAndPrint("\n\t=========================================================================")
         AddMsgAndPrint("\tBEFORE CALCULATING THE RUNOFF CURVE NUMBER FOR YOUR WATERSHED MAKE SURE TO",1)
         AddMsgAndPrint("\tATTRIBUTE THE \"LANDUSE\" AND \"CONDITION\" FIELDS IN " + os.path.basename(landuse) + " LAYER",1)
 
-        if valuesToConvertCount > 0:
-            AddMsgAndPrint("\tAND CONVERT THE " + str(valuesToConvertCount) + " COMBINED HYDROLOGIC GROUPS IN " + os.path.basename(wsSoils) + " LAYER",1)
+        if len(hydValuesToConvert) > 0:
+            AddMsgAndPrint("\tAND CONVERT THE " + str(len(hydValuesToConvert)) + " COMBINED HYDROLOGIC GROUPS IN " + os.path.basename(wsSoils) + " LAYER",1)
 
-        if emptyValues > 0:
-            AddMsgAndPrint("\tAS WELL AS POPULATE VALUES FOR THE " + str(emptyValues) + " NULL POLYGONS IN " + os.path.basename(wsSoils) + " LAYER",1)
+        if len(nullSoilHydValues) > 0:
+            AddMsgAndPrint("\tAS WELL AS POPULATE VALUES FOR THE " + str(len(nullSoilHydValues)) + " NULL POLYGONS IN " + os.path.basename(wsSoils) + " LAYER",1)
 
-        AddMsgAndPrint("\t=========================================================================\n",0)
+        AddMsgAndPrint("\t=========================================================================\n")
 
-        import time
-        time.sleep(3)
-
-        del valuesToConvertCount, emptyValues
-
-except:
-    print_exception()
+    except:
+        print_exception()
 

@@ -461,12 +461,12 @@ if __name__ == '__main__':
 
                     # Strictly Formatting
                     if x < 1:
-                        AddMsgAndPrint("\nRemoving old datasets from FGDB: " + watershedGDB_name ,1)
+                        AddMsgAndPrint("\nRemoving old datasets from FGDB: " + watershedGDB_name )
                         x += 1
 
                     try:
                         arcpy.Delete_management(dataset)
-                        AddMsgAndPrint("\tDeleting....." + os.path.basename(dataset),1)
+                        AddMsgAndPrint("\tDeleting....." + os.path.basename(dataset))
                     except:
                         pass
 

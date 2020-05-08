@@ -4,21 +4,21 @@
 ## Updated by Chris Morse, USDA NRCS, 2019
 ##
 ## Creates a Pool Polygon and calculates area/volume from a LiDAR Derived DEM,
-## using a set of contour lines and user provided "dam" or dams to limit the 
+## using a set of contour lines and user provided "dam" or dams to limit the
 ## analysis height and extent.
 ##
-## The tool selects the heighest intersected contour that will create a "closed 
+## The tool selects the heighest intersected contour that will create a "closed
 ## polygon" to the topographic left of the dam, clips the dem to that extent,
 ## creates a volume raster, and returns the volume and surface area of a pool
 ## at that proposed elevation
 ##
 ## Additionally calculates length, width, max/min/mean height and required top
-## and bottom widths for the user provided dam(s). The required amount of fill is 
+## and bottom widths for the user provided dam(s). The required amount of fill is
 ## then estimated and returned in cubic yards.
 ##
 ## NOTE:  This tool requires an Advanced license for ArcGIS Desktop!
 
-## ================================================================================================================ 
+## ================================================================================================================
 def print_exception():
     tb = sys.exc_info()[2]
     l = traceback.format_tb(tb)
@@ -28,32 +28,32 @@ def print_exception():
     AddMsgAndPrint("Traceback Info: \n" + tbinfo + "Error Info: \n    " +  str(sys.exc_type)+ ": " + str(sys.exc_value) + "",2)
     AddMsgAndPrint("----------ERROR End-------------------- \n",2)
 
-## ================================================================================================================    
+## ================================================================================================================
 def AddMsgAndPrint(msg, severity=0):
     # prints message to screen if run as a python script
     # Adds tool message to the geoprocessor
     # Split the message on  \n first, so that if it's multiple lines, a GPMessage will be added for each line
 
     print(msg)
-    
+
     try:
         f = open(textFilePath,'a+')
         f.write(msg + " \n")
         f.close
         del f
-        
+
         if severity == 0:
             arcpy.AddMessage(msg)
         elif severity == 1:
             arcpy.AddWarning(msg)
         elif severity == 2:
             arcpy.AddError(msg)
-            
+
     except:
         pass
 
 ## ================================================================================================================
-def logBasicSettings():    
+def logBasicSettings():
     # record basic user inputs and settings to log file for future purposes
 
     import getpass, time
@@ -67,8 +67,8 @@ def logBasicSettings():
     f.write("User Parameters:\n")
     f.write("\tWorkspace: " + userWorkspace + "\n")
     f.write("\tInput Contours: " + InputContours)
-    f.write("\tInput Dem: " + DEM_aoi + "\n")    
-    
+    f.write("\tInput Dem: " + DEM_aoi + "\n")
+
     f.close
     del f
 
@@ -101,8 +101,8 @@ try:
     if not arcpy.ProductInfo() == "ArcInfo":
         arcpy.AddError("\nThis tool requires an ArcInfo/Advanced license level for ArcGIS Desktop. Exiting...\n")
         sys.exit()
-        
-    # Check out Spatial Analyst License        
+
+    # Check out Spatial Analyst License
     if arcpy.CheckExtension("Spatial") == "Available":
         arcpy.CheckOutExtension("Spatial")
     else:
@@ -153,7 +153,7 @@ try:
     contourLyr = "contLyr"
     contourLyr2 = "contLyr2"
     contourMask = watershedFD + os.sep + "contMask"
-    contourmaskLyr = "contMaskLyr"                                                                                     
+    contourmaskLyr = "contMaskLyr"
     buffer1 = watershedFD + os.sep + "buffer1"
     buffer2 = watershedFD + os.sep + "buffer2"
     buffer3 = watershedFD + os.sep + "buffer3"
@@ -181,15 +181,15 @@ try:
     # ----------------------------------------------------------------------------- Check Some Parameters
     # Exit if wathershed layer not a line
     if arcpy.Describe(InputContours).ShapeType != "Polyline" and arcpy.Describe(InputContours).ShapeType != "Line":
-        AddMsgAndPrint("\n\nThe Contour layer is not a Polyline or Line layer. Exiting...",2)        
+        AddMsgAndPrint("\n\nThe Contour layer is not a Polyline or Line layer. Exiting...",2)
         sys.exit()
 
     # --------------------------------------------------------------------------Copy User input to Dam(n) file and add fields...
     if not arcpy.GetCount_management(dam) > 0:
         AddMsgAndPrint("\tNo Dam features were provided.",2)
         AddMsgAndPrint("\tPlease make sure to digitize or provide a reference layer for a dam. Exiting...\n",2)
-        sys.exit()             
-    
+        sys.exit()
+
     #--------------------------------------------------------------------- Retrieve Spatial Reference and units from DEM
     desc = arcpy.Describe(DEM_aoi)
     sr = desc.SpatialReference
@@ -197,16 +197,16 @@ try:
     cellSize = desc.MeanCellWidth
     cellArea = desc.MeanCellWidth * desc.MeanCellHeight
     units = sr.LinearUnitName
-    
+
     # Raster Volume Conversions for acre-feet
     if units == "Meter":
         convFactor = 0.000810714
         units = "Meters"
-        
+
     if units == "Foot":
         convFactor = 0.000022957
         units = "Feet"
-        
+
     if units == "Foot_US":
         convFactor = 0.000022957
         units = "Feet"
@@ -214,13 +214,13 @@ try:
     if units == "Feet":
         convFactor = 0.000022957
         units = "Feet"
-        
-    AddMsgAndPrint("\nGathering information about Input DEM: " + os.path.basename(DEM_aoi) + "\n",0)    
+
+    AddMsgAndPrint("\nGathering information about Input DEM: " + os.path.basename(DEM_aoi) + "\n",0)
 
     # Coordinate System must be a Projected type in order to continue.
     # XY & Z Units will determine Zfactor for Elevation and Volume Conversions.
-    
-    if sr.Type == "Projected":              
+
+    if sr.Type == "Projected":
         AddMsgAndPrint("\tProjection Name: " + sr.Name,0)
         AddMsgAndPrint("\tXY Linear Units: " + units,0)
         AddMsgAndPrint("\tCell Size: " + str(desc.MeanCellWidth) + " x " + str(desc.MeanCellHeight) + " " + units,0)
@@ -229,29 +229,14 @@ try:
         AddMsgAndPrint("\n\n\t" + os.path.basename(DEM_aoi) + " is no in a Projected Coordinate System. Exiting...",2)
         sys.exit()
 
-##    # ------------------------------------------------------------------------------- Capture default environments
-##    tempExtent = gp.Extent
-##    tempMask = gp.mask
-##    tempSnapRaster = gp.SnapRaster
-##    tempCellSize = gp.CellSize
-##    tempCoordSys = gp.OutputCoordinateSystem
-##
-##    # ------------------------------------------------------------------------------- Set environments
-##    gp.Extent = "MINOF"
-##    gp.CellSize = cellSize
-##    gp.mask = ""
-##    gp.SnapRaster = DEM_aoi
-##    gp.OutputCoordinateSystem = sr
-##    del desc, sr
-    
     # ---------------------------------------------------------------------------------------------- Create FGDB, FeatureDataset
     # Boolean - Assume FGDB already exists
     FGDBexists = True
-        
+
     # ----------------------------------------------------------------------------------------------- Clean old files if FGDB already existed.
-    if FGDBexists:    
+    if FGDBexists:
         gridsToRemove = (contourMask,buffer1,buffer2,buffer3,buffer4,buffer5,buffer6,buffer7,contourErase,extentMask,damStats,DEMclip,DEMminus,DEMsn,volGrid,volume,ExtentRaster,PoolRast1,PoolRast2,PoolPoly)
-        x = 0        
+        x = 0
         for grid in gridsToRemove:
             if arcpy.Exists(grid):
                 # strictly for formatting
@@ -266,7 +251,7 @@ try:
         del x
         del grid
         del gridsToRemove
-        
+
     # -------------------------------------------------------- Set Conversion Factor for Volume Calculations and Elevation Conversions
     # Retrieve Z Units from Project AOI
     if arcpy.Exists(projectAOI):
@@ -279,22 +264,22 @@ try:
 ##    # If z units were not entered assume they are the same as xy
 ##    if not len(zUnits) > 0:
 ##        zUnits = units
-        
+
     # Elevation Conversions
     # contFactor is for converting contours in feet to the zUnits values
     # Zfactor is for converting the zUnits to values to feet
     if zUnits == "Meters":
         contFactor = 0.3048         #feet to meters
         Zfactor = 3.280839896       #meters to feet
-        
-    elif zUnits == "Centimeters":    
+
+    elif zUnits == "Centimeters":
         contFactor = 30.48          #feet to centimeters
         Zfactor = 0.03280839896     #centimeters to feet
-        
+
     elif zUnits == "Feet":
         contFactor = 1              #feet to feet
         Zfactor = 1                 #feet to feet
-        
+
     elif zUnits == "Inches":
         contFactor = 12             #feet to inches
         Zfactor = 0.0833333         #inches to feet
@@ -311,7 +296,7 @@ try:
 
     rows = arcpy.UpdateCursor(damTemp)
     row = rows.next()
-    
+
     while row:
         row.ID = row.OBJECTID
         if units == "Feet":
@@ -320,29 +305,29 @@ try:
             row.LengthFt = str(round(row.SHAPE_Length * 3.280839896,1))
         rows.updateRow(row)
         row = rows.next()
-        
+
     del row
     del rows
 
     # ------------------------------------------------------------------------ Select Contours by dam Location & copy
     AddMsgAndPrint("\nSelecting intersected contours...",0)
-    
+
     arcpy.MakeFeatureLayer_management(InputContours, contourLyr)
     arcpy.SelectLayerByLocation_management(contourLyr, "INTERSECT", damTemp, "", "NEW_SELECTION")
     arcpy.CopyFeatures_management(contourLyr, contourMask)
     arcpy.SelectLayerByAttribute_management(contourLyr, "CLEAR_SELECTION")
-        
+
     # ------------------------------------------------------------------------ Buffer and erase to break contours at dam and select closed contours
     # (This is the part requiring arcInfo -- Erase and Right/Left buffers...the right comes later...)
     arcpy.Buffer_analysis(damTemp, buffer1, "1 Feet", "FULL", "FLAT", "NONE", "")
     arcpy.Erase_analysis(contourMask, buffer1, contourErase, "")
-    
+
     arcpy.Buffer_analysis(damTemp, buffer2, "1.5 Feet", "LEFT", "FLAT", "NONE", "")
     arcpy.Buffer_analysis(damTemp, buffer3, "3 Feet", "LEFT", "FLAT", "NONE", "")
-    
+
     arcpy.Erase_analysis(buffer3, buffer1, buffer4, "")
     arcpy.Erase_analysis(buffer4, buffer2, buffer5, "")
- 
+
     # Convert intersected contours to polygon mask
     arcpy.FeatureToPolygon_management(contourErase+";"+buffer2, extentMask, "", "ATTRIBUTES", "")
 
@@ -352,7 +337,7 @@ try:
         AddMsgAndPrint("\tPlease try again, making sure the intended pool is located ",2)
         AddMsgAndPrint("\tto the topographic left of the line(s) you provide. Exiting...\n",2)
         sys.exit()
-    
+
     #Select Highest Contour that closed @ Polygon conversion.....
     arcpy.Clip_analysis(buffer5, extentMask, buffer6)
 
@@ -361,26 +346,26 @@ try:
         AddMsgAndPrint("\tPlease try again, making sure the intended pool is located ",2)
         AddMsgAndPrint("\tto the topographic left of the line(s) you provide. Exiting...\n",2)
         sys.exit()
-    
+
     arcpy.SelectLayerByLocation_management(contourLyr, "INTERSECT", buffer6, "", "NEW_SELECTION")
     arcpy.MakeFeatureLayer_management(contourLyr, contourLyr2, "", "", "")
-    
+
     inRows = arcpy.SearchCursor(contourLyr2, "", "", "CONTOUR", "CONTOUR" + " D")
     inRow = inRows.next()
-    
+
     hiContour = inRow.CONTOUR
     # Assign the pool elevation in the actual units of the DEM
     poolElev = (hiContour * contFactor)
-    
+
     del inRow
     del inRows
-    
+
     AddMsgAndPrint("\n\tHighest closed contour is " + str(hiContour),0)
-    
+
     # ------------------------------------------------------------------------------------------- Permanent Datasets!!
-    
-    outPool = watershedFD + os.sep + projectName + "_Pool_" + str(hiContour).replace(".","_")    
-    
+
+    outPool = watershedFD + os.sep + projectName + "_Pool_" + str(hiContour).replace(".","_")
+
     # Must Have a unique name for pool -- project name and pool elev gets validated, but that doesn't ensure a unique name
     # Append a unique digit to pool if required
     x = 1
@@ -392,10 +377,10 @@ try:
             x = 0
     del x
 
-    # Set unique name for dam and copy to final output    
+    # Set unique name for dam and copy to final output
     outDam = outPool + str("_dam")
     arcpy.CopyFeatures_management(damTemp, outDam)
-    arcpy.MakeFeatureLayer_management(outDam, outDamLyr)    
+    arcpy.MakeFeatureLayer_management(outDam, outDamLyr)
 
     # ---------------------------------------------------------------------- Dissolve and populate with plane elevation for raster processing
     AddMsgAndPrint("\nCreating Pool and Volume Grid...",0)
@@ -406,7 +391,7 @@ try:
     expression = '"' + str(poolElev) + '"'
     #arcpy.CalculateField_management(PoolMask, "DemElev", "" + str(poolElev) + "", "VB", "")
     arcpy.CalculateField_management(PoolMask, "DemElev", expression, "PYTHON_9.3")
-    
+
     # ---------------------------------------------------------------------- Convert to raster, clip DEM and create Pool polygon
     arcpy.MakeFeatureLayer_management(PoolMask, "pool_mask")
     arcpy.FeatureToRaster_conversion("pool_mask", "DemElev", ExtentRaster, cellSize)
@@ -420,7 +405,7 @@ try:
 
     # Check to make sure specified max elevation is within the range of elevation in clipped dem
     if not demClipMinElev < hiContour <= demClipMaxElev:
-        
+
         AddMsgAndPrint("\n\tThe Pool Elevation Specified is not within the range",2)
         AddMsgAndPrint("\tof the corresponding area of your input DEM.",2)
         AddMsgAndPrint("\tPlease specify a value between " + str(demClipMinElev) + " and " + str(demClipMaxElev) + ". Exiting...",2)
@@ -458,15 +443,15 @@ try:
 
     outConv = arcpy.sa.Times(DEMsn, factor)
     outConv.save(DEMsnu)
-    
+
     outTimes = arcpy.sa.Times(DEMsnu, 0)
     outTimes.save(PoolRast1)
 
     outInt = arcpy.sa.Int(PoolRast1)
     outInt.save(PoolRast2)
-    
+
     arcpy.RasterToPolygon_conversion(PoolRast2, PoolPoly, "NO_SIMPLIFY", "VALUE")
-        
+
     # Dissolve results and add fields
     arcpy.Dissolve_management(PoolPoly, outPool, "", "", "MULTI_PART", "DISSOLVE_LINES")
     arcpy.AddField_management(outPool, "ID", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
@@ -475,7 +460,7 @@ try:
     arcpy.AddField_management(outPool, "PoolAcres", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
     arcpy.AddField_management(outPool, "RasterVol", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
     arcpy.AddField_management(outPool, "AcreFt", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-    
+
     # ---------------------------------------------------------------------- Calculate Area, Raster Elevation and Pool Elevation
     rows = arcpy.UpdateCursor(outPool)
     row = rows.next()
@@ -488,15 +473,15 @@ try:
         else:
             row.PoolAcres = str(round(row.Shape_Area / 43560,1))
         rows.updateRow(row)
-        
+
         AddMsgAndPrint("\n\tCalculating pool area and volume",0)
 
         volTimes = arcpy.sa.Times(DEMsnu, cellArea)
         volTimes.save(volGrid)
-        
+
         outZonal = arcpy.sa.ZonalStatistics(outPool, "ID", volGrid, "SUM")
         outZonal.save(volume)
-        
+
         # ---------------------------------------------------------------------- Get results and populate remaining fields
         row.RasterVol = str(round(float(arcpy.GetRasterProperties_management(volume, "MAXIMUM").getOutput(0)),1))
         row.AcreFt = str(round(float(row.RasterVol * convFactor),1))
@@ -506,38 +491,38 @@ try:
         AddMsgAndPrint("\t\tPool volume: " + str(row.AcreFt) + " Acre Feet",0)
         rows.updateRow(row)
         row = rows.next()
-        
+
     del row
     del rows
 
     # ------------------------------------------------------------------------ Retrieve attributes for dam and populate fields
     arcpy.Buffer_analysis(outDam, buffer7, "3 Meters", "RIGHT", "ROUND", "LIST", "ID")
-    arcpy.AddField_management(buffer7, "ELEV", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")    
-    arcpy.sa.ZonalStatisticsAsTable(buffer7, "ID", DEM_aoi, damStats, "NODATA", "ALL") 
+    arcpy.AddField_management(buffer7, "ELEV", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+    arcpy.sa.ZonalStatisticsAsTable(buffer7, "ID", DEM_aoi, damStats, "NODATA", "ALL")
 
     rows = arcpy.SearchCursor(damStats)
     row = rows.next()
-    
+
     while row:
         # zonal stats doesnt generate "Value" with the 9.3 geoprocessor in 10
         ID = row.ID
 
         #previously row.value in 9.3 geoprocessor
         #ID = row.VALUE
-            
+
         maxElev = row.MAX
         minElev = row.MIN
         meanElev = row.MEAN
-        
+
         maxFt = round(float(maxElev * Zfactor),1)
         minFt = round(float(minElev * Zfactor),1)
         meanFt = round(float(meanElev * Zfactor),1)
-        
+
         AddMsgAndPrint("\n\tCalculating properties of embankment " + str(ID),0)
         AddMsgAndPrint("\n\t\tMax Elevation: " + str(maxFt) + " Feet",0)
         AddMsgAndPrint("\t\tMin Elevation: " + str(minFt) + " Feet",0)
         AddMsgAndPrint("\t\tMean Elevation: " + str(meanFt) + " Feet",0)
-        
+
         query = "\"ID\" =  " + str(ID)
         arcpy.SelectLayerByAttribute_management(outDamLyr, "NEW_SELECTION", query)
 
@@ -554,42 +539,42 @@ try:
             damRow.MinElev = minFt
             damRow.MeanElev = meanFt
 
-            AddMsgAndPrint("\t\tTotal Length: " + str(damRow.LengthFt) + " Feet",0)            
-            
+            AddMsgAndPrint("\t\tTotal Length: " + str(damRow.LengthFt) + " Feet",0)
+
             # Assign Top and Bottom width from practice standards
             AddMsgAndPrint("\n\tCalculating suggested top / bottom widths (Based on 3:1 Slope)",0)
-            
+
             if damHeight < 10:
                 topWidth = 6
-                
+
             elif damHeight >= 10 and damHeight < 15:
                 topWidth = 8
-                
+
             elif damHeight >= 15 and damHeight < 20:
                 topWidth = 10
-                
+
             elif damHeight >= 20 and damHeight < 25:
                 topWidth = 12
-                
+
             elif damHeight >= 25 and damHeight < 35:
                 topWidth = 14
-                
+
             elif damHeight >= 35:
                 topWidth = 15
 
             bottomWidth = round(float(topWidth + 2 * (damHeight * 3)),0) # (bw + 2 * ss * depth) -- Assumes a 3:1 Side slope
-            
+
             damRow.TopWidth = topWidth
             damRow.BotWidth = bottomWidth
-            
+
             AddMsgAndPrint("\n\t\tSuggested Top Width: " + str(damRow.TopWidth) + " Feet",0)
             AddMsgAndPrint("\t\tSuggested Bottom Width: " + str(damRow.BotWidth) + " Feet",0)
-            
+
             damRows.updateRow(damRow)
             damRow = damRows.next()
-            
+
         row = rows.next()
-        
+
         del ID
         del maxElev
         del minElev
@@ -606,8 +591,8 @@ try:
 
     del rows
     del row
-    
-    # ------------------------------------------------------------------------------------------------ Delete Intermediate Data            
+
+    # ------------------------------------------------------------------------------------------------ Delete Intermediate Data
     datasetsToRemove = (damTemp,buffer1,buffer2,buffer3,buffer4,buffer5,buffer6,buffer7,contourErase,contourMask,extentMask,ExtentRaster,PoolRast1,PoolRast2,PoolPoly,PoolMask,DEMclip,DEMminus,DEMsn,DEMsnu,volGrid,volume,outDamLyr,damStats)
 
     x = 0
@@ -620,18 +605,18 @@ try:
                 arcpy.Delete_management(dataset)
             except:
                 pass
-            
+
     del dataset
     del datasetsToRemove
     del x
-  
+
     # ------------------------------------------------------------------------------------------------ Compact FGDB
     try:
         arcpy.Compact_management(watershedGDB_path)
-        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),0)    
+        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),0)
     except:
         pass
-    
+
     # ---------------------------------------------------------------------- Prepare to Add to Arcmap
     arcpy.SetParameterAsText(2, outPool)
     arcpy.SetParameterAsText(3, outDam)
@@ -648,7 +633,7 @@ try:
 ##    gp.SnapRaster = tempSnapRaster
 ##    gp.CellSize = tempCellSize
 ##    gp.OutputCoordinateSystem = tempCoordSys
-    
+
 except SystemExit:
     pass
 
@@ -656,4 +641,4 @@ except KeyboardInterrupt:
     AddMsgAndPrint("Interruption requested....exiting")
 
 except:
-    print_exception() 
+    print_exception()
