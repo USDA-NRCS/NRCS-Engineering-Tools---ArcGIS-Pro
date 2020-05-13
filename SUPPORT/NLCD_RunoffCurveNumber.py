@@ -1,7 +1,7 @@
 
 #---------------------------------------------------------------------------------------------------------
 def print_exception():
-    
+
     tb = sys.exc_info()[2]
     l = traceback.format_tb(tb)
     l.reverse()
@@ -10,15 +10,15 @@ def print_exception():
     AddMsgAndPrint("Traceback Info: \n" + tbinfo + "Error Info: \n    " +  str(sys.exc_type)+ ": " + str(sys.exc_value) + "",2)
     AddMsgAndPrint("----------ERROR End-------------------- \n",2)
 
-## ================================================================================================================    
+## ================================================================================================================
 def AddMsgAndPrint(msg, severity=0):
     # prints message to screen if run as a python script
     # Adds tool message to the geoprocessor
-    # 
+    #
     # Split the message on \n first, so that if it's multiple lines, a GPMessage will be added for each line
 
     print msg
-    
+
     try:
 
         f = open(textFilePath,'a+')
@@ -29,30 +29,30 @@ def AddMsgAndPrint(msg, severity=0):
 
         if ArcGIS10:
             if not msg.find("\n") < 0 and msg.find("\n") < 4:
-                gp.AddMessage(" ")        
-        
+                gp.AddMessage(" ")
+
         for string in msg.split('\n'):
-            
+
             # Add a geoprocessing message (in case this is run as a tool)
             if severity == 0:
                 gp.AddMessage(string)
-                
+
             elif severity == 1:
                 gp.AddWarning(string)
-                
+
             elif severity == 2:
                 AddMsgAndPrint("    ")
                 gp.AddError(string)
 
         if ArcGIS10:
             if msg.find("\n") > 4:
-                gp.AddMessage(" ")                
-                
+                gp.AddMessage(" ")
+
     except:
         pass
 
 ## ================================================================================================================
-def logBasicSettings():    
+def logBasicSettings():
     # record basic user inputs and settings to log file for future purposes
 
     import getpass, time
@@ -67,7 +67,7 @@ def logBasicSettings():
     f.write("\tInput Watershed: " + inWatershed + "\n")
     f.write("\tInput NLCD Raster: " + inNLCD + "\n")
     f.write("\tInput Soils: " + inSoils + "\n")
-    
+
     if createRCN:
         f.write("\tCreate RCN Grid: SELECTED\n")
         if len(snapRaster) > 0:
@@ -78,7 +78,7 @@ def logBasicSettings():
             f.write("\tRCN Grid Snap Raster: NOT SPECIFIED\n")
     else:
         f.write("\tCreate RCN Grid: NOT SELECTED\n")
-    
+
     f.close
     del f
 
@@ -108,25 +108,25 @@ for k in keys:
         else:
             ArcGIS10 = False
 
-        break 
+        break
 
 del d, keys
-   
+
 if version < 9.3:
     AddMsgAndPrint("\nThis tool requires ArcGIS version 9.3 or Greater.....EXITING",2)
-    sys.exit("")           
+    sys.exit("")
 
 
 try:
-    # Check out Spatial Analyst License        
+    # Check out Spatial Analyst License
     if gp.CheckExtension("spatial") == "Available":
         gp.CheckOutExtension("spatial")
     else:
         gp.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst and try again.... ...EXITING")
         sys.exit("")
-        
+
     # ---------------------------------------------------------------------- Input Parameters
-    
+
     inWatershed = gp.GetParameterAsText(0)
     inNLCD = gp.GetParameterAsText(1)
     inSoils = gp.GetParameterAsText(2)
@@ -140,7 +140,7 @@ try:
 
     else:
         createRCN = True
-        
+
     # If snap raster provided assign output cell size from snapRaster
     if len(snapRaster) > 0:
         if gp.Exists(snapRaster):
@@ -152,11 +152,11 @@ try:
         else:
             AddMsgAndPrint("\n\nSpecified Snap Raster Does not exist, please make another selection or verify the path...EXITING",2)
             sys.exit("")
-        
-    # --------------------------------------------------------------------------- Define Variables 
+
+    # --------------------------------------------------------------------------- Define Variables
     inWatershed = gp.Describe(inWatershed).CatalogPath
     inSoils = gp.Describe(inSoils).CatalogPath
-    
+
     if inWatershed.find('.gdb') > -1 or inWatershed.find('.mdb') > -1:
 
         # inWatershed was created using 'Create Watershed Tool'
@@ -180,14 +180,13 @@ try:
     wsName = gp.ValidateTablename(os.path.splitext(os.path.basename(inWatershed))[0])
 
     # log File Path
-    textFilePath = userWorkspace + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.txt"   
-    
+    textFilePath = userWorkspace + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.txt"
+
     # record basic user inputs and settings to log file for future purposes
     logBasicSettings()
 
     # ----------------------------------------------------------------------------- Datasets
     # --------------------------------------------------- Temporary Datasets
-    
     LU_PLUS_SOILS = watershedGDB_path + os.sep + "LU_PLUS_SOILS"
     CULT_GRID = watershedGDB_path + os.sep + "CULT_GRID"
     CULT_POLY = watershedGDB_path + os.sep + "CULT_POLY"
@@ -196,18 +195,17 @@ try:
     landuse = watershedGDB_path + os.sep + "NLCD"
     RCN_Stats = watershedGDB_path + os.sep + "RCN_Stats"
     RCN_Stats2 = watershedGDB_path + os.sep + "RCN_Stats2"
-    
+
     # --------------------------------------------------- Permanent Datasets
-    
     wsSoils = watershedFD + os.sep + wsName + "_Soils"
     watershed = watershedFD + os.sep + wsName
-    RCN_GRID = watershedGDB_path + os.sep + wsName + "_RCN"
+    RCN_GRID = watershedGDB_path + os.sep + wsName + "_RCN_Grid"
     RCN_TABLE = watershedGDB_path + os.sep + wsName + "_RCN_Summary_Table"
-    
+
      # ----------------------------------------------------------- Lookup Tables
-     
+
     NLCD_RCN_TABLE = os.path.join(os.path.dirname(sys.argv[0]), "Support.gdb" + os.sep + "NLCD_RCN_TABLE")
-    
+
     # ----------------------------------------------------------------------------- Check Some Parameters
     # Exit if any are true
     if not int(gp.GetCount_management(inWatershed).getOutput(0)) > 0:
@@ -219,7 +217,7 @@ try:
         AddMsgAndPrint("Either dissolve " + os.path.basename(inWatershed) + " Layer, export an individual polygon, ",2)
         AddMsgAndPrint("make a single selection, or provide a different input...EXITING",2)
         sys.exit()
-        
+
     if gp.Describe(inWatershed).ShapeType != "Polygon":
         AddMsgAndPrint("\n\nYour Watershed Layer must be a polygon layer!.....Exiting!",2)
         sys.exit()
@@ -244,7 +242,7 @@ try:
     # Boolean - Assume FGDB already exists
     FGDBexists = True
 
-    # Create Watershed FGDB and feature dataset if it doesn't exist      
+    # Create Watershed FGDB and feature dataset if it doesn't exist
     if not gp.exists(watershedGDB_path):
         desc = gp.Describe(inWatershed)
         sr = desc.SpatialReference
@@ -291,24 +289,24 @@ try:
             gp.RemoveDomainFromField(wsSoils, "HYDGROUP")
         except:
             pass
-        
-    del listOfDomains    
+
+    del listOfDomains
     # ------------------------------------- Delete previous layers from ArcMap if they exist
     # ------------------------------- Map Layers
-    rcnOut = "" + wsName + "_RCN"
+    rcnOut = "" + wsName + "_RCN_Grid"
     soilsOut = "" + wsName + "_Soils"
     landuseOut = "" + wsName + "_Landuse"
-    
+
     layersToRemove = (rcnOut,soilsOut,landuseOut)
 
     x = 0
     for layer in layersToRemove:
-        
+
         if gp.exists(layer):
             if x == 0:
                 AddMsgAndPrint("\nRemoving previous layers from your ArcMap session " + watershedGDB_name ,1)
                 x+=1
-                
+
             try:
                 gp.delete_management(layer)
                 AddMsgAndPrint("\tRemoving " + layer + "",0)
@@ -318,13 +316,13 @@ try:
     del x
     del layer
     del layersToRemove
-    
-    # -------------------------------------------------------------------------- Delete Previous Data if present 
-    if FGDBexists:    
+
+    # -------------------------------------------------------------------------- Delete Previous Data if present
+    if FGDBexists:
 
         layersToRemove = (wsSoils,landuse,vectorLanduse,LU_PLUS_SOILS,CULT_GRID,CULT_POLY,SOILS_GRID,RCN_GRID,RCN_Stats)
 
-        x = 0        
+        x = 0
         for layer in layersToRemove:
 
             if gp.exists(layer):
@@ -333,7 +331,7 @@ try:
                 if x == 0:
                     AddMsgAndPrint("\nRemoving old files from FGDB: " + watershedGDB_name ,1)
                     x += 1
-                
+
                 try:
                     gp.delete_management(layer)
                     AddMsgAndPrint("\tDeleting....." + os.path.basename(layer),0)
@@ -344,18 +342,18 @@ try:
         del vectorLanduse
 
     # ----------------------------------------------------------------------------------------------- Create Watershed
-    
+
     # if paths are not the same then assume AOI was manually digitized
     # or input is some from some other feature class/shapefile
 
     # True if watershed was not created from this Eng tools
     externalWshd = False
-        
-    if not gp.Describe(inWatershed).CatalogPath == watershed:       
 
-        # delete the AOI feature class; new one will be created            
+    if not gp.Describe(inWatershed).CatalogPath == watershed:
+
+        # delete the AOI feature class; new one will be created
         if gp.exists(watershed):
-            
+
             try:
                 gp.delete_management(watershed)
                 gp.CopyFeatures_management(inWatershed, watershed)
@@ -363,7 +361,7 @@ try:
             except:
                 print_exception()
                 gp.OverWriteOutput = 1
-            
+
         else:
             gp.CopyFeatures_management(inWatershed, watershed)
             AddMsgAndPrint("\nSuccessfully Created Watershed " + os.path.basename(watershed) ,1)
@@ -375,7 +373,7 @@ try:
         AddMsgAndPrint("\nUsing existing " + os.path.basename(watershed) + " feature class",1)
 
     if externalWshd:
-        
+
         # Delete all fields in watershed layer except for obvious ones
         fields = gp.ListFields(watershed)
 
@@ -385,13 +383,13 @@ try:
 
             if fieldName.find("Shape") < 0 and fieldName.find("OBJECTID") < 0 and fieldName.find("Subbasin") < 0:
                 gp.deletefield_management(watershed,fieldName)
-                
+
             del fieldName
 
         del fields
 
         if not len(gp.ListFields(watershed,"Subbasin")) > 0:
-            gp.AddField_management(watershed, "Subbasin", "SHORT", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")        
+            gp.AddField_management(watershed, "Subbasin", "SHORT", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
             gp.CalculateField_management(watershed, "Subbasin","[OBJECTID]","VB", "")
 
         if not len(gp.ListFields(watershed,"Acres")) > 0:
@@ -400,7 +398,7 @@ try:
 
     # ------------------------------------------------------------------------------------------------ Prepare Landuse Raster(s)
     # ----------------------------------- Capture Default Environments
-    
+
     tempExtent = gp.Extent
     tempMask = gp.mask
     tempSnapRaster = gp.SnapRaster
@@ -408,36 +406,36 @@ try:
     tempCoordSys = gp.OutputCoordinateSystem
 
     # ----------------------------------- Describe input NLCD Properties
-    
+
     desc = gp.Describe(inNLCD)
     sr = desc.SpatialReference
 
     units = sr.LinearUnitName
     cellSize = desc.MeanCellWidth
 
-    
+
     # ----------------------------------- Set Environment Settings
-    
+
     gp.Extent = "MINOF"
     gp.CellSize = cellSize
     gp.mask = ""
     gp.SnapRaster = ""
-    
+
     if units == "Meter":
         units = "Meters"
-        
+
     elif units == "Foot":
         units = "Feet"
     elif units == "Foot_US":
         units = "Feet"
-      
+
     cellArea = cellSize ** 2
-    
+
     del desc
     del sr
 
     # ---------------------------------------------------------------------- Clip NLCD to watershed boundary
-    
+
     AddMsgAndPrint("\nClipping " + str(os.path.basename(inNLCD)) + " to " + str(wsName) + " boundary..",1)
     gp.ExtractByMask_sa(inNLCD, watershed, landuse)
     AddMsgAndPrint("\nSuccessully Clipped NLCD...",1)
@@ -447,7 +445,7 @@ try:
     # Convert to Polygon for selecting
     gp.RasterToPolygon_conversion(CULT_GRID,CULT_POLY,"SIMPLIFY","VALUE")
 
-    # -------------------------------------------------------------------------------------- Clip and Process Soils Data          
+    # -------------------------------------------------------------------------------------- Clip and Process Soils Data
     # Clip the soils to the watershed
     gp.Clip_analysis(inSoils,watershed,wsSoils)
     AddMsgAndPrint("\nSuccessfully clipped " + str(os.path.basename(inSoils)) + " soils layer",1)
@@ -459,21 +457,21 @@ try:
 
     # ADD HYD_CODE Field for lookup
     if len(gp.ListFields(wsSoils,"HYD_CODE")) < 1:
-        gp.AddField_management(wsSoils, "HYD_CODE", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")    
+        gp.AddField_management(wsSoils, "HYD_CODE", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
     gp.MakeFeatureLayer_management(wsSoils, soilsLyr)
-    
+
     # Process soils to remove nulls in Water, Pits, or urban mapunits
     AddMsgAndPrint("\n\tProcessing soils data...",1)
 
-    # Select and assign "W" value to any water type map units 
+    # Select and assign "W" value to any water type map units
     gp.SelectLayerByAttribute_management(soilsLyr, "NEW_SELECTION", "\"MUNAME\" LIKE '%Water%'")
     count = int(gp.GetCount_management(soilsLyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint("\n\t\tSelecting and converting 'Water' Mapunits",0)
         gp.CalculateField_management(soilsLyr, "HYDGROUP", "\"W\"", "VB", "")
     del count
-        
-    # Select and assign "P" value to any pit-like map units  
+
+    # Select and assign "P" value to any pit-like map units
     gp.SelectLayerByAttribute_management(soilsLyr, "NEW_SELECTION", "\"MUNAME\" LIKE '%Pit%'")
     count = int(gp.GetCount_management(soilsLyr).getOutput(0))
     if count > 0:
@@ -481,14 +479,14 @@ try:
         gp.CalculateField_management(soilsLyr, "HYDGROUP", "\"P\"", "VB", "")
     del count
 
-    # Assign a "D" value to any unpopulated Urban mapunits   
+    # Assign a "D" value to any unpopulated Urban mapunits
     gp.SelectLayerByAttribute_management(soilsLyr, "NEW_SELECTION", "\"MUNAME\" LIKE 'Urban%'")
     count = int(gp.GetCount_management(soilsLyr).getOutput(0))
     if count > 0:
-        AddMsgAndPrint("\t\tSelecting and converting Urban Mapunits",0) 
+        AddMsgAndPrint("\t\tSelecting and converting Urban Mapunits",0)
         gp.CalculateField_management(soilsLyr, "HYDGROUP", "\"D\"", "VB", "")
-    del count   
-    
+    del count
+
     # Select any Combined Hydro groups
     AddMsgAndPrint("\n\tChecking for combined hydrologic groups...",1)
     query = "\"HYDGROUP\" LIKE '%/%'"
@@ -498,7 +496,7 @@ try:
     if count > 0:
         AddMsgAndPrint("\n\tThere are " + str(count) + " soil map unit(s) with combined hydro groups",0)
         gp.MakeFeatureLayer_management(soilsLyr, "combinedLyr")
-    
+
         # Select Combined Classes that intersect cultivated cropland
         gp.SelectLayerByLocation("combinedLyr", "intersect", CULT_POLY, 0, "new_selection")
         count2 = int(gp.GetCount_management("combinedLyr").getOutput(0))
@@ -507,7 +505,7 @@ try:
             # Set selected polygons to drained state
             gp.CalculateField_management("combinedLyr", "HYDGROUP", "!HYDGROUP![0]", "PYTHON", "")
         del count2
-        
+
         # Set remaining combined groups to natural state
         gp.SelectLayerByAttribute_management("combinedLyr", "SWITCH_SELECTION", "")
         count2 = int(gp.GetCount_management("combinedLyr").getOutput(0))
@@ -515,10 +513,10 @@ try:
             AddMsgAndPrint("\tSetting "  + str(count2) + " non-cultivated combined group(s) to natural state",0)
             gp.CalculateField_management("combinedLyr", "HYDGROUP", "\"D\"", "VB", "")
         del count2
-        
+
     del count
-    
-    # Set any possible remaing nulls to "W", which will assign a RCN of 99    
+
+    # Set any possible remaing nulls to "W", which will assign a RCN of 99
     query = "\"HYDGROUP\" Is Null"
     gp.SelectLayerByAttribute_management(soilsLyr, "NEW_SELECTION", query)
     count = int(gp.GetCount_management(soilsLyr).getOutput(0))
@@ -530,8 +528,8 @@ try:
     del count
 
     # Clear any remaining selections
-    gp.SelectLayerByAttribute_management(soilsLyr, "CLEAR_SELECTION", "")    
-    
+    gp.SelectLayerByAttribute_management(soilsLyr, "CLEAR_SELECTION", "")
+
     # Join NLCD Lookup table to populate HYD_CODE field
     gp.AddJoin_management(soilsLyr, "HYDGROUP", NLCD_RCN_TABLE, "Soil", "KEEP_ALL")
     gp.CalculateField_management(soilsLyr, "" + str(os.path.basename(wsSoils)) + ".HYD_CODE", "[NLCD_RCN_TABLE.ID]", "VB", "")
@@ -567,10 +565,10 @@ try:
         gp.CalculateField_management(LU_PLUS_SOILS, "ACRES", "Round([COUNT] * (" + str(cellArea) + " / 43560),1)", "VB", "")
     else:
         pass
-    
+
     # Sum the count (equivalent to area) for each CN in watershed
     gp.Statistics_analysis(LU_PLUS_SOILS, RCN_Stats,"COUNT sum","")
-    
+
     # Join NLCD Lookup table to retrieve RCN and desc values
     gp.MakeRasterLayer_management(LU_PLUS_SOILS, "LU_PLUS_SOILS_LYR")
     gp.AddJoin_management("LU_PLUS_SOILS_LYR", "HYD_CODE", NLCD_RCN_TABLE, "Join_", "KEEP_ALL")
@@ -578,15 +576,15 @@ try:
     gp.CalculateField_management("LU_PLUS_SOILS_LYR", "VAT_LU_PLUS_SOILS.LANDUSE", "[NLCD_RCN_TABLE.NRCS_LANDUSE]", "VB", "")
     gp.CalculateField_management("LU_PLUS_SOILS_LYR", "VAT_LU_PLUS_SOILS.HYD_GROUP", "[NLCD_RCN_TABLE.Soil]", "VB", "")
 
-    # -------------------------------------------------------------------------------- Weight Curve Number    
+    # -------------------------------------------------------------------------------- Weight Curve Number
     # Retrieve the total area (Watershed Area)
     rows = gp.searchcursor(RCN_Stats)
     row = rows.next()
     wsArea = row.SUM_COUNT
-    
+
     # Multiply CN by percent of area to weight
     gp.CalculateField_management(LU_PLUS_SOILS, "WGT_RCN", "[RCN] * ([COUNT] / " + str(float(wsArea)) + ")", "VB", "")
-    
+
     # Sum the weights to create weighted RCN
     gp.Statistics_analysis(LU_PLUS_SOILS, RCN_Stats2,"WGT_RCN sum","")
     wgtrows = gp.searchcursor(RCN_Stats2)
@@ -594,36 +592,36 @@ try:
     wgtRCN = wgtrow.SUM_WGT_RCN
     AddMsgAndPrint("\n\tWeighted Average Runoff Curve No. for " + str(wsName) + " is " + str(int(wgtRCN)),0)
 
-    
+
     del wsArea
     del rows
-    del row 
+    del row
     del wgtrows
     del wgtrow
-    
+
     # Export RCN Summary Table
     gp.CopyRows_management(LU_PLUS_SOILS, RCN_TABLE)
-    
+
     # Delete un-necessary fields from summary table
     gp.DeleteField_management(RCN_TABLE, "VALUE;COUNT;SOILS;HYD_CODE;HYD_CODE;WGT_RCN")
-    
+
     # ------------------------------------------------------------------ Pass results to user watershed
-    
+
     AddMsgAndPrint("\nAdding RCN results to " + str(wsName) + "'s attributes",1)
     if not len(gp.ListFields(watershed,"RCN")) > 0:
         gp.AddField_management(watershed, "RCN", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
     gp.CalculateField_management(watershed, "RCN", "" + str(wgtRCN) + "", "VB", "")
 
     del wgtRCN
-            
-    # ------------------------------------------------------------------ Optional: Create Runoff Curve Number Grid
-    
 
-   
+    # ------------------------------------------------------------------ Optional: Create Runoff Curve Number Grid
+
+
+
     if createRCN:
         AddMsgAndPrint("\nCreating Curve Number Raster...",1)
-    
-        # If user provided a snap raster, assign from input        
+
+        # If user provided a snap raster, assign from input
         if len(snapRaster) > 0:
             gp.SnapRaster = snapRaster
             gp.OutputCoordinateSystem = outCoordSys
@@ -632,7 +630,7 @@ try:
         else:
             gp.SnapRaster = landuse
             gp.CellSize = cellSize
-            
+
         # Convert Combined Raster to Curve Number grid
         gp.Lookup_sa(LU_PLUS_SOILS, "RCN", RCN_GRID)
         AddMsgAndPrint("\nSuccessfully Created Runoff Curve Number Grid",1)
@@ -641,7 +639,7 @@ try:
     # ----------------------------------------------------- Delete Intermediate data
     layersToRemove = (LU_PLUS_SOILS,CULT_GRID,CULT_POLY,SOILS_GRID,RCN_Stats,RCN_Stats2,landuse)
 
-    x = 0        
+    x = 0
     for layer in layersToRemove:
 
         if gp.exists(layer):
@@ -650,32 +648,32 @@ try:
             if x == 0:
                 AddMsgAndPrint("\nDeleting intermediate data...",1)
                 x += 1
-            
+
             try:
                 gp.delete_management(layer)
             except:
                 pass
 
     del x, layersToRemove
-    
+
     # ----------------------------------------------------------------------- Compact FGDB
     try:
         gp.compact_management(watershedGDB_path)
-        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),1)    
+        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),1)
     except:
         pass
-    
+
     # ------------------------------------------------------------ Prepare to Add to Arcmap
 
     if externalWshd:
         gp.SetParameterAsText(6, watershed)
     if createRCN:
         gp.SetParameterAsText(7, RCN_GRID)
-        
+
     gp.SetParameterAsText(8, RCN_TABLE)
-    
+
     AddMsgAndPrint("\nAdding Output to ArcMap",1)
-    
+
     gp.RefreshCatalog(watershedGDB_path)
 
     # Restore original environments
@@ -704,7 +702,7 @@ try:
         del soilsLyr
         del SOILS_GRID
         del RCN_Stats
-        del RCN_Stats2    
+        del RCN_Stats2
         del wsSoils
         del landuse
         del watershed
@@ -724,10 +722,10 @@ try:
         del tempCellSize
         del tempCoordSys
         del rcnOut
-        del soilsOut  
+        del soilsOut
     except:
         pass
-    
+
 except SystemExit:
     pass
 
@@ -735,4 +733,4 @@ except KeyboardInterrupt:
     AddMsgAndPrint("Interruption requested....exiting")
 
 except:
-    print_exception()    
+    print_exception()

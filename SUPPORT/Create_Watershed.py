@@ -150,7 +150,7 @@ if __name__ == '__main__':
             arcpy.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu\n",2)
             exit()
 
-        # Script Parameters
+        # --------------------------------------------------------------------------------------------- Input Parameters
         streams = arcpy.GetParameterAsText(0)
         outlet = arcpy.GetParameterAsText(1)
         userWtshdName = arcpy.GetParameterAsText(2)
