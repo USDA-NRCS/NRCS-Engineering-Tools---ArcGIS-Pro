@@ -453,7 +453,6 @@ if __name__ == '__main__':
         AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
         # ------------------------------------------------------------------------------------------------ Prepare to Add to ArcGIS Pro
-
         arcpy.SetParameterAsText(4, poolExit)
 
     except:
