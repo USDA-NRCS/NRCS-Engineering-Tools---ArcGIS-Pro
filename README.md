@@ -36,7 +36,7 @@ Watershed Tools - Runoff Curve Number|2. Calculate Runoff Curve Number|X|
 Watershed Tools - Storage|Calculate Stage Storage|X|
 Watershed Tools - Storage|Create Pool at Desired Elevation|X|
 Watershed Tools - Storage|Estimate Pool from Contours||
-Watershed Tools - Utilities|Calculate Curve Number from NLCD||
+Watershed Tools - Utilities|Calculate Curve Number from NLCD|X|
 Utilities|Clip/Merge Adjacent Datasets||
 Utilities|Clip/Merge Adjacent DEMs||
 Utilities|ElevationWebServiceClipUSERSELECTReprojectModel||
