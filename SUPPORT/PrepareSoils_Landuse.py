@@ -88,17 +88,17 @@ def AddMsgAndPrint(msg, severity=0):
         f.close
         del f
 
-        if severity == 0:
-            arcpy.AddMessage(msg)
-
-        elif severity == 1:
-            arcpy.AddWarning(msg)
-
-        elif severity == 2:
-            arcpy.AddError(msg)
-
     except:
         pass
+
+    if severity == 0:
+        arcpy.AddMessage(msg)
+
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+
+    elif severity == 2:
+        arcpy.AddError(msg)
 
 ## ================================================================================================================
 def logBasicSettings():
@@ -254,6 +254,7 @@ if __name__ == '__main__':
         # Remove layers from ArcGIS Pro Session if executed from an .aprx
         try:
             aprx = arcpy.mp.ArcGISProject("CURRENT")
+
             for maps in aprx.listMaps():
                 for lyr in maps.listLayers():
                     if lyr.name in datasetsBaseName:
@@ -323,11 +324,11 @@ if __name__ == '__main__':
         if bSplitLU:
 
             # Dissolve in case the watershed has multiple polygons
-            watershedDissolve = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("watershedDissolve",data_type="FeatureClass",workspace=watershedGDB_path))
+            watershedDissolve = arcpy.CreateScratchName("watershedDissolve",data_type="FeatureClass",workspace="in_memory")
             arcpy.Dissolve_management(inWatershedPath, watershedDissolve, "", "", "MULTI_PART", "DISSOLVE_LINES")
 
             # Clip the CLU layer to the dissolved watershed layer
-            cluClip = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("cluClip",data_type="FeatureClass",workspace=watershedGDB_path))
+            cluClip = arcpy.CreateScratchName("cluClip",data_type="FeatureClass",workspace="in_memory")
             arcpy.Clip_analysis(inCLU, watershedDissolve, cluClip)
             AddMsgAndPrint("\nSuccessfully clipped the CLU to your Watershed Layer")
 

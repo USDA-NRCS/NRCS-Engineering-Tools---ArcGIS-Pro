@@ -85,17 +85,17 @@ def AddMsgAndPrint(msg, severity=0):
         f.close
         del f
 
-        if severity == 0:
-            arcpy.AddMessage(msg)
-
-        elif severity == 1:
-            arcpy.AddWarning(msg)
-
-        elif severity == 2:
-            arcpy.AddError(msg)
-
     except:
         pass
+
+    if severity == 0:
+        arcpy.AddMessage(msg)
+
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+
+    elif severity == 2:
+        arcpy.AddError(msg)
 
 ## ================================================================================================================
 def logBasicSettings():
@@ -220,10 +220,10 @@ if __name__ == '__main__':
         if culvertsExist:
             datasetsBaseName.append(os.path.basename(culverts))
 
-        aprx = arcpy.mp.ArcGISProject("CURRENT")
-
         # Remove layers from ArcGIS Pro Session
         try:
+            aprx = arcpy.mp.ArcGISProject("CURRENT")
+
             for maps in aprx.listMaps():
                 for lyr in maps.listLayers():
                     if lyr.name in datasetsBaseName:
@@ -336,7 +336,7 @@ if __name__ == '__main__':
                         AddMsgAndPrint("\nBuffer size applied on Culverts: Equivalent of 1 pixel since linear units are unknown",0)
 
                     # Buffer the culverts to 1 pixel
-                    culvertBuffered = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("culvertBuffered",data_type="FeatureClass",workspace=watershedGDB_path))
+                    culvertBuffered = arcpy.CreateScratchName("culvertBuffered",data_type="FeatureClass",workspace="in_memory")
                     arcpy.Buffer_analysis(culverts, culvertBuffered, bufferSize, "FULL", "ROUND", "NONE", "")
 
                     # Dummy field just to execute Zonal stats on each feature

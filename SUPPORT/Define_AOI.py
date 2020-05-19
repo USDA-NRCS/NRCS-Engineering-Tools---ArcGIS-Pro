@@ -81,17 +81,17 @@ def AddMsgAndPrint(msg, severity=0):
         f.close
         del f
 
-        if severity == 0:
-            arcpy.AddMessage(msg)
-
-        elif severity == 1:
-            arcpy.AddWarning(msg)
-
-        elif severity == 2:
-            arcpy.AddError(msg)
-
     except:
         pass
+
+    if severity == 0:
+        arcpy.AddMessage(msg)
+
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+
+    elif severity == 2:
+        arcpy.AddError(msg)
 
 ## ================================================================================================================
 def logBasicSettings():
@@ -177,7 +177,7 @@ def extractSubsetFromGCSdem(demSource,zUnits):
         arcpy.env.resamplingMethod = "BILINEAR"
 
         # Make a copy of projectAOI so that it converts into output GCS
-        projectedAOIcopy = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("projectAOIcopy",data_type="FeatureClass",workspace=watershedGDB_path))
+        projectedAOIcopy = arcpy.CreateScratchName("projectAOIcopy",data_type="FeatureClass",workspace="in_memory")
         arcpy.CopyFeatures_management(projectAOI,projectedAOIcopy)
 
         # Extent coordinates should be GCS
@@ -186,7 +186,7 @@ def extractSubsetFromGCSdem(demSource,zUnits):
 
         arcpy.SetProgressorLabel("Downloading DEM from " + demName + " Image Service")
 
-        demClip = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("demClipIS",data_type="RasterDataset",workspace=watershedGDB_path))
+        demClip = arcpy.CreateScratchName("demClipIS",data_type="RasterDataset",workspace="in_memory")
         arcpy.Clip_management(demSource, clipExtent, demClip, "", "", "", "NO_MAINTAIN_EXTENT")
 
         if bImageService:
@@ -205,7 +205,7 @@ def extractSubsetFromGCSdem(demSource,zUnits):
         arcpy.env.outputCoordinateSystem = aoiSR
         outputCS = arcpy.env.outputCoordinateSystem
 
-        demProject = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("demProjectIS",data_type="RasterDataset",workspace=watershedGDB_path))
+        demProject = arcpy.CreateScratchName("demProjectIS",data_type="RasterDataset",workspace="in_memory")
         arcpy.ProjectRaster_management(demClip, demProject, outputCS, "BILINEAR", outputCellsize)
 
         outExtract = ExtractByMask(demProject, projectAOI)
@@ -441,10 +441,10 @@ if __name__ == '__main__':
         datasetsToRemove = (demOut,hillshadeOut,depthOut,contoursOut)       # Full path of layers
         datasetsBaseName = [os.path.basename(x) for x in datasetsToRemove]  # layer names as they would appear in .aprx
 
-        aprx = arcpy.mp.ArcGISProject("CURRENT")
-
         # Remove layers from ArcGIS Pro Session if executed from an .aprx
         try:
+            aprx = arcpy.mp.ArcGISProject("CURRENT")
+
             for maps in aprx.listMaps():
                 for lyr in maps.listLayers():
                     if lyr.name in datasetsBaseName:
@@ -453,7 +453,6 @@ if __name__ == '__main__':
             pass
 
         if arcpy.Exists(watershedGDB_path):
-
             x = 0
             for dataset in datasetsToRemove:
 

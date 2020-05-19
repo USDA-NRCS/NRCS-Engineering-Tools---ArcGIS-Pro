@@ -82,17 +82,17 @@ def AddMsgAndPrint(msg, severity=0):
         f.close
         del f
 
-        if severity == 0:
-            arcpy.AddMessage(msg)
-
-        elif severity == 1:
-            arcpy.AddWarning(msg)
-
-        elif severity == 2:
-            arcpy.AddError(msg)
-
     except:
         pass
+
+    if severity == 0:
+        arcpy.AddMessage(msg)
+
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+
+    elif severity == 2:
+        arcpy.AddError(msg)
 
 ## ================================================================================================================
 def logBasicSettings():
@@ -137,7 +137,7 @@ def createPool(elevationValue,storageTxtFile):
 
         global convToFeetFactor,acreConversion,ftConversion,convToAcreFootFactor
 
-        poolPolygonTemp = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("poolPolygonTemp",data_type="FeatureClass",workspace=watershedGDB_path))
+        poolPolygonTemp = arcpy.CreateScratchName("poolPolygonTemp",data_type="FeatureClass",workspace="in_memory")
 
         fcName =  ("Pool_" + str(round((elevationValue * convToFeetFactor),1))).replace(".","_")
         poolExit = watershedFD + os.sep + fcName
@@ -439,10 +439,11 @@ if __name__ == '__main__':
 
         # ------------------------------------- Remove layers from ArcGIS Pro if they exist
         layersToRemove = (poolMergeOut,storageTableView)
-        aprx = arcpy.mp.ArcGISProject("CURRENT")
 
         # Remove layers from ArcGIS Pro Session if executed from an .aprx
         try:
+            aprx = arcpy.mp.ArcGISProject("CURRENT")
+
             for maps in aprx.listMaps():
                 for lyr in maps.listLayers():
                     if lyr.name in layersToRemove:

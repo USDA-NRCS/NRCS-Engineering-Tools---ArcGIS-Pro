@@ -29,6 +29,7 @@
 #   to lookup from a dictionary to avoid joins and creating temporary layers.  The lookup
 #   dictionary would be created from the GDB itself so that future additions/removals
 #   can easily be made.
+# - Need to add functionality to get Soils data directly from SDA instead of locally.
 #
 # - Removed the 'Check for RCN Grid' section and updated the output layer of the
 #   NLCD_RunoffCurveNumber tool to watershedGDB_path + os.sep + wsName + "_RCN_Grid"
@@ -90,17 +91,17 @@ def AddMsgAndPrint(msg, severity=0):
         f.close
         del f
 
-        if severity == 0:
-            arcpy.AddMessage(msg)
-
-        elif severity == 1:
-            arcpy.AddWarning(msg)
-
-        elif severity == 2:
-            arcpy.AddError(msg)
-
     except:
         pass
+
+    if severity == 0:
+        arcpy.AddMessage(msg)
+
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+
+    elif severity == 2:
+        arcpy.AddError(msg)
 
 ## ================================================================================================================
 def logBasicSettings():
@@ -130,7 +131,6 @@ def logBasicSettings():
 ## ================================================================================================================
 # Import system modules
 import sys, os, string, traceback, arcpy
-from arcpy.sa import *
 
 if __name__ == '__main__':
 
@@ -256,7 +256,7 @@ if __name__ == '__main__':
 
         arcpy.CalculateField_management(inWatershed, "Acres", "!shape.area@ACRES!", "PYTHON3")
 
-        wtshdLanduseSoilsIntersect = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("wtshdLanduseSoilsIntersect",data_type="FeatureClass",workspace=watershedGDB_path))
+        wtshdLanduseSoilsIntersect = arcpy.CreateScratchName("wtshdLanduseSoilsIntersect",data_type="FeatureClass",workspace="in_memory")
         arcpy.Intersect_analysis([inWatershed,inLanduse,inSoils], wtshdLanduseSoilsIntersect, "NO_FID", "", "INPUT")
 
         arcpy.AddField_management(wtshdLanduseSoilsIntersect, "LUDESC", "TEXT", "255", "", "", "", "NULLABLE", "NON_REQUIRED")
@@ -476,7 +476,7 @@ if __name__ == '__main__':
         # Get weighted acres
         arcpy.CalculateField_management(wtshdLanduseSoilsIntersect_Layer, "WGTRCN", "(!RCN_ACRES! / !ACRES!) * !RCN!", "PYTHON3")
 
-        rcn_stats = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("rcn_stats",data_type="ArcInfoTable",workspace=watershedGDB_path))
+        rcn_stats = arcpy.CreateScratchName("rcn_stats",data_type="ArcInfoTable",workspace="in_memory")
         arcpy.Statistics_analysis(wtshdLanduseSoilsIntersect_Layer, rcn_stats, "WGTRCN SUM", "Subbasin")
         AddMsgAndPrint("\nSuccessfully Calculated Weighted Runoff Curve Number for each SubBasin")
 

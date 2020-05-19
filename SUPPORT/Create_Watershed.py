@@ -78,17 +78,17 @@ def AddMsgAndPrint(msg, severity=0):
         f.close
         del f
 
-        if severity == 0:
-            arcpy.AddMessage(msg)
-
-        elif severity == 1:
-            arcpy.AddWarning(msg)
-
-        elif severity == 2:
-            arcpy.AddError(msg)
-
     except:
         pass
+
+    if severity == 0:
+        arcpy.AddMessage(msg)
+
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+
+    elif severity == 2:
+        arcpy.AddError(msg)
 
 ## ================================================================================================================
 def logBasicSettings():
@@ -329,13 +329,13 @@ if __name__ == '__main__':
         arcpy.CalculateField_management(outletFC, "IDENT", objectIDfld, "PYTHON3")
 
         # Buffer outlet features by  raster cell size
-        outletBuffer = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("outletBuffer",data_type="FeatureClass",workspace=watershedGDB_path))
+        outletBuffer = arcpy.CreateScratchName("outletBuffer",data_type="FeatureClass",workspace="in_memory")
         bufferDist = "" + str(demCellSize) + " " + str(linearUnits) + ""
         arcpy.Buffer_analysis(outletFC, outletBuffer, bufferDist, "FULL", "ROUND", "LIST", "IDENT")
 
         # Convert bufferd outlet to raster
         #arcpy.MakeFeatureLayer(outletBuffer,"outletBufferLyr")
-        pourPointGrid = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("PourPoint",data_type="RasterDataset",workspace=watershedGDB_path))
+        pourPointGrid = arcpy.CreateScratchName("PourPoint",data_type="RasterDataset",workspace="in_memory")
         arcpy.PolygonToRaster_conversion(outletBuffer,"IDENT",pourPointGrid,"MAXIMUM_AREA","NONE",demCellSize)
 
         # Delete intermediate data
@@ -344,11 +344,11 @@ if __name__ == '__main__':
 
         # Create Watershed Raster using the raster pour point
         AddMsgAndPrint("\nDelineating Watershed(s)...")
-        #watershedGrid = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("watershedGrid",data_type="RasterDataset",workspace=watershedGDB_path))
+        #watershedGrid = arcpy.CreateScratchName("watershedGrid",data_type="RasterDataset",workspace="in_memory")
         watershedGrid = Watershed(FlowDir,pourPointGrid,"VALUE")
 
         # Convert results to simplified polygon
-        watershedTemp = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("watershedTemp",data_type="FeatureClass",workspace=watershedGDB_path))
+        watershedTemp = arcpy.CreateScratchName("watershedTemp",data_type="FeatureClass",workspace="in_memory")
         arcpy.RasterToPolygon_conversion(watershedGrid,watershedTemp,"SIMPLIFY","VALUE")
 
         # Dissolve watershedTemp by GRIDCODE or grid_code
@@ -415,11 +415,11 @@ if __name__ == '__main__':
                 LongpathTemp = StreamToFeature(LFP_StreamLink, FlowDir, "NO_SIMPLIFY")
 
                 # Smooth and Dissolve results
-                LP_Smooth = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("LP_Smooth",data_type="FeatureClass",workspace=watershedGDB_path))
+                LP_Smooth = arcpy.CreateScratchName("LP_Smooth",data_type="FeatureClass",workspace="in_memory")
                 CA.SmoothLine(LongpathTemp, LP_Smooth, "PAEK", "100 Feet", "FIXED_CLOSED_ENDPOINT", "NO_CHECK")
 
                 # Intersect with watershed to get subbasin ID
-                LongpathTemp1 = "in_memory" + os.sep + os.path.basename(arcpy.CreateScratchName("LongpathTemp1",data_type="FeatureClass",workspace=watershedGDB_path))
+                LongpathTemp1 = arcpy.CreateScratchName("LongpathTemp1",data_type="FeatureClass",workspace="in_memory")
                 arcpy.Intersect_analysis(LP_Smooth + "; " + watershed, LongpathTemp1, "ALL", "", "INPUT")
 
                 # Dissolve to create single lines for each subbasin
