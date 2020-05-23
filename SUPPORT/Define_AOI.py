@@ -2,6 +2,8 @@
 # Name: Define_AOI.py
 #
 # Author: Peter Mead
+#         Becker Soil Water Conservation District
+#         Red River Valley Conservation Service Area
 # e-mail: pemead@co.becker.mn.us
 #
 # Author: Adolfo.Diaz
@@ -31,6 +33,9 @@
 # - All temporary raster layers such as Fill and Minus are stored in Memory and no longer
 #   written to hard disk.
 # - All describe functions use the arcpy.da.Describe functionality.
+# - All intermediate datasets are written to "in_memory" instead of written to a FGDB and
+#   and later deleted.  This avoids having to check and delete intermediate data during every
+#   execution.
 # - All field calculation expressions are in PYTHON3 format.
 # - Used acre conversiont dictionary and z-factor lookup table
 # - All cursors were updated to arcpy.da
@@ -40,6 +45,8 @@
 # - Added Snap Raster environment
 # - Added parallel processing factor environment
 # - swithced from sys.exit() to exit()
+# - wrapped the code that writes to text files in a try-except clause b/c if there is an
+#   an error prior to establishing the log file than the error never gets reported.
 # - All gp functions were translated to arcpy
 # - Every function including main is in a try/except clause
 # - Main code is wrapped in if __name__ == '__main__': even though script will never be
@@ -197,16 +204,16 @@ def extractSubsetFromGCSdem(demSource,zUnits):
         # convert DD resolution to meters or feet
         outputCellsize = getPCSresolutionFromGCSraster(demClip,aoiLinearUnits)
 
-        # Set the default cell size to 3 if getImageServiceResolution returned 0
+        # return false if outputCellSize could not be determined
         if outputCellsize == 0:
-            outputCellsize == 3
+            return False,False
 
         # Project DEM subset to projectAOI PCS
         arcpy.env.outputCoordinateSystem = aoiSR
-        outputCS = arcpy.env.outputCoordinateSystem
 
         demProject = arcpy.CreateScratchName("demProjectIS",data_type="RasterDataset",workspace="in_memory")
-        arcpy.ProjectRaster_management(demClip, demProject, outputCS, "BILINEAR", outputCellsize)
+        arcpy.SetProgressorLabel("Projecting DEM to " + aoiSRname)
+        arcpy.ProjectRaster_management(demClip, demProject, aoiSR, "BILINEAR", outputCellsize)
 
         outExtract = ExtractByMask(demProject, projectAOI)
         outExtract.save(DEM_aoi)
@@ -269,13 +276,17 @@ def getPCSresolutionFromGCSraster(raster,units):
         distMeters = (6371 * c) * 1000
 
         if units in ('Meter','Meters'):
-            return int(distMeters / rows)
+            resolution = distMeters / rows
+
+            if resolution > 0.0 and resolution < 1.0:
+                return round(resolution)
+            else:
+                return int(resolution)
 
         elif units in ('Foot','Foot_US','Feet'):
             return int((distMeters * 3.28084) / rows)
 
         else:
-            AddMsgAndPrint("\nCould not determine resolution of GCS DEM ",2)
             return 0
 
     except:
@@ -392,15 +403,16 @@ if __name__ == '__main__':
                        [39.3701,12,0.393701,1.0]]
 
         # ---------------------------------------------------------------------------------------------- Set Coord System of Project
+        # AOI spatial reference info
+        aoiDesc = arcpy.da.Describe(AOI)
+        aoiSR = aoiDesc['spatialReference']
+        aoiSRname = aoiSR.name
+        aoiLinearUnits = aoiSR.linearUnitName
+        aoiName = aoiDesc['name']
+        aoiDemCoordType = aoiSR.type
+
         # input DEM Coordinate System is Geographic
         if not bProjectedCS:
-
-            # AOI spatial reference info
-            aoiDesc = arcpy.da.Describe(AOI)
-            aoiSR = aoiDesc['spatialReference']
-            aoiLinearUnits = aoiSR.linearUnitName
-            aoiName = aoiDesc['name']
-            aoiDemCoordType = aoiSR.type
 
             # Set output coord system to AOI if AOI is a projected coord System
             if aoiDemCoordType == 'Projected':
@@ -565,11 +577,6 @@ if __name__ == '__main__':
                 pass
 
         # -------------------------------------------------------------------------------------------- notify user of Area and Acres of AOI
-        aoiDesc = arcpy.da.Describe(projectAOI)
-        aoiSR = aoiDesc['spatialReference']
-        aoiLinearUnits = aoiSR.linearUnitName
-        aoiName = aoiDesc['name']
-
         area =  sum([row[0] for row in arcpy.da.SearchCursor(projectAOI, ("SHAPE@AREA"))])
         acres = area / acreConversionDict.get(aoiLinearUnits)
 
@@ -594,6 +601,10 @@ if __name__ == '__main__':
         # DEM is in GCS (Local DEM or WMS)
         else:
             DEM_aoi,zFactor = extractSubsetFromGCSdem(inputDEM,zUnits)
+
+            if DEM_aoi == False:
+                AddMsgAndPrint("\nCould not determine resolution of GCS DEM. EXITING",2)
+                exit()
 
         # ------------------------------------------------------------------------------------------------ Create Smoothed Contours
         # Smooth DEM and Create Contours if user-defined interval is greater than 0 and valid

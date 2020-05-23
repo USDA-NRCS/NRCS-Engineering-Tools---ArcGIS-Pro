@@ -2,6 +2,8 @@
 # Name: CalculateStageStorage.py
 #
 # Author: Peter Mead
+#         Becker Soil Water Conservation District
+#         Red River Valley Conservation Service Area
 # e-mail: pemead@co.becker.mn.us
 #
 # Author: Adolfo.Diaz
