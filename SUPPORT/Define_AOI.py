@@ -23,6 +23,17 @@
 # Updated by Chris Morse, USDA NRCS, 2019
 
 # ==========================================================================================
+# Updated  5/29/2020 - Adolfo Diaz
+#
+# - When setting the output coord system from the AOI b/c the input DEM is in GCS, I was
+#   describing the sr or the AOI vs the catalog path of AOI.  The AOI sr would sometimes
+#   grab the sr of the aprx and not the AOI.  Switched to catalog path and it worked.
+# - If input DEM is in GCS and AOI is in PCS and the AOI linear units are different than
+#   the z-units of the GCS (i.e DEM = GCS,meters & AOI = DCCS FT) then the output coordinate
+#   system will be DCCS FT and after the DEM is projected and cipped, its z-units will by adjusted
+#   to match the units of the AOI (i.e DEM z-units will be converted to feet)
+
+# ==========================================================================================
 # Updated  4/15/2020 - Adolfo Diaz
 #
 # - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
@@ -176,7 +187,8 @@ def extractSubsetFromGCSdem(demSource,zUnits):
     # -- Clip is the fastest however it doesn't honor cellsize so a project is required.
     # -- Original Z-factor on WGS84 service cannot be calculated b/c linear units are
     #    unknown.  Assume linear units and z-units are the same.
-    # Returns a clipped DEM and new Z-Factor
+    # Returns True if the DEM was succesfully clipped.  False otherwise.
+    # The DEM is writted to DEM_aoi which is the permannent DEM variable
 
     try:
         # Set the output CS to the input DEM i.e WGS84
@@ -199,14 +211,14 @@ def extractSubsetFromGCSdem(demSource,zUnits):
         if bImageService:
             AddMsgAndPrint("\nSuccessfully downloaded DEM from " + demName + " Image Service")
         else:
-            AddMsgAndPrint("\nSuccessully Clipped " + demName + " DEM using " + aoiName,1)
+            AddMsgAndPrint("\nSuccessully Clipped " + demName + " DEM using " + aoiName)
 
         # convert DD resolution to meters or feet
         outputCellsize = getPCSresolutionFromGCSraster(demClip,aoiLinearUnits)
 
         # return false if outputCellSize could not be determined
         if outputCellsize == 0:
-            return False,False
+            return False
 
         # Project DEM subset to projectAOI PCS
         arcpy.env.outputCoordinateSystem = aoiSR
@@ -216,7 +228,6 @@ def extractSubsetFromGCSdem(demSource,zUnits):
         arcpy.ProjectRaster_management(demClip, demProject, aoiSR, "BILINEAR", outputCellsize)
 
         outExtract = ExtractByMask(demProject, projectAOI)
-        outExtract.save(DEM_aoi)
 
         arcpy.Delete_management(demClip)
         arcpy.Delete_management(demProject)
@@ -227,19 +238,26 @@ def extractSubsetFromGCSdem(demSource,zUnits):
         newLinearUnits = newSR.linearUnitName
         newCellSize = maskDesc['meanCellWidth']
 
-        newZfactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get(newLinearUnits)]
+        newZfactor = zFactorList[unitLookUpDict.get(newLinearUnits)][unitLookUpDict.get(zUnits)]
 
-        AddMsgAndPrint("\tNew Projection Name: " + newSR.name,0)
+        # Adjust Z-units by new factor if needed
+        if newZfactor != 1.0:
+            AddMsgAndPrint("Converting Z-units from " + zUnits + " to " + newLinearUnits + " using multiplicative factor of: " + str(newZfactor),1)
+            outTimes = Times(outExtract,newZfactor)
+            outTimes.save(DEM_aoi)
+        else:
+            outExtract.save(DEM_aoi)
+
+        AddMsgAndPrint("\tNew DEM Projection Name: " + newSR.name,1)
         AddMsgAndPrint("\tXY Linear Units: " + newLinearUnits)
-        AddMsgAndPrint("\tElevation Units (Z): " + zUnits)
+        AddMsgAndPrint("\tElevation Units (Z): " + newLinearUnits)
         AddMsgAndPrint("\tCell Size: " + str(newCellSize) + " " + newLinearUnits )
-        AddMsgAndPrint("\tZ-Factor: " + str(newZfactor))
 
-        #AddMsgAndPrint(toc(startTime))
-        return DEM_aoi,newZfactor
+        return True
 
     except:
         print_exception()
+        return False
 
 ## ================================================================================================================
 def getPCSresolutionFromGCSraster(raster,units):
@@ -335,15 +353,16 @@ if __name__ == '__main__':
         demPath = demDesc['catalogPath']
         demCellSize = demDesc['meanCellWidth']
         demSR = demDesc['spatialReference']
+        demSRname = demSR.name
         demFormat = demDesc['format']
         demCoordType = demSR.type
 
         if demCoordType == 'Projected':
             bProjectedCS = True
-            linearUnits = demSR.linearUnitName
+            demLinearUnits = demSR.linearUnitName
         else:
             bProjectedCS = False
-            linearUnits = demSR.angularUnitName
+            demLinearUnits = demSR.angularUnitName
 
         bImageService = False
         if demFormat == 'Image Service':
@@ -356,6 +375,7 @@ if __name__ == '__main__':
         watershedGDB_name = os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.gdb"  # replace spaces for new FGDB name
         watershedGDB_path = userWorkspace + os.sep + watershedGDB_name
         watershedFD = watershedGDB_path + os.sep + "Layers"
+        AOIpath = arcpy.da.Describe(AOI)['catalogPath']
 
         # Permanent Datasets
         projectAOI = watershedFD + os.sep + projectName + "_AOI"
@@ -397,26 +417,28 @@ if __name__ == '__main__':
         # ---------------------------------------------------
 
         unitLookUpDict = {'Meter':0,'Meters':0,'Foot':1,'Foot_US':1,'Feet':1,'Centimeter':2,'Centimeters':2,'Inch':3,'Inches':3}
-        zFactorList = [[1,0.3048,0.01,0.0254],
-                       [3.28084,1,0.0328084,0.083333],
-                       [100,30.48,1.0,2.54],
-                       [39.3701,12,0.393701,1.0]]
+
+        zFactorList = [[1.0,     0.3048, 0.01,      0.0254],
+                       [3.28084, 1.0,    0.0328084, 0.083333],
+                       [100.0,   30.48,  1.0,       2.54],
+                       [39.3701, 12.0,   0.393701,  1.0]]
 
         # ---------------------------------------------------------------------------------------------- Set Coord System of Project
         # AOI spatial reference info
-        aoiDesc = arcpy.da.Describe(AOI)
+        aoiDesc = arcpy.da.Describe(AOIpath)
         aoiSR = aoiDesc['spatialReference']
         aoiSRname = aoiSR.name
         aoiLinearUnits = aoiSR.linearUnitName
         aoiName = aoiDesc['name']
         aoiDemCoordType = aoiSR.type
 
-        # input DEM Coordinate System is Geographic
+        # input DEM Coordinate System is Geographic Coordinate System
         if not bProjectedCS:
 
             # Set output coord system to AOI if AOI is a projected coord System
             if aoiDemCoordType == 'Projected':
                 arcpy.env.outputCoordinateSystem = aoiSR
+                AddMsgAndPrint("\nOutput Coordinate System of Project will be: " + aoiSRname)
             else:
                 AddMsgAndPrint("\n\t" + demName + " DEM and " + aoiName + " AOI are in a Geographic Coordinate System",2)
                 AddMsgAndPrint("\tOne of these layers must be in a Projected Coordinate System",2)
@@ -425,29 +447,28 @@ if __name__ == '__main__':
 
             # assume there will be no z-factor adjustment
             # Maybe the zUnits should be compared against aoiLinearUnits
-            zFactor = 1
+            #zFactor = 1
 
         # Coordinate System is Projected (Could be local DEM or WMS in PCS)
         else:
             # Set output coord system to input DEM
             arcpy.env.outputCoordinateSystem = demSR
+            AddMsgAndPrint("\nOutput Coordinate System of Project will be: " + demSRname)
 
             if not len(zUnits) > 0:
-                zUnits = linearUnits
+                zUnits = demLinearUnits
 
-            zFactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get(linearUnits)]
+            zFactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get(demLinearUnits)]
 
-        if not linearUnits:
+        if not demLinearUnits:
             AddMsgAndPrint("\tCould not determine units of DEM....Exiting!",2)
             exit()
 
-        AddMsgAndPrint("\nDEM Information: " + demName + " Image Service" if bImageService else "")
+        AddMsgAndPrint("\nDEM Information: " + demName + (" Image Service" if bImageService else ""))
         AddMsgAndPrint("\tProjection Name: " + demSR.name,0)
-        AddMsgAndPrint("\tXY Units: " + linearUnits,0)
-        if bProjectedCS:
-            AddMsgAndPrint("\tElevation Values (Z): " + zUnits,0)
-        AddMsgAndPrint("\tCell Size: " + str(demCellSize) + " " + linearUnits,0)
-        AddMsgAndPrint("\tZ-Factor used: " + str(zFactor))
+        AddMsgAndPrint("\tXY Units: " + demLinearUnits,0)
+        AddMsgAndPrint("\tElevation Values (Z): " + zUnits,0)
+        AddMsgAndPrint("\tCell Size: " + str(demCellSize) + " " + demLinearUnits,0)
 
         # --------------------------------------------------------------------------------------- Remove any project layers from aprx and workspace
         datasetsToRemove = (demOut,hillshadeOut,depthOut,contoursOut)       # Full path of layers
@@ -518,7 +539,7 @@ if __name__ == '__main__':
         # or input is some from some other feature class/shapefile
 
         # AOI and projectAOI paths are not the same
-        if arcpy.da.Describe(AOI)['catalogPath'] != projectAOI:
+        if AOIpath != projectAOI:
 
             # delete the existing projectAOI feature class and recreate it.
             if arcpy.Exists(projectAOI):
@@ -536,13 +557,13 @@ if __name__ == '__main__':
             AddMsgAndPrint("\nUsing Existing \"" + str(projectName) + "_AOI\" feature class:")
 
             # Use temp lyr, delete from TOC and copy back to avoid refresh issues in arcmap
-            arcpy.CopyFeatures_management(AOI, "aoiTemp")
-
-            if arcpy.Exists(aoiOut):
-                arcpy.Delete_management(aoiOut)
-
-            arcpy.CopyFeatures_management("aoiTemp", projectAOI)
-            arcpy.Delete_management("aoiTemp")
+##            arcpy.CopyFeatures_management(AOI, "aoiTemp")
+##
+##            if arcpy.Exists(aoiOut):
+##                arcpy.Delete_management(aoiOut)
+##
+##            arcpy.CopyFeatures_management("aoiTemp", projectAOI)
+##            arcpy.Delete_management("aoiTemp")
 
         # -------------------------------------------------------------------------------------------- Exit if AOI was not a polygon
         if arcpy.da.Describe(projectAOI)['shapeType'] != "Polygon":
@@ -560,7 +581,7 @@ if __name__ == '__main__':
         if len(arcpy.ListFields(projectAOI,"XY_UNITS")) < 1:
             arcpy.AddField_management(projectAOI, "XY_UNITS", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED")
 
-        arcpy.CalculateField_management(projectAOI, "XY_UNITS", "\"" + linearUnits + "\"", "PYTHON3", "")
+        arcpy.CalculateField_management(projectAOI, "XY_UNITS", "\"" + demLinearUnits + "\"", "PYTHON3", "")
 
         # Write Z Units to AOI
         if len(arcpy.ListFields(projectAOI,"Z_UNITS")) < 1:
@@ -592,41 +613,51 @@ if __name__ == '__main__':
         AddMsgAndPrint("\t" + aoiName + " Acres: " + str(splitThousands(round(acres,2))) + " Acres",0)
 
         # ------------------------------------------------------------------------------------------------- Clip inputDEM
-        # DEM is in PCS (Local DEM or WMS)
+        # DEM is in Projected Coord Systed (Local DEM or WMS)
         if bProjectedCS:
             outExtract = ExtractByMask(inputDEM, projectAOI)
             outExtract.save(DEM_aoi)
             AddMsgAndPrint("\nSuccessully Clipped " + os.path.basename(inputDEM) + " DEM using " + os.path.basename(projectAOI))
 
-        # DEM is in GCS (Local DEM or WMS)
+        # DEM is in GCS (Local DEM or WMS); Extract DEM and project it to AOI sr.
+        # this may cause different XY,
         else:
-            DEM_aoi,zFactor = extractSubsetFromGCSdem(inputDEM,zUnits)
-
-            if DEM_aoi == False:
-                AddMsgAndPrint("\nCould not determine resolution of GCS DEM. EXITING",2)
+            if not extractSubsetFromGCSdem(inputDEM,zUnits):
+                AddMsgAndPrint("\nFailed to . EXITING",2)
                 exit()
+
+            demAOIsr = arcpy.da.Describe(DEM_aoi)['spatialReference']
+            newLinearUnits = demAOIsr.linearUnitName
 
         # ------------------------------------------------------------------------------------------------ Create Smoothed Contours
         # Smooth DEM and Create Contours if user-defined interval is greater than 0 and valid
-        createContours = False
 
         if interval > 0:
-            createContours = True
+            bCreateContours = True
 
         else:
-            createContours = False
+            bCreateContours = False
             AddMsgAndPrint("\nContours will not be created since interval was not specified or set to 0",0)
 
-        if createContours:
+        if bCreateContours:
 
             # Run Focal Statistics on the DEM_aoi for the purpose of generating smooth contours
             DEMsmooth = FocalStatistics(DEM_aoi,"RECTANGLE 3 3 CELL","MEAN","DATA")
 
-            Contour(DEMsmooth, Contours, interval, "0", zFactor)
+            # Z-factor that will be used to make contours in FT.  If the DEM was in a PCS then the input
+            # zUnits will be used to convert to feet.  If the input DEM was in GCS and projected to the AOI
+            # sr then there is a chance that the input zUnits were modified.
+            # i.e. input DEM is GCS (zunits in Meters) and AOI is in DCCS FT
+            if bProjectedCS:
+                zFactortoFeet = zFactorList[unitLookUpDict.get('Feet')][unitLookUpDict.get(zUnits)]
+            else:
+                zFactortoFeet = zFactorList[unitLookUpDict.get('Feet')][unitLookUpDict.get(newLinearUnits)]
+
+            Contour(DEMsmooth, Contours, interval, "0", zFactortoFeet)
             arcpy.AddField_management(Contours, "Index", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
             arcpy.Delete_management(DEMsmooth)
 
-            AddMsgAndPrint("\nSuccessfully Created " + str(interval) + " foot Contours from " + os.path.basename(DEM_aoi) + " using a Z-factor of " + str(zFactor))
+            AddMsgAndPrint("\nSuccessfully Created " + str(interval) + " foot Contours from " + os.path.basename(DEM_aoi) + " using a Z-factor of " + str(zFactortoFeet))
 
             # Update Contour index value; strictly for symbolizing
             with arcpy.da.UpdateCursor(Contours,['Contour','Index']) as cursor:
@@ -648,7 +679,7 @@ if __name__ == '__main__':
 
         # ---------------------------------------------------------------------------------------------- Create Hillshade and Depth Grid
         # Process: Creating Hillshade from DEM_aoi
-        outHillshade = Hillshade(DEM_aoi, "315", "45", "NO_SHADOWS", zFactor)
+        outHillshade = Hillshade(DEM_aoi, "315", "45", "NO_SHADOWS", zFactortoFeet)
         outHillshade.save(Hillshade_aoi)
         AddMsgAndPrint("\nSuccessfully Created Hillshade from " + os.path.basename(DEM_aoi))
         fill = False
@@ -683,7 +714,7 @@ if __name__ == '__main__':
         AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
         # ------------------------------------------------------------------------------------------------ Prepare to Add to Arcmap
-        if createContours:
+        if bCreateContours:
             arcpy.SetParameterAsText(5, Contours)
 
         arcpy.SetParameterAsText(6, projectAOI)
