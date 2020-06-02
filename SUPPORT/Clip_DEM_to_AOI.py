@@ -42,6 +42,14 @@
 #   used as independent library.
 # - Normal messages are no longer Warnings unnecessarily.
 
+# ==========================================================================================
+# Updated  5/23/2020 - Adolfo Diaz
+#
+# - updated the getPCSresolutionFromGCSraster function to provide a rounded resolution vs. truncating
+#   to integer.  Dwain used a 2M WMS and the ouput resolution was coming at 1M because the 'distMeters'
+#   variable was 1.997764837170562 which returns 1 when used with the int() function.
+#   The problem is that an average earth radius is being used (6371.0088 KM) but the range varies between
+#   6356.752 km at the poles to 6378.137 km at the equator.
 ## ===============================================================================================================
 def print_exception():
 
@@ -232,21 +240,20 @@ def getPCSresolutionFromGCSraster(raster,units):
         # haversine formula
         a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
         c = 2 * asin(sqrt(a))
-        distMeters = (6371 * c) * 1000
+
+        _AVG_EARTH_RADIUS_KM = 6371.0088
+
+        # Convert from KM to M
+        distMeters = (_AVG_EARTH_RADIUS_KM * c) * 1000
 
         if units in ('Meter','Meters'):
             resolution = distMeters / rows
-
-            if resolution > 0.0 and resolution < 1.0:
-                return round(resolution)
-            else:
-                return int(resolution)
+            return round(resolution)
 
         elif units in ('Foot','Foot_US','Feet'):
-            return int((distMeters * 3.28084) / rows)
+            return round((distMeters * 3.28084) / rows)
 
         else:
-
             return 0
 
     except:
