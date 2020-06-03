@@ -43,13 +43,14 @@
 # - Normal messages are no longer Warnings unnecessarily.
 
 # ==========================================================================================
-# Updated  5/23/2020 - Adolfo Diaz
+# Updated  6/3/2020 - Adolfo Diaz
 #
 # - updated the getPCSresolutionFromGCSraster function to provide a rounded resolution vs. truncating
 #   to integer.  Dwain used a 2M WMS and the ouput resolution was coming at 1M because the 'distMeters'
 #   variable was 1.997764837170562 which returns 1 when used with the int() function.
 #   The problem is that an average earth radius is being used (6371.0088 KM) but the range varies between
 #   6356.752 km at the poles to 6378.137 km at the equator.
+
 ## ===============================================================================================================
 def print_exception():
 
@@ -76,7 +77,7 @@ def AddMsgAndPrint(msg, severity=0):
     # Adds tool message to the geoprocessor
     # Split the message on  \n first, so that if it's multiple lines, a GPMessage will be added for each line
 
-    print(msg)
+    #print(msg)
 
     try:
         f = open(textFilePath,'a+')
@@ -343,9 +344,9 @@ if __name__ == '__main__':
         AddMsgAndPrint("\nInformation about input DEM file " + os.path.basename(inputDEM)+ ":",0)
 
         # Input DEM Spatial Reference Information
-        demDesc = arcpy.da.Describe(inputDEM)
+        demPath = arcpy.da.Describe(inputDEM)['catalogPath']
+        demDesc = arcpy.da.Describe(demPath)
         demName = demDesc['name']
-        demPath = demDesc['catalogPath']
         demCellSize = demDesc['meanCellWidth']
         demSR = demDesc['spatialReference']
         demFormat = demDesc['format']
@@ -371,7 +372,8 @@ if __name__ == '__main__':
 
         # ---------------------------------------------------------------------------------------------- Set Coord System of Project
         # AOI spatial reference info
-        aoiDesc = arcpy.da.Describe(AOI)
+        aoiPath = arcpy.da.Describe(AOI)['catalogPath']
+        aoiDesc = arcpy.da.Describe(aoiPath)
         aoiSR = aoiDesc['spatialReference']
         aoiSRname = aoiSR.name
         aoiLinearUnits = aoiSR.linearUnitName
