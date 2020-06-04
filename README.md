@@ -22,8 +22,8 @@ Practice Design - Wascob Design|9. Ridge Layout and Profile||
 Practice Design - Wascob Design|Export Project Data for GPS||
 Practice Design - Wascob Utilities|Add Points to Tile Profile||
 Practice Design - Wascob Utilities|Calibrate DEM to Field Survey||
-Terrain Analysis Tools|1. Define Area of Interest (Optional)||
-Terrain Analysis Tools|2. Create Stream Network (Optional)||
+Terrain Analysis Tools|1. Define Area of Interest (Optional)|X|
+Terrain Analysis Tools|2. Create Stream Network (Optional)|X|
 Terrain Analysis Tools|Compound Topographic Index (CTI)||
 Terrain Analysis Tools|Stream Power Index (SPI)||
 Terrain Analysis Tools|Topographic Position Index (TPI)||
