@@ -32,7 +32,6 @@
 #   dictionary would be created from the GDB itself so that future additions/removals
 #   can easily be made.
 # - Need to add functionality to get Soils data directly from SDA instead of locally.
-#
 # - Removed the 'Check for RCN Grid' section and updated the output layer of the
 #   NLCD_RunoffCurveNumber tool to watershedGDB_path + os.sep + wsName + "_RCN_Grid"
 #   It made no sense to name 2 layers the same when one is a grid.

@@ -572,15 +572,6 @@ if __name__ == '__main__':
         else:
             AddMsgAndPrint("\nUsing Existing \"" + str(projectName) + "_AOI\" feature class:")
 
-            # Use temp lyr, delete from TOC and copy back to avoid refresh issues in arcmap
-##            arcpy.CopyFeatures_management(AOI, "aoiTemp")
-##
-##            if arcpy.Exists(aoiOut):
-##                arcpy.Delete_management(aoiOut)
-##
-##            arcpy.CopyFeatures_management("aoiTemp", projectAOI)
-##            arcpy.Delete_management("aoiTemp")
-
         # -------------------------------------------------------------------------------------------- Exit if AOI was not a polygon
         if arcpy.da.Describe(projectAOI)['shapeType'] != "Polygon":
             AddMsgAndPrint("\n\nYour Area of Interest must be a polygon layer!.....Exiting!",2)
