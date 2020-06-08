@@ -23,10 +23,43 @@
 # Updated by Chris Morse, USDA NRCS, 2019
 
 # ==========================================================================================
-# Updated  6/4/2020 - Adolfo Diaz
+# Updated  6/8/2020 - Adolfo Diaz
 
-# https://wikispaces.psu.edu/display/AnthSpace/Compound+Topographic+Index
-# https://github.com/jeffreyevans/GradientMetrics/blob/master/scripts/cti.py
+# - The CTI equation was updated to the follwowing equation: Ln [a/tan ß], where:
+#        a represents the catchment area per pixel
+#        ß refers to the slope, in degrees
+# - CTI information and the equation used can be accessed here:
+#   https://wikispaces.psu.edu/display/AnthSpace/Compound+Topographic+Index
+# - The arcpy geoprocessing closely follows the following site:
+#   https://github.com/jeffreyevans/GradientMetrics/blob/master/scripts/cti.py
+# - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
+# - Added functionality to utilize a DEM image service or a DEM in GCS.  Added 2 new
+#   function to handle this capability: extractSubsetFromGCSdem and getPCSresolutionFromGCSraster.
+# - If GCS DEM is used then the coordinate system of the FGDB will become the same as the AOI
+#   assuming the AOI is in a PCS.  If both AOI and DEM are in a GCS then the tool will exit.
+# - All temporary raster layers such as Fill and Minus are stored in Memory and no longer
+#   written to hard disk.
+# - All describe functions use the arcpy.da.Describe functionality.
+# - All intermediate datasets are written to "in_memory" instead of written to a FGDB and
+#   and later deleted.  This avoids having to check and delete intermediate data during every
+#   execution.
+# - All field calculation expressions are in PYTHON3 format.
+# - Used acre conversiont dictionary and z-factor lookup table
+# - All cursors were updated to arcpy.da
+# - Added code to remove layers from an .aprx rather than simply deleting them
+# - Updated AddMsgAndPrint to remove ArcGIS 10 boolean and gp function
+# - Updated print_exception function.  Traceback functions slightly changed for Python 3.6.
+# - Added Snap Raster environment
+# - Added parallel processing factor environment
+# - swithced from sys.exit() to exit()
+# - wrapped the code that writes to text files in a try-except clause b/c if there is an
+#   an error prior to establishing the log file than the error never gets reported.
+# - All gp functions were translated to arcpy
+# - Every function including main is in a try/except clause
+# - Main code is wrapped in if __name__ == '__main__': even though script will never be
+#   used as independent library.
+# - Normal messages are no longer Warnings unnecessarily.
+
 
 
 ## ===============================================================================================================
@@ -129,9 +162,9 @@ if __name__ == '__main__':
             exit()
 
         # -------------------------------------------------------------------------------------------- Input Parameters
-        inputDEM = arcpy.getparameterastext(0)
-        zUnits = arcpy.getparameterastext(1)
-        inWatershed = arcpy.getparameterastext(2)
+        inputDEM = arcpy.GetParameterAsText(0)
+        zUnits = arcpy.GetParameterAsText(1)
+        inWatershed = arcpy.GetParameterAsText(2)
 
         # Set environmental variables
         arcpy.env.parallelProcessingFactor = "75%"
@@ -161,7 +194,7 @@ if __name__ == '__main__':
         watershedGDB_path = demPath[:demPath.find(".gdb")+4]
         userWorkspace = os.path.dirname(watershedGDB_path)
         watershedGDB_name = os.path.basename(watershedGDB_path)
-        projectName = arcpy.ValidateTablename(os.path.basename(userWorkspace).replace(" ","_"))
+        projectName = arcpy.ValidateTableName(os.path.basename(userWorkspace).replace(" ","_"))
 
         # -------------------------------------------------------------------- Permanent Datasets
         ctiOut = watershedGDB_path + os.sep + projectName + "_CTI"
@@ -169,11 +202,11 @@ if __name__ == '__main__':
         # Path of Log file
         textFilePath = userWorkspace + os.sep + projectName + "_EngTools.txt"
 
-        # record basic user inputs and settings to log file for future purposes
-        logBasicSettings()
-
         # ------------------------------------------------------------------- Check some parameters
         FlowAccum = watershedGDB_path + os.sep + "flowAccumulation"
+
+        # record basic user inputs and settings to log file for future purposes
+        logBasicSettings()
 
         # Flow Accum and Flow Dir must be in project gdb
         if not arcpy.Exists(FlowAccum):
@@ -215,7 +248,6 @@ if __name__ == '__main__':
         arcpy.env.cellSize = demCellSize
         arcpy.env.snapRaster = demPath
         arcpy.env.outputCoordinateSystem = demSR
-        arcpy.env.workspace = watershedFD
 
         # ---------------------------------------------------------------------------- If user provided a mask clip inputs first.
         if bClip:
@@ -271,7 +303,8 @@ if __name__ == '__main__':
         naturalLog.save(ctiOut)
 
         # ----------------------------------------------------------------------- Compact FGDB
-        arcpy.compact_management(watershedGDB_path)
+        arcpy.SetProgressorLabel("Compacting " + os.path.basename(watershedGDB_path))
+        arcpy.Compact_management(watershedGDB_path)
         AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
         # ------------------------------------------------------------ Add data to ArcGIS Pro

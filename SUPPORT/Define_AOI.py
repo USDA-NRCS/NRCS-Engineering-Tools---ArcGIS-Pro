@@ -23,17 +23,6 @@
 # Updated by Chris Morse, USDA NRCS, 2019
 
 # ==========================================================================================
-# Updated  5/29/2020 - Adolfo Diaz
-#
-# - When setting the output coord system from the AOI b/c the input DEM is in GCS, I was
-#   describing the sr or the AOI vs the catalog path of AOI.  The AOI sr would sometimes
-#   grab the sr of the aprx and not the AOI.  Switched to catalog path and it worked.
-# - If input DEM is in GCS and AOI is in PCS and the AOI linear units are different than
-#   the z-units of the GCS (i.e DEM = GCS,meters & AOI = DCCS FT) then the output coordinate
-#   system will be DCCS FT and after the DEM is projected and cipped, its z-units will by adjusted
-#   to match the units of the AOI (i.e DEM z-units will be converted to feet)
-
-# ==========================================================================================
 # Updated  4/15/2020 - Adolfo Diaz
 #
 # - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
@@ -63,6 +52,17 @@
 # - Main code is wrapped in if __name__ == '__main__': even though script will never be
 #   used as independent library.
 # - Normal messages are no longer Warnings unnecessarily.
+
+# ==========================================================================================
+# Updated  5/29/2020 - Adolfo Diaz
+#
+# - When setting the output coord system from the AOI b/c the input DEM is in GCS, I was
+#   describing the sr or the AOI vs the catalog path of AOI.  The AOI sr would sometimes
+#   grab the sr of the aprx and not the AOI.  Switched to catalog path and it worked.
+# - If input DEM is in GCS and AOI is in PCS and the AOI linear units are different than
+#   the z-units of the GCS (i.e DEM = GCS,meters & AOI = DCCS FT) then the output coordinate
+#   system will be DCCS FT and after the DEM is projected and cipped, its z-units will by adjusted
+#   to match the units of the AOI (i.e DEM z-units will be converted to feet)
 
 # ==========================================================================================
 # Updated  6/2/2020 - Adolfo Diaz
