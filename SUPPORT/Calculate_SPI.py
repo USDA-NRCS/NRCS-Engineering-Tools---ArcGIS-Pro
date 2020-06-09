@@ -1,66 +1,15 @@
-# ==========================================================================================
-# Name: Calculate_CTI.py
+#----------------------------------------------------------------------------
 #
-# Author: Peter Mead
-#         Becker Soil Water Conservation District
-#         Red River Valley Conservation Service Area
-# e-mail: pemead@co.becker.mn.us
+# spi.py
 #
-# Author: Adolfo.Diaz
-#         GIS Specialist
-#         National Soil Survey Center
-#         USDA - NRCS
-# e-mail: adolfo.diaz@usda.gov
-# phone: 608.662.4422 ext. 216
+# Created by Peter Mead MN USDA NRCS
 #
-# Author: Chris Morse
-#         IN State GIS Coordinator
-#         USDA - NRCS
-# e-mail: chris.morse@usda.gov
-# phone: 317.501.1578
-
-# Created by Peter Mead, Adolfo Diaz, USDA NRCS, 2013
-# Updated by Chris Morse, USDA NRCS, 2019
-
-# ==========================================================================================
-# Updated  6/8/2020 - Adolfo Diaz
-
-# - The CTI equation was updated to the follwowing equation: Ln [a/tan ß], where:
-#        a represents the catchment area per pixel
-#        ß refers to the slope, in degrees
-# - CTI information and the equation used can be accessed here:
-#   https://wikispaces.psu.edu/display/AnthSpace/Compound+Topographic+Index
-# - The arcpy geoprocessing closely follows the following site:
-#   https://github.com/jeffreyevans/GradientMetrics/blob/master/scripts/cti.py
-# - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
-# - Added functionality to utilize a DEM image service or a DEM in GCS.  Added 2 new
-#   function to handle this capability: extractSubsetFromGCSdem and getPCSresolutionFromGCSraster.
-# - If GCS DEM is used then the coordinate system of the FGDB will become the same as the AOI
-#   assuming the AOI is in a PCS.  If both AOI and DEM are in a GCS then the tool will exit.
-# - All temporary raster layers such as Fill and Minus are stored in Memory and no longer
-#   written to hard disk.
-# - All describe functions use the arcpy.da.Describe functionality.
-# - All intermediate datasets are written to "in_memory" instead of written to a FGDB and
-#   and later deleted.  This avoids having to check and delete intermediate data during every
-#   execution.
-# - All field calculation expressions are in PYTHON3 format.
-# - Used acre conversiont dictionary and z-factor lookup table
-# - All cursors were updated to arcpy.da
-# - Added code to remove layers from an .aprx rather than simply deleting them
-# - Updated AddMsgAndPrint to remove ArcGIS 10 boolean and gp function
-# - Updated print_exception function.  Traceback functions slightly changed for Python 3.6.
-# - Added Snap Raster environment
-# - Added parallel processing factor environment
-# - swithced from sys.exit() to exit()
-# - wrapped the code that writes to text files in a try-except clause b/c if there is an
-#   an error prior to establishing the log file than the error never gets reported.
-# - All gp functions were translated to arcpy
-# - Every function including main is in a try/except clause
-# - Main code is wrapped in if __name__ == '__main__': even though script will never be
-#   used as independent library.
-# - Normal messages are no longer Warnings unnecessarily.
-
-
+# Creates A Stream Power index for an area of interest.
+#
+# Considers flow length to remove Overland Flow < 300 ft (91.44 meters)
+# and considers flow accumulation to remove Channelized flow
+# with an accumulated area > 2 km layer prior to calculating SPI.
+#
 
 ## ===============================================================================================================
 def print_exception():
@@ -110,39 +59,34 @@ def AddMsgAndPrint(msg, severity=0):
 
 ## ================================================================================================================
 def logBasicSettings():
-# record basic user inputs and settings to log file for future purposes
+    # record basic user inputs and settings to log file for future purposes
 
-    try:
+    import getpass, time
+    arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
 
-        import getpass, time
-        arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
+    f = open(textFilePath,'a+')
+    f.write(" \n################################################################################################################ \n")
+    f.write("Executing \"Stream Power Index\" Tool \n")
+    f.write("User Name: " + getpass.getuser() + " \n")
+    f.write("Date Executed: " + time.ctime() + " \n")
+    f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
+    f.write("User Parameters:\n")
+    f.write(" \tWorkspace: " + userWorkspace + " \n")
+    f.write(" \tInput DEM: " + inputDEM + " \n")
+    f.write(" \tInput Flow Dir Grid: " + FlowDir + " \n")
+    f.write(" \tInput Flow Accumulation Grid: " + FlowAccum + " \n")
+    f.write(" \tOverland Flow Threshold: " + str(minFlow) + " feet\n")
+    f.write(" \tIn Channel Threshold: " + str(maxDA) + " feet\n")
 
-        f = open(textFilePath,'a+')
-        f.write(" \n################################################################################################################ \n")
-        f.write("Executing \"Compound Topographic Index\" Tool \n")
-        f.write("User Name: " + getpass.getuser() + " \n")
-        f.write("Date Executed: " + time.ctime() + " \n")
-        f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
-        f.write("User Parameters:\n")
-        f.write(" \tWorkspace: " + userWorkspace + " \n")
-        f.write(" \tInput DEM: " + inputDEM + " \n")
-        f.write(" \tInput Flow Accumulation Grid: " + FlowAccum + " \n")
+    f.write(" \tInput Z Units: " + str(zUnits) + " \n")
 
-        if len(zUnits) < 1:
-            f.write(" \tInput Z Units: BLANK \n")
-        else:
-            f.write(" \tInput Z Units: " + str(zUnits) + " \n")
-        if len(inWatershed) > 0:
-            f.write(" \tClipping set to mask: " + inWatershed + " \n")
-        else:
-            f.write(" \tClipping: NOT SELECTED\n")
+    if len(inWatershed) > 0:
+        f.write(" \tClipping set to mask: " + inWatershed + " \n")
+    else:
+        f.write(" \tClipping: NOT SELECTED\n")
 
-        f.close
-        del f
-
-    except:
-        print_exception()
-        exit()
+    f.close
+    del f
 
 ## ================================================================================================================
 # Import system modules
@@ -165,10 +109,8 @@ if __name__ == '__main__':
         inputDEM = arcpy.GetParameterAsText(0)
         zUnits = arcpy.GetParameterAsText(1)
         inWatershed = arcpy.GetParameterAsText(2)
-
-        # Set environmental variables
-        arcpy.env.parallelProcessingFactor = "75%"
-        arcpy.env.overwriteOutput = True
+        minFlow = arcpy.GetParameterAsText(3)
+        maxDA = arcpy.GetParameterAsText(4)
 
         if len(inWatershed) > 0:
             bClip = True
@@ -187,31 +129,53 @@ if __name__ == '__main__':
 
         # AOI DEM must be from a engineering tools file geodatabase
         if not demPath.find('_EngTools.gdb') > -1:
-            arcpy.AddError("\n\nInput AOI DEM is not in a \"xx_EngTools.gdb\" file geodatabase.")
-            arcpy.AddError("\n\nYou must provide a DEM prepared with the Define Area of Interest Tool.... ....EXITING")
-            exit()
+            AddMsgAndPrint("\n\nInput AOI DEM is not in a \"xx_EngTools.gdb\" file geodatabase.",2)
+            AddMsgAndPrint("\n\nYou must provide a DEM prepared with the Define Area of Interest Tool.... ....EXITING",2)
+            sys.exit("")
 
         watershedGDB_path = demPath[:demPath.find(".gdb")+4]
         userWorkspace = os.path.dirname(watershedGDB_path)
         watershedGDB_name = os.path.basename(watershedGDB_path)
         projectName = arcpy.ValidateTableName(os.path.basename(userWorkspace).replace(" ","_"))
 
+        # ---------------------------------- Datasets -------------------------------------------
+        spiTemp = watershedGDB_path + os.sep + "spiTemp"
+
         # -------------------------------------------------------------------- Permanent Datasets
-        ctiOut = watershedGDB_path + os.sep + projectName + "_CTI"
+        spiOut = watershedGDB_path + os.sep + projectName + "_SPI"
+
+        # -------------------------------------------------------------------- Required Existing Inputs
+        FlowAccum = watershedGDB_path + os.sep + "flowAccumulation"
+        FlowDir = watershedGDB_path + os.sep + "flowDirection"
 
         # Path of Log file
         textFilePath = userWorkspace + os.sep + projectName + "_EngTools.txt"
 
-        # ------------------------------------------------------------------- Check some parameters
-        FlowAccum = watershedGDB_path + os.sep + "flowAccumulation"
-
         # record basic user inputs and settings to log file for future purposes
         logBasicSettings()
 
+        # ------------------------------------------------------------------- Check some parameters
         # Flow Accum and Flow Dir must be in project gdb
+        if not arcpy.Exists(FlowDir):
+            AddMsgAndPrint("\n\nFlow Direction grid not found in same directory as " + demName + " (" + watershedGDB_path + "/" + watershedGDB_name + ")",2)
+            AddMsgAndPrint("\nYou Must run the \"Create Stream\" Network Tool to create Flow Direction/Accumulation Grids....EXITING\n",2)
+            exit()
+
         if not arcpy.Exists(FlowAccum):
             AddMsgAndPrint("\n\nFlow Accumulation grid not found in same directory as " + demName + " (" + watershedGDB_path + "/" + watershedGDB_name + ")",2)
             AddMsgAndPrint("\nYou Must run the \"Create Stream\" Network Tool to create Flow Direction/Accumulation Grids....EXITING\n",2)
+            exit()
+
+        # float minFlow and MaxDA as a failsafe...
+        try:
+            float(minFlow)
+        except:
+            AddMsgAndPrint("\n\nMinimum flow threshold is invalid... ...provide an integer and try again....EXITING",2)
+            exit()
+        try:
+            float(maxDA)
+        except:
+            AddMsgAndPrint("\n\nIn channel-threshold is invalid... ...provide an integer and try again....EXITING",2)
             exit()
 
         ## ---------------------------------------------------------------------------------------------- Z-factor conversion Lookup table
@@ -249,6 +213,21 @@ if __name__ == '__main__':
         arcpy.env.snapRaster = demPath
         arcpy.env.outputCoordinateSystem = demSR
 
+        # -------------------------------------------------------------------------- Calculate overland and in-channel thresholds
+
+        # Set Minimum flow length / In channel threshold to proper units
+        if demLinearUnits in ('Foot','Foot_US','Feet'):
+            overlandThresh = minFlow
+            channelThresh = float(maxDA) * 43560 / demCellSize**2
+
+        elif demLinearUnits in ('Meter','Meters'):
+            overlandThresh = float(minFlow) / 3.280839895013123
+            channelThresh = float(maxDA) * 4046 / demCellSize**2
+
+        else:
+            AddMsgAndPrint("\nCould not determine linear units",2)
+            exit()
+
         # ---------------------------------------------------------------------------- If user provided a mask clip inputs first.
         if bClip:
 
@@ -256,59 +235,67 @@ if __name__ == '__main__':
             AddMsgAndPrint("\nClipping Grids to " + str(os.path.basename(inWatershed)))
             DEMclip = ExtractByMask(inputDEM, inWatershed)
 
+            FDRclip = ExtractByMask(FlowDir, inWatershed)
+            AddMsgAndPrint("\tSuccessfully clipped Flow Accumulation")
+
             FACclip = ExtractByMask(FlowAccum, inWatershed)
             AddMsgAndPrint("\tSuccessfully clipped Flow Accumulation")
 
             # Reset paths to DEM and Flow Accum
             inputDEM = DEMclip
+            FlowDir = FDRclip
             FlowAccum = FACclip
 
-        # --------------------------------------------------------------------------------- Create and Filter CTI
-        # CTI is defined by the following equation: Ln [a/tan ß], where:
-        # a represents the catchment area per pixel
-        # ß refers to the slope, in degrees
-        # Final equation is Ln (As / tan ß)
-        arcpy.SetProgressorLabel("Computing Compound Topographic Index")
+        # ----------------------------------------------------------------------------- Prefilter FlowAccum Based on Flow Length and Drain Area
+        arcpy.SetProgressorLabel("Filtering flow accumulation based on flow length and contributing area")
 
-        # In the above equation, a needs to be converted to As so as to account for DEM resolution
-        flowAccumulation = Raster(FlowAccum)
-        As = Times(Plus(flowAccumulation,1),demCellSize)
+        # Calculate Upstream Flow Length
+        AddMsgAndPrint("\nCalculating Upstream Flow Lengths")
+        FlowLen = FlowLength(Raster(FlowDir),"UPSTREAM")
 
-        # Calculate slope (ß) in degrees.
-        arcpy.SetProgressorLabel("Calculating Slope in Degrees")
+        # Filter Out Overland Flow
+        expression = "\"VALUE\" < " + str(overlandThresh)
+        AddMsgAndPrint("\tFiltering out flow accumulation with overland flow < " + str(minFlow) + " feet")
+        facFilt1 = SetNull(Raster(FlowAccum), FlowLen, expression)
+
+        # Filter Out Channelized Flow
+        expression = "\"VALUE\" > " + str(channelThresh)
+        AddMsgAndPrint("\tFiltering out channelized flow with > " + str(maxDA) + " Acre Drainage Area")
+        facFilt2 = SetNull(facFilt1, facFilt1, expression)
+
+        # --------------------------------------------------------------------------------- Calculate Slope Grid
         zFactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get(demLinearUnits)]
-        DEMsmooth = FocalStatistics(inputDEM,"RECTANGLE 3 3 CELL","MEAN","DATA")
-        slopeDegree = Slope(DEMsmooth, "DEGREE", zFactor)
-        AddMsgAndPrint("\nCalculated Slope in Degrees using a Z-Factor of " + str(zFactor))
+        AddMsgAndPrint("\nPreparing Slope Grid using a Z-Factor of " + str(zFactor))
 
-        # Convert slope (ß) to radians / 90
-        # 1.570796 values comes from (pi / 2)
-        arcpy.SetProgressorLabel("Converting Slope to Radians")
-        slopeToRadians = Divide(Times(slopeDegree,1.570796),90)
+        # Smooth the DEM to remove imperfections in drop
+        AddMsgAndPrint("\tSmoothing the Raw DEM")
+        smoothDEM = FocalStatistics(inputDEM, "RECTANGLE 3 3 CELL","MEAN","DATA")
 
-        # denomoniator of the above equation
-        # If slope value is greater than 0 compute the tangent of the slope value
-        # otherwise assign 0.001 - why 0.001???
-        arcpy.SetProgressorLabel("Calculating Tangent of Slope values")
-        tanSlope = Con(slopeToRadians > 0, Tan(slopeToRadians), 0.001 )
+        # Calculate percent slope with proper Z Factor
+        AddMsgAndPrint("\tCalculating percent slope")
+        slope = Slope(smoothDEM, "PERCENT_RISE", zFactor)
 
-        # Final Equation
-        arcpy.SetProgressorLabel("Calculating Compound Topographic Index")
-        naturalLog = Ln(Divide(As,tanSlope))
-        AddMsgAndPrint("\nCalculated Compound Topographic Index")
+        # --------------------------------------------------------------------------------- Create and Filter Stream Power Index
+        # Calculate SPI
+        AddMsgAndPrint("\nCalculating Stream Power Index")
+        spiTemp = Raster(Ln(Times(Plus(facFilt2,0.001),Plus(Divide(slope,100),0.001))))
 
-        if arcpy.Exists(ctiOut):
-            arcpy.Delete_management(ctiOut)
+        AddMsgAndPrint("\nFiltering index values")
 
-        naturalLog.save(ctiOut)
+        # Set Values < 0 to null
+        setNegativeNulls = SetNull(spiTemp, spiTemp, "VALUE<=0.0")
+
+        if arcpy.Exists(spiOut):
+            arcpy.Delete_management(spiOut)
+
+        setNegativeNulls.save(spiOut)
 
         # ----------------------------------------------------------------------- Compact FGDB
-        arcpy.SetProgressorLabel("Compacting " + os.path.basename(watershedGDB_path))
         arcpy.Compact_management(watershedGDB_path)
         AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
-        # ------------------------------------------------------------ Add data to ArcGIS Pro
-        arcpy.SetParameterAsText(3, ctiOut)
+        # ------------------------------------------------------------ Prepare to Add to Arcmap
+        arcpy.SetParameterAsText(5, spiOut)
         AddMsgAndPrint("\nProcessing Completed!")
 
     except:

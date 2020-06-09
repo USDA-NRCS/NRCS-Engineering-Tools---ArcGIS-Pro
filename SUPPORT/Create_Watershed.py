@@ -248,7 +248,7 @@ if __name__ == '__main__':
         if not arcpy.Exists(FlowDir):
             AddMsgAndPrint("\n\nFlow Direction Grid was not found in " + watershedGDB_path,2)
             AddMsgAndPrint("Run Tool#2: \"Create Stream Network\" Again!  Exiting.....\n",2)
-            sys.exit(0)
+            exit()
 
         # ----------------------------------------------------------------------------------------------- Create New Outlet
         # -------------------------------------------- Features reside on hard disk;
