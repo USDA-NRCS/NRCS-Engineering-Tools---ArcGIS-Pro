@@ -1,14 +1,24 @@
-#----------------------------------------------------------------------------
+# ==========================================================================================
+# Name: Calculate_SPI.py
 #
-# spi.py
+# Author: Peter Mead
+# e-mail: pemead@co.becker.mn.us
 #
-# Created by Peter Mead MN USDA NRCS
+# Author: Adolfo.Diaz
+#         GIS Specialist
+#         National Soil Survey Center
+#         USDA - NRCS
+# e-mail: adolfo.diaz@usda.gov
+# phone: 608.662.4422 ext. 216
 #
-# Creates A Stream Power index for an area of interest.
-#
-# Considers flow length to remove Overland Flow < 300 ft (91.44 meters)
-# and considers flow accumulation to remove Channelized flow
-# with an accumulated area > 2 km layer prior to calculating SPI.
+# Author: Chris Morse
+#         IN State GIS Coordinator
+#         USDA - NRCS
+# e-mail: chris.morse@usda.gov
+# phone: 317.501.1578
+
+# Created by Peter Mead, Adolfo Diaz, USDA NRCS, 2013
+# Updated by Chris Morse, USDA NRCS, 2019
 #
 
 ## ===============================================================================================================
