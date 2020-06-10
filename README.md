@@ -26,7 +26,7 @@ Terrain Analysis Tools|1. Define Area of Interest (Optional)|X|
 Terrain Analysis Tools|2. Create Stream Network (Optional)|X|
 Terrain Analysis Tools|Compound Topographic Index (CTI)|X|
 Terrain Analysis Tools|Stream Power Index (SPI)|X|
-Terrain Analysis Tools|Topographic Position Index (TPI)||
+Terrain Analysis Tools|Topographic Position Index (TPI)|X|
 Watershed Tools - Delineation|1. Define Area of Interest|X|
 Watershed Tools - Delineation|2. Create Stream Network|X|
 Watershed Tools - Delineation|3. Create Watershed|X|
