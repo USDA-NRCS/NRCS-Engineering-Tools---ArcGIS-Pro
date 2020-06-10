@@ -21,6 +21,26 @@
 # Updated by Chris Morse, USDA NRCS, 2019
 #
 
+# ==========================================================================================
+# Updated  6/9/2020 - Adolfo Diaz
+#
+# - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
+# - All temporary raster layers such as Fill and Minus are stored in Memory and no longer
+#   written to hard disk.
+# - All describe functions use the arcpy.da.Describe functionality.
+# - Updated AddMsgAndPrint to remove ArcGIS 10 boolean and gp function
+# - Updated print_exception function.  Traceback functions slightly changed for Python 3.6.
+# - Added Snap Raster environment
+# - Added parallel processing factor environment
+# - swithced from sys.exit() to exit()
+# - wrapped the code that writes to text files in a try-except clause b/c if there is an
+#   an error prior to establishing the log file than the error never gets reported.
+# - All gp functions were translated to arcpy
+# - Every function including main is in a try/except clause
+# - Main code is wrapped in if __name__ == '__main__': even though script will never be
+#   used as independent library.
+# - Normal messages are no longer Warnings unnecessarily.
+
 ## ===============================================================================================================
 def print_exception():
 
@@ -122,6 +142,10 @@ if __name__ == '__main__':
         minFlow = arcpy.GetParameterAsText(3)
         maxDA = arcpy.GetParameterAsText(4)
 
+        # Set environmental variables
+        arcpy.env.parallelProcessingFactor = "75%"
+        arcpy.env.overwriteOutput = True
+
         if len(inWatershed) > 0:
             bClip = True
         else:
@@ -141,15 +165,12 @@ if __name__ == '__main__':
         if not demPath.find('_EngTools.gdb') > -1:
             AddMsgAndPrint("\n\nInput AOI DEM is not in a \"xx_EngTools.gdb\" file geodatabase.",2)
             AddMsgAndPrint("\n\nYou must provide a DEM prepared with the Define Area of Interest Tool.... ....EXITING",2)
-            sys.exit("")
+            exit()
 
         watershedGDB_path = demPath[:demPath.find(".gdb")+4]
         userWorkspace = os.path.dirname(watershedGDB_path)
         watershedGDB_name = os.path.basename(watershedGDB_path)
         projectName = arcpy.ValidateTableName(os.path.basename(userWorkspace).replace(" ","_"))
-
-        # ---------------------------------- Datasets -------------------------------------------
-        spiTemp = watershedGDB_path + os.sep + "spiTemp"
 
         # -------------------------------------------------------------------- Permanent Datasets
         spiOut = watershedGDB_path + os.sep + projectName + "_SPI"
