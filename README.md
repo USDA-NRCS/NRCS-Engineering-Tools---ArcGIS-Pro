@@ -10,7 +10,7 @@ Field Office Tools|Create Cross Section/Profile(s)||
 Field Office Tools|Estimate Pool from Contours||
 Field Office Tools|Slope - Average by AOI||
 Field Office Tools|Slope - Percent by AOI||
-Practice Design - Wascob Design|1. Define Area of Interest (WASCOB)||
+Practice Design - Wascob Design|1. Define Area of Interest (WASCOB)|X|
 Practice Design - Wascob Design|2. Create Stream Network (WASCOB)||
 Practice Design - Wascob Design|3. Create Watershed(s) (WASCOB)||
 Practice Design - Wascob Design|4. Watershed Attributes||
