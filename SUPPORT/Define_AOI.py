@@ -481,10 +481,10 @@ if __name__ == '__main__':
             exit()
 
         AddMsgAndPrint("\nDEM Information: " + demName + (" Image Service" if bImageService else ""))
-        AddMsgAndPrint("\tProjection Name: " + demSR.name,0)
-        AddMsgAndPrint("\tXY Units: " + demLinearUnits,0)
-        AddMsgAndPrint("\tElevation Values (Z): " + zUnits,0)
-        AddMsgAndPrint("\tCell Size: " + str(demCellSize) + " " + demLinearUnits,0)
+        AddMsgAndPrint("\tProjection Name: " + demSR.name)
+        AddMsgAndPrint("\tXY Units: " + demLinearUnits)
+        AddMsgAndPrint("\tElevation Values (Z): " + zUnits)
+        AddMsgAndPrint("\tCell Size: " + str(demCellSize) + " " + demLinearUnits)
 
         # --------------------------------------------------------------------------------------- Remove any project layers from aprx and workspace
         datasetsToRemove = (demOut,hillshadeOut,depthOut,contoursOut)       # Full path of layers
@@ -670,7 +670,7 @@ if __name__ == '__main__':
             with arcpy.da.UpdateCursor(Contours,['Contour','Index']) as cursor:
                  for row in cursor:
 
-                    if (row[0]%interval * 5) == 0:
+                    if (row[0]%(interval * 5)) == 0:
                         row[1] = 1
                     else:
                         row[1] = 0
@@ -689,32 +689,19 @@ if __name__ == '__main__':
         outHillshade = Hillshade(DEM_aoi, "315", "45", "NO_SHADOWS", zFactortoFeet)
         outHillshade.save(Hillshade_aoi)
         AddMsgAndPrint("\nSuccessfully Created Hillshade from " + os.path.basename(DEM_aoi))
-        fill = False
 
-        try:
-            # Fills sinks in DEM_aoi to remove small imperfections in the data.
-            outFill = Fill(DEM_aoi)
-            AddMsgAndPrint("\nSuccessfully filled sinks in " + os.path.basename(DEM_aoi) + " to create Depth Grid")
-            fill = True
+        # Fills sinks in DEM_aoi to remove small imperfections in the data.
+        outFill = Fill(DEM_aoi)
+        AddMsgAndPrint("\nSuccessfully filled sinks in " + os.path.basename(DEM_aoi) + " to create Depth Grid")
 
-        except:
-            AddMsgAndPrint("\n\nError encountered while filling sinks on " + os.path.basename(DEM_aoi) + "\n")
-            AddMsgAndPrint("Depth Grid will not be created\n",1)
-            print_exception()
+        # DEM_aoi - Fill_DEMaoi = FilMinus
+        outMinus = Minus(outFill,DEM_aoi)
 
-        if fill:
-            # DEM_aoi - Fill_DEMaoi = FilMinus
-            outMinus = Minus(outFill,DEM_aoi)
+        # Create a Depth Grid; Any pixel where there is a difference write it out
+        outCon = Con(outMinus,outMinus,"", "VALUE > 0")
+        outCon.save(depthGrid)
 
-            # Create a Depth Grid; Any pixel where there is a difference write it out
-            outCon = Con(outMinus,outMinus,"", "VALUE > 0")
-            outCon.save(depthGrid)
-
-            # Delete unwanted rasters
-            arcpy.Delete_management(outFill)
-            arcpy.Delete_management(outMinus)
-
-            AddMsgAndPrint("\nSuccessfully Created Depth Grid",0)
+        AddMsgAndPrint("\nSuccessfully Created Depth Grid",0)
 
         # ------------------------------------------------------------------------------------------------ Compact FGDB
         arcpy.Compact_management(watershedGDB_path)
