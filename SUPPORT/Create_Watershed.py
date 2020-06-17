@@ -197,6 +197,8 @@ if __name__ == '__main__':
         FlowDir = watershedGDB_path + os.sep + "flowDirection"
         DEM_aoi = watershedGDB_path + os.sep + projectName + "_DEM"
 
+        slopeStats = watershedGDB_path + os.sep + "slopeStats"
+
         # Must Have a unique name for watershed -- userWtshdName gets validated, but that doesn't ensure a unique name
         # Append a unique digit to watershed if required -- This means that a watershed with same name will NOT be
         # overwritten.
@@ -238,13 +240,19 @@ if __name__ == '__main__':
             AddMsgAndPrint("\n\nAt least one Pour Point must be used! None Detected. Exiting\n",2)
             exit()
 
-        # Flow Accumulation grid must in FGDB
+        # DEM must exist in FGDB
+        if not arcpy.Exists(DEM_aoi):
+            AddMsgAndPrint("\n\nDEM was not found in " + watershedGDB_path,2)
+            AddMsgAndPrint("Run Tool#1: \"Define Area of Interest\" Again!  Exiting.....\n",2)
+            exit()
+
+        # Flow Accumulation grid must exist in FGDB
         if not arcpy.Exists(FlowAccum):
             AddMsgAndPrint("\n\nFlow Accumulation Grid was not found in " + watershedGDB_path,2)
             AddMsgAndPrint("Run Tool#2: \"Create Stream Network\" Again!  Exiting.....\n",2)
             exit()
 
-        # Flow Direction grid must present to proceed
+        # Flow Direction grid must exist in FGDB
         if not arcpy.Exists(FlowDir):
             AddMsgAndPrint("\n\nFlow Direction Grid was not found in " + watershedGDB_path,2)
             AddMsgAndPrint("Run Tool#2: \"Create Stream Network\" Again!  Exiting.....\n",2)
@@ -253,19 +261,19 @@ if __name__ == '__main__':
         # ----------------------------------------------------------------------------------------------- Create New Outlet
         # -------------------------------------------- Features reside on hard disk;
         #                                              No heads up digitizing was used.
-        if (os.path.dirname(arcpy.Describe(outlet).CatalogPath)).find("memory") < 0:
+        if (os.path.dirname(arcpy.da.Describe(outlet)['catalogPath'])).find("memory") < 0:
 
             # if paths between outlet and outletFC are NOT the same
-            if not arcpy.Describe(outlet).CatalogPath == outletFC:
+            if not arcpy.da.Describe(outlet)['catalogPath'] == outletFC:
 
                 # delete the outlet feature class; new one will be created
                 if arcpy.Exists(outletFC):
                     arcpy.Delete_management(outletFC)
-                    arcpy.CopyFeatures_management(outlet, outletFC)
+                    arcpy.Clip_analysis(outlet,projectAOI,outletFC)
                     AddMsgAndPrint("\nSuccessfully Recreated " + str(outletOut) + " feature class from existing layer")
 
                 else:
-                    arcpy.CopyFeatures_management(outlet, outletFC)
+                    arcpy.Clip_analysis(outlet,projectAOI,outletFC)
                     AddMsgAndPrint("\nSuccessfully Created " + str(outletOut) + " feature class from existing layer")
 
             # paths are the same therefore input IS pour point
@@ -279,19 +287,16 @@ if __name__ == '__main__':
             if arcpy.Exists(outletFC):
                 arcpy.Delete_management(outletFC)
                 arcpy.Clip_analysis(outlet,projectAOI,outletFC)
-                #arcpy.CopyFeatures_management(outlet, outletFC)
                 AddMsgAndPrint("\nSuccessfully Recreated " + str(outletOut) + " feature class from digitizing")
 
             else:
                 arcpy.Clip_analysis(outlet,projectAOI,outletFC)
-                #arcpy.CopyFeatures_management(outlet, outletFC)
                 AddMsgAndPrint("\nSuccessfully Created " + str(outletOut) + " feature class from digitizing")
 
         if arcpy.Describe(outletFC).ShapeType != "Polyline" and arcpy.Describe(outletFC).ShapeType != "Line":
             AddMsgAndPrint("\n\nYour Outlet must be a Line or Polyline layer!.....Exiting!",2)
             exit()
 
-        AddMsgAndPrint("\nChecking Placement of Outlet(s)....")
         numOfOutletsWithinAOI = int(arcpy.GetCount_management(outletFC).getOutput(0))
         if numOfOutletsWithinAOI < 1:
             AddMsgAndPrint("\nThere were no outlets digitized within " + aoiName + "....EXITING!",2)
@@ -323,7 +328,7 @@ if __name__ == '__main__':
         arcpy.env.outputCoordinateSystem = demSR
         arcpy.env.workspace = watershedGDB_path
 
-        # --------------------------------------------------------------------- Convert outlet Line Feature to Raster Pour Point.
+        # --------------------------------------------------------------------- Delineate Watershed(s) from outlet
 
         # Add dummy field for buffer dissolve and raster conversion using OBJECTID (which becomes subbasin ID)
         objectIDfld = "!" + arcpy.da.Describe(outletFC)['OIDFieldName'] + "!"
@@ -341,12 +346,10 @@ if __name__ == '__main__':
         arcpy.PolygonToRaster_conversion(outletBuffer,"IDENT",pourPointGrid,"MAXIMUM_AREA","NONE",demCellSize)
 
         # Delete intermediate data
-        arcpy.Delete_management(outletBuffer)
         arcpy.DeleteField_management(outletFC, "IDENT")
 
         # Create Watershed Raster using the raster pour point
         AddMsgAndPrint("\nDelineating Watershed(s)...")
-        #watershedGrid = arcpy.CreateScratchName("watershedGrid",data_type="RasterDataset",workspace="in_memory")
         watershedGrid = Watershed(FlowDir,pourPointGrid,"VALUE")
 
         # Convert results to simplified polygon
@@ -553,11 +556,12 @@ if __name__ == '__main__':
                     AddMsgAndPrint("\t\tAvg. Slope: " + str(round(avgSlope,2)))
 
             AddMsgAndPrint("\n===================================================")
+            arcpy.Delete_management(slopeStats)
 
         time.sleep(3)
 
         # ------------------------------------------------------------------------------------------------ Compact FGDB
-        arcpy.compact_management(watershedGDB_path)
+        arcpy.Compact_management(watershedGDB_path)
         AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
         # ------------------------------------------------------------------------------------------------ Prepare to Add to Arcmap
