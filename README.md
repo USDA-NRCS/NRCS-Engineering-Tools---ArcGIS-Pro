@@ -14,7 +14,7 @@ Practice Design - Wascob Design|1. Define Area of Interest (WASCOB)|X|
 Practice Design - Wascob Design|2. Create Stream Network (WASCOB)|X|
 Practice Design - Wascob Design|3. Create Watershed(s) (WASCOB)|X|
 Practice Design - Wascob Design|4. Watershed Attributes|X|
-Practice Design - Wascob Design|5. Calculate Runoff Curve Number||
+Practice Design - Wascob Design|5. Calculate Runoff Curve Number|X|
 Practice Design - Wascob Design|6. Wascob Design Worksheet||
 Practice Design - Wascob Design|7. Design Height & Intake Location||
 Practice Design - Wascob Design|8. Tile Layout and Profile||
