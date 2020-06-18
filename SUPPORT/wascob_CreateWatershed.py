@@ -146,17 +146,17 @@ from arcpy.sa import *
 if __name__ == '__main__':
 
     try:
+        # Script Parameters
+        streams = arcpy.GetParameterAsText(0)
+        outlet = arcpy.GetParameterAsText(1)
+        userWtshdName = "Watershed"
+
         # Check out Spatial Analyst License
         if arcpy.CheckExtension("spatial") == "Available":
             arcpy.CheckOutExtension("spatial")
         else:
             arcpy.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu\n",2)
             exit()
-
-        # Script Parameters
-        streams = arcpy.GetParameterAsText(0)
-        outlet = arcpy.GetParameterAsText(1)
-        userWtshdName = "Watershed"
 
         # Set environmental variables
         arcpy.env.parallelProcessingFactor = "75%"
@@ -348,7 +348,7 @@ if __name__ == '__main__':
         arcpy.CalculateField_management(outletFC, "LengthFt","!shape.length@feet!", "PYTHON3")
 
         # Buffer outlet features by  raster cell size
-        bufferDist = "" + str(demCellSize) + " " + str(linearUnits) + ""
+        bufferDist = "" + str(demCellSize * 2) + " " + str(linearUnits) + ""
         arcpy.SetProgressorLabel("Buffering ReferenceLine by " + str(bufferDist) + " " + linearUnits)
         outletBuffer = arcpy.CreateScratchName("outletBuffer",data_type="FeatureClass",workspace="in_memory")
         arcpy.Buffer_analysis(outletFC, outletBuffer, bufferDist, "FULL", "ROUND", "LIST", "Subbasin")
