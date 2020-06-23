@@ -1,389 +1,310 @@
-# ---------------------------------------------------------------------------
-# designHeight.py
+# ==========================================================================================
+# Name: Wascob_DesignHeight.py
 #
-# Peter Mead USDA NRCS 
+# Author: Peter Mead
+#         Becker Soil Water Conservation District
+#         Red River Valley Conservation Service Area
+# e-mail: pemead@co.becker.mn.us
 #
-# Creates embankment points for stakeout, Allows user input of intake location.
-# Appends results to "StakeoutPoints" Layer in Table of contents.
+# Author: Adolfo.Diaz
+#         GIS Specialist
+#         National Soil Survey Center
+#         USDA - NRCS
+# e-mail: adolfo.diaz@usda.gov
+# phone: 608.662.4422 ext. 216
 #
-# ---------------------------------------------------------------------------
-def print_exception():
-    
-    tb = sys.exc_info()[2]
-    l = traceback.format_tb(tb)
-    l.reverse()
-    tbinfo = "".join(l)
-    AddMsgAndPrint("\n----------ERROR Start-------------------\n",2)
-    AddMsgAndPrint("Traceback Info: \n" + tbinfo + "Error Info: \n    " +  str(sys.exc_type)+ ": " + str(sys.exc_value) + "",2)
-    AddMsgAndPrint("----------ERROR End-------------------- \n",2)
+# Author: Chris Morse
+#         IN State GIS Coordinator
+#         USDA - NRCS
+# e-mail: chris.morse@usda.gov
+# phone: 317.501.1578
 
-## ================================================================================================================    
-def AddMsgAndPrint(msg, severity=0):
-    # prints message to screen if run as a python script
-    # Adds tool message to the geoprocessor
-    # 
-    # Split the message on \n first, so that if it's multiple lines, a GPMessage will be added for each line
-    
-    print msg
-    
+# Created by Peter Mead, 2013
+# Updated by Chris Morse, USDA NRCS, 2020
+
+## Creates embankment points for stakeout, Allows user input of intake location.
+## Appends results to "StakeoutPoints" Layer in Table of contents.
+
+# ==========================================================================================
+# Updated  6/23/2020 - Adolfo Diaz
+#
+# - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
+# - All describe functions use the arcpy.da.Describe functionality.
+# - All field calculation expressions are in PYTHON3 format.
+# - All cursors were updated to arcpy.da
+# - Updated AddMsgAndPrint to remove ArcGIS 10 boolean and gp function
+# - Updated print_exception function.  Traceback functions slightly changed for Python 3.6.
+# - Added parallel processing factor environment
+# - swithced from exit() to exit()
+# - wrapped the code that writes to text files in a try-except clause b/c if there is an
+#   an error prior to establishing the log file than the error never gets reported.
+# - All gp functions were translated to arcpy
+# - Every function including main is in a try/except clause
+# - Main code is wrapped in if __name__ == '__main__': even though script will never be
+#   used as independent library.
+# - Normal messages are no longer Warnings unnecessarily.
+
+## ===============================================================================================================
+def print_exception():
+
     try:
 
-        f = open(textFilePath,'a+')
-        f.write(msg + " \n")
-        f.close
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        theMsg = "\t" + traceback.format_exception(exc_type, exc_value, exc_traceback)[1] + "\n\t" + traceback.format_exception(exc_type, exc_value, exc_traceback)[-1]
 
-        del f
+        if theMsg.find("exit") > -1:
+            AddMsgAndPrint("\n\n")
+            pass
+        else:
+            AddMsgAndPrint("\n----------------------------------- ERROR Start -----------------------------------",2)
+            AddMsgAndPrint(theMsg,2)
+            AddMsgAndPrint("------------------------------------- ERROR End -----------------------------------\n",2)
 
-        if ArcGIS10:
-            if not msg.find("\n") < 0 and msg.find("\n") < 4:
-                gp.AddMessage(" ")        
-        
-        for string in msg.split('\n'):          
-            
-            # Add a geoprocessing message (in case this is run as a tool)
-            if severity == 0:
-                gp.AddMessage(string)
-                
-            elif severity == 1:
-                gp.AddWarning(string)
-                
-            elif severity == 2:
-                #gp.AddMessage("    ")
-                gp.AddError(string)
-
-        if ArcGIS10:
-            if msg.find("\n") > 4:
-                gp.AddMessage(" ")                
-                
     except:
+        AddMsgAndPrint("Unhandled error in print_exception method", 2)
         pass
 
 ## ================================================================================================================
-def logBasicSettings():    
+def AddMsgAndPrint(msg, severity=0):
+    # prints message to screen if run as a python script
+    # Adds tool message to the geoprocessor
+    # Split the message on  \n first, so that if it's multiple lines, a GPMessage will be added for each line
+
+    print(msg)
+
+    try:
+        f = open(textFilePath,'a+')
+        f.write(msg + " \n")
+        f.close
+        del f
+
+    except:
+        pass
+
+    if severity == 0:
+        arcpy.AddMessage(msg)
+
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+
+    elif severity == 2:
+        arcpy.AddError(msg)
+
+## ================================================================================================================
+def logBasicSettings():
     # record basic user inputs and settings to log file for future purposes
 
     import getpass, time
+    arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
 
     f = open(textFilePath,'a+')
     f.write("\n################################################################################################################\n")
-    f.write("Executing \"7. Wascob Design Height & Intake Location\" Tool\n")
+    f.write("Executing \"7. Wascob Design Height & Intake Location\" tool\n")
     f.write("User Name: " + getpass.getuser() + "\n")
     f.write("Date Executed: " + time.ctime() + "\n")
+    f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
     f.write("User Parameters:\n")
     f.write("\tInput Watershed: " + inWatershed + "\n")
     f.write("\tWorkspace: " + userWorkspace + "\n")
     f.write("\tSelected Subbasin: " + Subbasin + "\n")
-    f.write("\tDesign Elevation: " + DesignElev + "\n") 
-    f.write("\tIntake Elevation: " + IntakeElev + "\n")    
-        
+    f.write("\tDesign Elevation: " + DesignElev + "\n")
+    f.write("\tIntake Elevation: " + IntakeElev + "\n")
+
     f.close
-    del f   
+    del f
 
 ## ================================================================================================================
 # Import system modules
-import sys, os, arcgisscripting, traceback, string
+import arcpy, sys, os, traceback, string
+from arcpy.sa import *
 
-# Create the Geoprocessor object
-gp = arcgisscripting.create(9.3)
-gp.OverWriteOutput = 1
+if __name__ == '__main__':
 
-# Used to determine ArcGIS version
-d = gp.GetInstallInfo('desktop')
+    try:
 
-keys = d.keys()
+        # ---------------------------------------------- Input Parameters
+        inWatershed = arcpy.GetParameterAsText(0)
+        Subbasin = arcpy.GetParameterAsText(1)
+        DesignElev = arcpy.GetParameterAsText(2)
+        IntakeElev = arcpy.GetParameterAsText(3)
+        IntakeLocation = arcpy.GetParameterAsText(4)
 
-for k in keys:
-
-    if k == "Version":
-
-        version = " \nArcGIS %s : %s" % (k, d[k])
-        print version
-
-        if version.find("10.") > 0:
-            ArcGIS10 = True
-
+        # Check out Spatial Analyst License
+        if arcpy.CheckExtension("Spatial") == "Available":
+            arcpy.CheckOutExtension("Spatial")
         else:
-            ArcGIS10 = False
+            arcpy.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu. Exiting...\n")
+            exit()
 
-        break 
+        # Environment settings
+        arcpy.env.overwriteOutput = True
+        arcpy.env.parallelProcessingFactor = "75%"
+        arcpy.env.geographicTransformations = "WGS_1984_(ITRF00)_To_NAD_1983"
+        arcpy.env.resamplingMethod = "BILINEAR"
+        arcpy.env.pyramid = "PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP"
 
-del d, keys
-   
-if version < 9.3:
-    AddMsgAndPrint("\nThis tool requires ArcGIS version 9.3 or Greater.....EXITING",2)
-    sys.exit("")           
+        # ---------------------------------------------------------------------------- Define Variables
+        watershed_path = arcpy.Describe(inWatershed).CatalogPath
+        watershedGDB_path = watershed_path[:watershed_path .find(".gdb")+4]
+        watershedGDB_name = os.path.basename(watershedGDB_path)
+        watershedFD_path = watershedGDB_path + os.sep + "Layers"
+        userWorkspace = os.path.dirname(watershedGDB_path)
+        wsName = os.path.basename(inWatershed)
+        #ReferenceLine = watershedFD_path + "ReferenceLine"
 
+        # ---------------------------------------------------------------------------- Existing Datasets
+        stakeoutPoints = watershedFD_path + os.sep + "stakeoutPoints"
+        ProjectDEM = watershedGDB_path + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_Project_DEM"
 
-try:
-    
-    # Check out Spatial Analyst License        
-    if gp.CheckExtension("spatial") == "Available":gp.CheckOutExtension("spatial")
-    else:
-        gp.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu")
-        sys.exit("")
-        
-    # ---------------------------------------------- Input Parameters
-    inWatershed = gp.GetParameterAsText(0)
-    Subbasin = gp.GetParameterAsText(1)
-    DesignElev = gp.GetParameterAsText(2)
-    IntakeElev = gp.GetParameterAsText(3)
-    IntakeLocation = gp.GetParameterAsText(4)
+        # ------------- Layers in ArcGIS Pro
+        stakeoutPoints = "stakeoutPoints"
+        ReferenceLine = "ReferenceLine"
 
-    # ---------------------------------------------------------------------------- Define Variables 
-    watershed_path = gp.Describe(inWatershed).CatalogPath
-    watershedGDB_path = watershed_path[:watershed_path .find(".gdb")+4]
-    watershedGDB_name = os.path.basename(watershedGDB_path)
-    watershedFD_path = watershedGDB_path + os.sep + "Layers"
-    userWorkspace = os.path.dirname(watershedGDB_path)
-    wsName = os.path.basename(inWatershed)
-    
-    # ---------------------------------------------------------------------------- Existing Datasets
-    stakeoutPoints = watershedFD_path + os.sep + "stakeoutPoints"
-    DEM_aoi = watershedGDB_path + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_Project_DEM"
-    #DEM_aoi = watershedGDB_path + os.sep + "Project_DEM"
+        # --------------------------------------------------------------------------- Temporary Datasets
+        RefLineLyr = "ReferenceLineLyr"
+        stakeoutPointsLyr ="stakeoutPointsLyr"
+        pointsSelection = "pointsSelection"
+        refLineSelection = "refLineSelection"
 
+        # Set path to log file and start logging
+        textFilePath = userWorkspace + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.txt"
+        logBasicSettings()
 
-    # ------------- Layers in ArcMap
-    stakeoutPoints = "stakeoutPoints"
-    ReferenceLine = "ReferenceLine"
+        # ---------------------------------------------------------------------------- Check inputs
+        AddMsgAndPrint("\nChecking inputs and workspace...",0)
+        if not arcpy.Exists(ProjectDEM):
+            AddMsgAndPrint("\tMissing Project_DEM from FGDB. Can not perform raster analysis.",2)
+            AddMsgAndPrint("\tProject_DEM must be in the same geodatabase as your input watershed.",2)
+            AddMsgAndPrint("\tCheck your the source of your provided watershed. Exiting...",2)
+            exit()
 
-    # --------------------------------------------------------------------------- Temporary Datasets
-    RefLineLyr = "ReferenceLineLyr"
-    stakeoutPointsLyr ="stakeoutPointsLyr"
-    pointsSelection = "pointsSelection"
-    refLineSelection = "refLineSelection"
-    refTemp = watershedFD_path + os.sep + "refTemp"
-    intake = watershedFD_path + os.sep + "intake"
-    refTempClip = watershedFD_path + os.sep + "refTemp_Clip"
-    refPoints = watershedFD_path + os.sep + "refPoints"
-    WSmask = watershedFD_path + os.sep + "WSmask"
-    DA_Dem = watershedGDB_path + os.sep + "da_dem"
-    DA_sn = watershedGDB_path + os.sep + "da_sn"
-    DAint = watershedGDB_path + os.sep + "daint"
-    DAx0 = watershedGDB_path + os.sep + "dax0"
-    DA_snPoly = watershedGDB_path + os.sep + "DA_snPoly"
+        if not arcpy.Exists(ReferenceLine):
+            AddMsgAndPrint("\tReference Line not found in table of contents or in the workspace of your input watershed",2)
+            AddMsgAndPrint("\tDouble check your inputs and workspace. Exiting...",2)
+            exit()
 
-    # Path of Log file
-    textFilePath = userWorkspace + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_WascobTools.txt"
+        if int(arcpy.GetCount_management(IntakeLocation).getOutput(0)) > 1:
+            # Exit if user input more than one intake
+            AddMsgAndPrint("\tYou provided more than one inlet location",2)
+            AddMsgAndPrint("\tEach subbasin must be completed individually,",2)
+            AddMsgAndPrint("\twith one intake provided each time you run this tool.",2)
+            AddMsgAndPrint("\tTry again with only one intake loacation. Exiting...",2)
+            exit()
 
-    # record basic user inputs and settings to log file for future purposes
-    logBasicSettings()
-   
-    # ---------------------------------------------------------------------------- Check inputs
-    if not gp.Exists(DEM_aoi):
-        AddMsgAndPrint("\nMissing Project_DEM from FGDB. Can not perform raster analysis.",2)
-        AddMsgAndPrint("Project_DEM must be in the same geodatabase as your input watershed.",2)
-        AddMsgAndPrint("\nCheck your the source of your provided watershed.",2)
-        AddMsgAndPrint("and/or export ProjectDEM from the table of contents to",2)
-        AddMsgAndPrint("the geodatabase where your provided watershed resides",2)
-        AddMsgAndPrint("as <yourworkspace>_Wascob.gdb\Project_DEM...EXITING",2)
-        sys.exit("")
-            
-    if not gp.Exists(ReferenceLine):
-        AddMsgAndPrint("\nReference Line not found in table of contents or in the workspace of your input watershed",2)
-        AddMsgAndPrint("\nDouble check your inputs and workspace....EXITING",2)
-        sys.exit("")
+        if int(arcpy.GetCount_management(IntakeLocation).getOutput(0)) < 1:
+            # Exit if no intake point was provided
+            AddMsgAndPrint("\tYou did not provide a point for your intake loaction",2)
+            AddMsgAndPrint("\tYou must create a point at the proposed inlet location by using",2)
+            AddMsgAndPrint("\tthe Add Features tool in the Design Height tool dialog box. Exiting...",2)
+            exit()
 
-    if not gp.Exists(stakeoutPoints):
-        gp.CreateFeatureclass_management(watershedFD_path, "stakeoutPoints", "POINT", "", "DISABLED", "DISABLED", "", "", "0", "0", "0")
-        gp.AddField_management(stakeoutPoints, "ID", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-        gp.AddField_management(stakeoutPoints, "Subbasin", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-        gp.AddField_management(stakeoutPoints, "Elev", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-        gp.AddField_management(stakeoutPoints, "Notes", "TEXT", "", "", "50", "", "NULLABLE", "NON_REQUIRED", "")
-            
-    if int(gp.GetCount_management(IntakeLocation).getOutput(0)) > 1:
-        # Exit if user input more than one intake
-        AddMsgAndPrint("\nYou provided more than one inlet location",2)
-        AddMsgAndPrint("Each subbasin must be completed individually,",2)
-        AddMsgAndPrint("with one intake provided each time you run this tool.",2)
-        AddMsgAndPrint("Try again with only one intake loacation....EXITING",2)
-        sys.exit("")
-        
-    elif int(gp.GetCount_management(IntakeLocation).getOutput(0)) < 1:
-        # Exit if no intake point was provided
-        AddMsgAndPrint("\nYou did not provide a point for your intake loaction",2)
-        AddMsgAndPrint("You must create a point at the proposed inlet location by using",2)
-        AddMsgAndPrint("the Add Features tool in the Design Height tool dialog box...EXITING",2)
-        sys.exit("")
+        if not arcpy.Exists(stakeoutPoints):
+            arcpy.CreateFeatureclass_management(watershedFD_path, "stakeoutPoints", "POINT", "", "DISABLED", "DISABLED", "", "", "0", "0", "0")
+            arcpy.AddField_management(stakeoutPoints, "ID", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+            arcpy.AddField_management(stakeoutPoints, "Subbasin", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+            arcpy.AddField_management(stakeoutPoints, "Elev", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+            arcpy.AddField_management(stakeoutPoints, "Notes", "TEXT", "", "", "50", "", "NULLABLE", "NON_REQUIRED", "")
 
-    # ----------------------------------- Capture Default Environments
-    tempExtent = gp.Extent
-    tempMask = gp.mask
-    tempSnapRaster = gp.SnapRaster
-    tempCellSize = gp.CellSize
-    tempCoordSys = gp.OutputCoordinateSystem
-    
-    # ---------------------------------- Retrieve Raster Properties
-    desc = gp.Describe(DEM_aoi)
-    sr = desc.SpatialReference
-    cellSize = desc.MeanCellWidth
-    
-    # ----------------------------------- Set Environment Settings
-    gp.Extent = "MINOF"
-    gp.CellSize = cellSize
-    gp.mask = ""
-    gp.SnapRaster = ""
-    gp.OutputCoordinateSystem = sr
-    
-    del desc, sr        
-    
-    # ----------------------------------------------------- Select reference line for specified Subbasin
-    gp.MakeFeatureLayer_management(ReferenceLine, RefLineLyr)
-    exp = "\"Subbasin\" = " + str(Subbasin) + ""
-    AddMsgAndPrint("\nSelecting Reference Line for subbasin " + str(Subbasin),1)
-    gp.SelectLayerByAttribute_management(RefLineLyr, "NEW_SELECTION", exp)
-    gp.MakeFeatureLayer_management(RefLineLyr, refLineSelection)
-    
-    if not int(gp.GetCount_management(refLineSelection).getOutput(0)) > 0:
-        # Exit if no corresponding subbasin id found in reference line
-        AddMsgAndPrint("\nNo reference line features were found for subbasin " + str(Subbasin),2)
-        AddMsgAndPrint("Double check your inputs and specify a different subbasin ID ..EXITING",2)
-        sys.exit("")
-        
-    gp.CopyFeatures_management(refLineSelection, refTemp, "", "0", "0", "0")
-    gp.SelectLayerByAttribute_management(RefLineLyr, "CLEAR_SELECTION", "")
+        # ----------------------------------------------------- Select reference line for specified Subbasin
+##        AddMsgAndPrint("\nSelecting Reference Line for subbasin " + str(Subbasin))
+##        expression = arcpy.AddFieldDelimiters(ReferenceLine, "Subbasin") + " = " + str(Subbasin) + ""
+##        refLineSelection = [row[0] for row in arcpy.da.SearchCursor(ReferenceLine,"Subbasin",where_clause=expression)]
+##
+##        if not len(refLineSelection) > 0:
+##            # Exit if no corresponding subbasin id found in reference line
+##            AddMsgAndPrint("\tNo reference line features were found for subbasin " + str(Subbasin),2)
+##            AddMsgAndPrint("\tDouble check your inputs and specify a different subbasin ID. Exiting...",2)
+##            exit()
 
-    # Select any existing Reference points for specified basin and delete
-    gp.MakeFeatureLayer_management(stakeoutPoints, stakeoutPointsLyr)
-    gp.SelectLayerByAttribute_management(stakeoutPointsLyr, "NEW_SELECTION", exp)
-    gp.MakeFeatureLayer_management(stakeoutPointsLyr, pointsSelection)
-    if int(gp.GetCount_management(pointsSelection).getOutput(0)) > 0:
-        gp.DeleteFeatures_management(pointsSelection)
-    gp.SelectLayerByAttribute_management(stakeoutPointsLyr, "CLEAR_SELECTION", "")
-    
-    # Create Intake from user input and append to Stakeout Points
-    AddMsgAndPrint("\nCreating Intake Reference Point...",1)
-    gp.CopyFeatures_management(IntakeLocation, intake, "", "0", "0", "0")
-    gp.CalculateField_management(intake, "Id", "" + str(Subbasin)+ "", "VB", "")
-    gp.CalculateField_management(intake, "Subbasin", "" + str(Subbasin)+ "", "VB", "")
-    gp.CalculateField_management(intake, "Elev", "" + str(IntakeElev)+ "", "VB", "")
-    gp.CalculateField_management(intake, "Notes", "\"Intake\"", "VB", "")
-    AddMsgAndPrint("\n\tSuccessfully created intake for subbasin " + str(Subbasin) + " at " + str(IntakeElev) + " feet",0)
-    AddMsgAndPrint("\tAppending results to Stakeout Points",0)
-    gp.Append_management(intake, stakeoutPoints, "NO_TEST", "", "")
-    
-    # Use DEM to determine intersection of Reference Line and Plane @ Design Elevation
-    AddMsgAndPrint("\nCalculating Pool Extent...",1)
-    gp.SelectLayerByAttribute_management(inWatershed, "NEW_SELECTION", exp)
-    gp.CopyFeatures_management(inWatershed, WSmask, "", "0", "0", "0")
-    gp.SelectLayerByAttribute_management(inWatershed, "CLEAR_SELECTION", "")
-    gp.ExtractByMask_sa(DEM_aoi, WSmask, DA_Dem)
-    gp.SetNull_sa(DA_Dem, DA_Dem, DA_sn, "VALUE > " + str(DesignElev))
-    gp.Times_sa(DA_sn, "0", DAx0)
-    gp.Int_sa(DAx0, DAint)
-    gp.RasterToPolygon_conversion(DAint, DA_snPoly, "NO_SIMPLIFY", "VALUE")
+        arcpy.MakeFeatureLayer_management(ReferenceLine, RefLineLyr)
+        exp = "\"Subbasin\" = " + str(Subbasin) + ""
+        arcpy.SelectLayerByAttribute_management(RefLineLyr, "NEW_SELECTION", exp)
+        arcpy.MakeFeatureLayer_management(RefLineLyr, refLineSelection)
 
-    AddMsgAndPrint("\nCreating Embankment Reference Points...",1)
-    gp.Clip_analysis(refTemp, DA_snPoly, refTempClip, "")
-    gp.FeatureVerticesToPoints_management(refTempClip, refPoints, "BOTH_ENDS")
-    AddMsgAndPrint("\n\tSuccessfully created " +  str(int(gp.GetCount_management(refPoints).getOutput(0))) + " reference points at " + str(DesignElev) + " feet",0)
-    gp.AddField_management(refPoints, "Id", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-    gp.CalculateField_management(refPoints, "Id", "" + str(Subbasin)+ "", "VB", "")
-    gp.AddField_management(refPoints, "Elev", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-    gp.CalculateField_management(refPoints, "Elev", "" + str(DesignElev)+ "", "VB", "")
-    gp.AddField_management(refPoints, "Notes", "TEXT", "", "", "50", "", "NULLABLE", "NON_REQUIRED", "")
-    gp.CalculateField_management(refPoints, "Notes", "\"Embankment\"", "VB", "")
-    AddMsgAndPrint("\tAppending Results to Stakeout Points",0)
-    gp.Append_management(refPoints, stakeoutPoints, "NO_TEST", "", "")
+        if not int(arcpy.GetCount_management(refLineSelection).getOutput(0)) > 0:
+            # Exit if no corresponding subbasin id found in reference line
+            AddMsgAndPrint("\tNo reference line features were found for subbasin " + str(Subbasin),2)
+            AddMsgAndPrint("\tDouble check your inputs and specify a different subbasin ID. Exiting...",2)
+            exit()
 
-    # Add XY Coordinates to Stakeout Points
-    AddMsgAndPrint("\nAdding XY Coordinates to Stakeout Points...",1)
-    gp.AddXY_management(stakeoutPoints)
+        refTemp = arcpy.CreateScratchName("refTemp",data_type="FeatureClass",workspace="in_memory")
+        arcpy.CopyFeatures_management(refLineSelection, refTemp)
+        arcpy.SelectLayerByAttribute_management(RefLineLyr, "CLEAR_SELECTION", "")
 
-    # -------------------------------------------------------------- Delete Intermediate Files
-    datasetsToRemove = (stakeoutPointsLyr,RefLineLyr,pointsSelection,refLineSelection,refTemp,intake,refTempClip,refPoints,WSmask,DA_Dem,DA_sn,DAint,DAx0,DA_snPoly)
+        # Select any existing Reference points for specified basin and delete
+        arcpy.MakeFeatureLayer_management(stakeoutPoints, stakeoutPointsLyr)
+        arcpy.SelectLayerByAttribute_management(stakeoutPointsLyr, "NEW_SELECTION", exp)
+        arcpy.MakeFeatureLayer_management(stakeoutPointsLyr, pointsSelection)
+        if int(arcpy.GetCount_management(pointsSelection).getOutput(0)) > 0:
+            arcpy.DeleteFeatures_management(pointsSelection)
+        arcpy.SelectLayerByAttribute_management(stakeoutPointsLyr, "CLEAR_SELECTION")
 
-    x = 0
-    for dataset in datasetsToRemove:
+        # Create Intake from user input and append to Stakeout Points
+        AddMsgAndPrint("\nCreating Intake Reference Point")
+        intake = arcpy.CreateScratchName("intake",data_type="FeatureClass",workspace="in_memory")
+        arcpy.CopyFeatures_management(IntakeLocation, intake)
+        arcpy.AddField_management(intake, "ID", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+        arcpy.AddField_management(intake, "Subbasin", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+        arcpy.AddField_management(intake, "Elev", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
+        arcpy.AddField_management(intake, "Notes", "TEXT", "", "", "50", "", "NULLABLE", "NON_REQUIRED", "")
 
-        if gp.exists(dataset):
+        arcpy.CalculateField_management(intake, "Id", "" + str(Subbasin)+ "", "PYTHON3")
+        arcpy.CalculateField_management(intake, "Subbasin", "" + str(Subbasin)+ "", "PYTHON3")
+        arcpy.CalculateField_management(intake, "Elev", "" + str(IntakeElev)+ "", "PYTHON3")
+        arcpy.CalculateField_management(intake, "Notes", "\"Intake\"", "PYTHON3")
+        AddMsgAndPrint("\tSuccessfully created intake for subbasin " + str(Subbasin) + " at " + str(IntakeElev) + " feet",0)
 
-            if x < 1:
-                AddMsgAndPrint("\nDeleting temporary data.." ,1)
-                x += 1
-                
-            try:
-                gp.delete_management(dataset)
-            except:
-                pass
-            
-    del dataset
-    del datasetsToRemove
-    del x
-    
-    # ------------------------------------------------------------------------------------------------ Compact FGDB
-    try:
-        gp.compact_management(watershedGDB_path)
-        AddMsgAndPrint(" \nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),1)
+        AddMsgAndPrint("\tAppending results to Stakeout Points...",0)
+        arcpy.Append_management(intake, stakeoutPoints, "NO_TEST", "", "")
+
+        # Use DEM to determine intersection of Reference Line and Plane @ Design Elevation
+        AddMsgAndPrint("\nCalculating Pool Extent")
+        arcpy.SelectLayerByAttribute_management(inWatershed, "NEW_SELECTION", exp)
+        WSmask = arcpy.CreateScratchName("WSmask",data_type="FeatureClass",workspace="in_memory")
+        arcpy.CopyFeatures_management(inWatershed, WSmask)
+        arcpy.SelectLayerByAttribute_management(inWatershed, "CLEAR_SELECTION")
+
+        DA_Dem = ExtractByMask(ProjectDEM, WSmask)
+        DA_sn = SetNull(DA_Dem, DA_Dem, "VALUE > " + str(DesignElev))
+        DAx0 = arcpy.sa.Times(DA_sn, 0)
+        DAint = Int(DAx0)
+
+        DA_snPoly = arcpy.CreateScratchName("DA_snPoly",data_type="FeatureClass",workspace="in_memory")
+        arcpy.RasterToPolygon_conversion(DAint, DA_snPoly, "NO_SIMPLIFY", "VALUE")
+
+        AddMsgAndPrint("\nCreating Embankment Reference Points")
+        refTempClip = arcpy.CreateScratchName("refTempClip",data_type="FeatureClass",workspace="in_memory")
+        arcpy.Clip_analysis(refTemp, DA_snPoly, refTempClip)
+
+        refPoints = arcpy.CreateScratchName("refPoints",data_type="FeatureClass",workspace="in_memory")
+        arcpy.FeatureVerticesToPoints_management(refTempClip, refPoints, "BOTH_ENDS")
+        AddMsgAndPrint("\tSuccessfully created " +  str(int(arcpy.GetCount_management(refPoints).getOutput(0))) + " reference points at " + str(DesignElev) + " feet",0)
+
+        arcpy.AddField_management(refPoints, "Id", "LONG", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.CalculateField_management(refPoints, "Id", "" + str(Subbasin)+ "", "PYTHON3")
+
+        arcpy.AddField_management(refPoints, "Elev", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.CalculateField_management(refPoints, "Elev", "" + str(DesignElev)+ "", "PYTHON3")
+
+        arcpy.AddField_management(refPoints, "Notes", "TEXT", "", "", "50", "", "NULLABLE", "NON_REQUIRED")
+        arcpy.CalculateField_management(refPoints, "Notes", "\"Embankment\"", "PYTHON3")
+
+        AddMsgAndPrint("\tAppending Results to Stakeout Points...",0)
+        arcpy.Append_management(refPoints, stakeoutPoints, "NO_TEST")
+
+        # Add XY Coordinates to Stakeout Points
+        AddMsgAndPrint("\nAdding XY Coordinates to Stakeout Points")
+        arcpy.AddXY_management(stakeoutPoints)
+
+        # ------------------------------------------------------------------------------------------------ Compact FGDB
+        arcpy.Compact_management(watershedGDB_path)
+        AddMsgAndPrint(" \nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path),0)
+
+        # ------------------------------------------------------------------------------------------------ add to ArcMap
+        AddMsgAndPrint("\nAdding Results to ArcGIS Pro")
+        arcpy.SetParameterAsText(5, stakeoutPoints)
+
+        AddMsgAndPrint("\nProcessing Finished!\n")
+
     except:
-        pass
-
-    # ------------------------------------------------------------------------------------------------ add to ArcMap
-    AddMsgAndPrint("\nAdding Results to ArcMap",1)
-    AddMsgAndPrint("\n",1)
-    gp.SetParameterAsText(5, stakeoutPoints)
-
-    
-    AddMsgAndPrint("\nProcessing Finished!\n",1)
-
-    # -------------------------------------------------------------- Cleanup
-
-    gp.RefreshCatalog(watershedGDB_path)
-    
-    # Restore original environments
-    gp.extent = tempExtent
-    gp.mask = tempMask
-    gp.SnapRaster = tempSnapRaster
-    gp.CellSize = tempCellSize
-    gp.OutputCoordinateSystem = tempCoordSys
-    
-    try:
-        del inWatershed
-        del Subbasin
-        del DesignElev
-        del IntakeElev
-        del IntakeLocation
-        del watershedGDB_path
-        del watershedGDB_name
-        del userWorkspace
-        del watershed_path
-        del watershedFD_path
-        del wsName
-        del DEM_aoi
-        del ReferenceLine
-        del stakeoutPoints
-        del RefLineLyr
-        del stakeoutPointsLyr
-        del pointsSelection
-        del refLineSelection
-        del refTemp
-        del intake
-        del refTempClip
-        del refPoints
-        del WSmask
-        del DA_Dem
-        del DA_sn
-        del DAint
-        del DAx0
-        del DA_snPoly
-        del textFilePath
-        del exp
-        del ArcGIS10
-        del version
-        del tempExtent
-        del tempMask
-        del tempSnapRaster
-        del tempCellSize
-        del tempCoordSys
-        del gp
-    except:
-        pass
-    
-except SystemExit:
-    pass
-
-except KeyboardInterrupt:
-    AddMsgAndPrint("Interruption requested....exiting")
-
-except:
-    print_exception()
+        print_exception()
