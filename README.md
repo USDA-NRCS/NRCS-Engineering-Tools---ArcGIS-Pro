@@ -17,7 +17,7 @@ Practice Design - Wascob Design|4. Watershed Attributes|X|
 Practice Design - Wascob Design|5. Calculate Runoff Curve Number|X|
 Practice Design - Wascob Design|6. Wascob Design Worksheet|X|
 Practice Design - Wascob Design|7. Design Height & Intake Location|X|
-Practice Design - Wascob Design|8. Tile Layout and Profile||
+Practice Design - Wascob Design|8. Tile Layout and Profile|X|
 Practice Design - Wascob Design|9. Ridge Layout and Profile||
 Practice Design - Wascob Design|Export Project Data for GPS||
 Practice Design - Wascob Utilities|Add Points to Tile Profile||
