@@ -6,7 +6,7 @@ Toolset|Tool|ArcGIS Pro Compatible|
 --------------------------------------------------|-------------------------------------------------------------------|---------------------------|
 Field Office Tools|Clip DEM to AOI|X|
 Field Office Tools|Create Contours from AOI|X|
-Field Office Tools|Create Cross Section/Profile(s)||
+Field Office Tools|Create Cross Section/Profile(s)|X|
 Field Office Tools|Estimate Pool from Contours||
 Field Office Tools|Slope - Average by AOI||
 Field Office Tools|Slope - Percent by AOI||
