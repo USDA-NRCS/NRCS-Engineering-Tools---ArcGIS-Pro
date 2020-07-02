@@ -1,34 +1,16 @@
-# ==========================================================================================
-# Name: Wascob_TileLayout_and_Profile.py
-#
-# Author: Peter Mead
-#         Becker Soil Water Conservation District
-#         Red River Valley Conservation Service Area
-# e-mail: pemead@co.becker.mn.us
-#
-# Author: Adolfo.Diaz
-#         GIS Specialist
-#         National Soil Survey Center
-#         USDA - NRCS
-# e-mail: adolfo.diaz@usda.gov
-# phone: 608.662.4422 ext. 216
-#
-# Author: Chris Morse
-#         IN State GIS Coordinator
-#         USDA - NRCS
-# e-mail: chris.morse@usda.gov
-# phone: 317.501.1578
-
-# Created by Peter Mead, 2012
-# Updated by Chris Morse, USDA NRCS, 2020
-
+## wascobridgeStations.py
+##
+## Created by Matt Patton, USDA NRCS, 2016
+## Revised by Chris Morse, USDA NRCS, 2020
+##
 ## Creates points at user specified interval along digitized or provided lines,
 ## Derives stationing distances and XYZ values, providing Z values in feet,
 ## as well as interpolating the line(s) to 3d using the appropriate Zfactor.
 
 # ==========================================================================================
-# Updated  6/24/2020 - Adolfo Diaz
+# Updated  7/2/2020 - Adolfo Diaz
 #
+# - This tool is almost identical to the Tile Layout and Profile tool!
 # - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
 # - Combined all cursors into one.
 # - All describe functions use the arcpy.da.Describe functionality.
@@ -92,6 +74,7 @@ def AddMsgAndPrint(msg, severity=0):
     elif severity == 2:
         arcpy.AddError(msg)
 
+
 ## ================================================================================================================
 def logBasicSettings():
     # record basic user inputs and settings to log file for future purposes
@@ -101,7 +84,7 @@ def logBasicSettings():
 
     f = open(textFilePath,'a+')
     f.write("\n################################################################################################################\n")
-    f.write("Executing \"8. Wascob Tile Layout and Profile\" tool")
+    f.write("Executing \"8. Wascob Ridge Layout and Profile\" tool")
     f.write("User Name: " + getpass.getuser() + "\n")
     f.write("Date Executed: " + time.ctime() + "\n")
     f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
@@ -122,28 +105,28 @@ if __name__ == '__main__':
 
     try:
 
-        #----------------------------------------------------------------------------------------- Input Parameters
-        inWatershed = arcpy.GetParameterAsText(0)
-        inputLine = arcpy.GetParameterAsText(1)
-        interval = arcpy.GetParameterAsText(2)
-
         # Check out Spatial Analyst License
         if arcpy.CheckExtension("Spatial") == "Available":
             arcpy.CheckOutExtension("Spatial")
         else:
-            arcpy.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu. Exiting...\n")
+            AddMsgAndPrint("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu. Exiting!",2)
             exit()
 
         # Check out 3D Analyst License
         if arcpy.CheckExtension("3D") == "Available":
             arcpy.CheckOutExtension("3D")
         else:
-            arcpy.AddError("3D Analyst Extension not enabled. Please enable 3D Analyst from the Tools/Extensions menu. Exiting...\n")
+            AddMsgAndPrint("3D Analyst Extension not enabled. Please enable 3D Analyst from the Tools/Extensions menu. Exiting!",2)
             exit()
 
+        #----------------------------------------------------------------------------------------- Input Parameters
+        inWatershed = arcpy.GetParameterAsText(0)
+        inputLine = arcpy.GetParameterAsText(1)
+        interval = arcpy.GetParameterAsText(2)
+
         # Environment settings
-        arcpy.env.overwriteOutput = True
         arcpy.env.parallelProcessingFactor = "75%"
+        arcpy.env.overwriteOutput = True
         arcpy.env.geographicTransformations = "WGS_1984_(ITRF00)_To_NAD_1983"
         arcpy.env.resamplingMethod = "BILINEAR"
         arcpy.env.pyramid = "PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP"
@@ -155,7 +138,7 @@ if __name__ == '__main__':
         userWorkspace = os.path.dirname(watershedGDB_path)
         outputFolder = userWorkspace + os.sep + "gis_output"
         tables = outputFolder + os.sep + "tables"
-        stakeoutPoints = watershedFD_path + os.sep + "StakeoutPoints"
+        stakeoutPoints = watershedFD_path + os.sep + "stakeoutPoints"
 
         if not arcpy.Exists(outputFolder):
             arcpy.CreateFolder_management(userWorkspace, "gis_output")
@@ -170,12 +153,12 @@ if __name__ == '__main__':
         logBasicSettings()
 
         # --------------------------------------------------------------------- Permanent Datasets
-        outLine = watershedFD_path + os.sep + "tileLines"
-        outPoints = watershedFD_path + os.sep + "StationPoints"
-        pointsTable = tables + os.sep + "stations.dbf"
-        stakeoutTable = tables + os.sep + "stakeoutPoints.dbf"
-        outLineLyr = "TileLines"
-        outPointsLyr = "StationPoints"
+        outLine = watershedFD_path + os.sep + "RidgeLines"
+        outPoints = watershedFD_path + os.sep + "RidgeStationPoints"
+        pointsTable = tables + os.sep + "ridgestations.dbf"
+        stakeoutTable = tables + os.sep + "ridgestakeoutPoints.dbf"
+        outLineLyr = "RidgeLines"
+        outPointsLyr = "RidgeStationPoints"
 
         # --------------------------------------------------------------------- Temp Datasets
         stationLyr = "stations"
@@ -211,7 +194,7 @@ if __name__ == '__main__':
         if demCoordType == "Projected":
             if linearUnits in ("Meter","Meters"):
                 linearUnits = "Meters"
-            elif linearUnits in ("Foot","Feet","Foot_US"):
+            elif linearUnits in ("Foot", "Feet", "Foot_US"):
                 linearUnits = "Feet"
             else:
                 AddMsgAndPrint("\tHorizontal DEM units could not be determined. Please use a projected DEM with meters or feet for horizontal units. Exiting...",2)
@@ -298,6 +281,7 @@ if __name__ == '__main__':
 
         # Create Route(s) lyr and define events along each route
         AddMsgAndPrint("\nCreating Stations")
+
         routes = arcpy.CreateScratchName("routes",data_type="FeatureClass",workspace="in_memory")
         arcpy.CreateRoutes_lr(lineTemp, "ID", routes, "TWO_FIELDS", "FROM_PT", "LENGTH_FT", "UPPER_LEFT", "1", "0", "IGNORE", "INDEX")
 
@@ -308,15 +292,15 @@ if __name__ == '__main__':
 
         stationTemp = watershedFD_path + os.sep + "stations"
         arcpy.CopyFeatures_management(stationEvents, stationTemp)
-
         arcpy.AddXY_management(stationTemp)
+
         arcpy.AddField_management(stationTemp, "POINT_Z", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
 
         arcpy.MakeFeatureLayer_management(stationTemp, stationLyr)
         AddMsgAndPrint("\tSuccessfuly created a total of " + str(int(arcpy.GetCount_management(stationLyr).getOutput(0))) + " stations",0)
         AddMsgAndPrint("\tfor the " + str(int(arcpy.GetCount_management(lineTemp).getOutput(0))) + " line(s) provided\n")
 
-        # --------------------------------------------------------------------- Retrieve Elevation values
+        # -------------------------------------------------------------------- Retrieve Elevation values
         AddMsgAndPrint("\nRetrieving station elevations")
 
         # Buffer the stations the width of one raster cell / unit
@@ -342,16 +326,14 @@ if __name__ == '__main__':
 
         # ---------------------------------------------------------------------- Create final output
         # Interpolate Line to 3d via Z factor
-        arcpy.InterpolateShape_3d(ProjectDEM, lineTemp, outLine, "", Zfactor)
+        arcpy.InterpolateShape_3d (ProjectDEM, lineTemp, outLine, "", Zfactor)
 
         # Copy Station Points
         arcpy.CopyFeatures_management(stationTemp, outPoints)
 
         # Copy output to tables folder
         arcpy.CopyRows_management(outPoints, pointsTable)
-        arcpy.CopyRows_management(stakeoutPoints, stakeoutTable)
 
-        arcpy.Delete_management(stationElev)
         arcpy.Delete_management(stationTemp)
 
         # ------------------------------------------------------------------------------------------------ Compact FGDB

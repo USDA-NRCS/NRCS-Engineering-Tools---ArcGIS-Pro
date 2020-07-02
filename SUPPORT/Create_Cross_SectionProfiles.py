@@ -1,34 +1,20 @@
-# ==========================================================================================
-# Name: Wascob_TileLayout_and_Profile.py
-#
-# Author: Peter Mead
-#         Becker Soil Water Conservation District
-#         Red River Valley Conservation Service Area
-# e-mail: pemead@co.becker.mn.us
-#
-# Author: Adolfo.Diaz
-#         GIS Specialist
-#         National Soil Survey Center
-#         USDA - NRCS
-# e-mail: adolfo.diaz@usda.gov
-# phone: 608.662.4422 ext. 216
-#
-# Author: Chris Morse
-#         IN State GIS Coordinator
-#         USDA - NRCS
-# e-mail: chris.morse@usda.gov
-# phone: 317.501.1578
-
-# Created by Peter Mead, 2012
-# Updated by Chris Morse, USDA NRCS, 2020
-
+## profileXYZ.py (Line to XYZ)
+##
+## Created by Peter Mead, Adolfo Diaz, USDA NRCS, 2013
+## Updated by Chris Morse, USDA NRCS, 2018
+## Updated by Chris Morse, USDA NRCS, 2019
+##
 ## Creates points at user specified interval along digitized or provided lines,
 ## Derives stationing distances and XYZ values, providing Z values in feet,
 ## as well as interpolating the line(s) to 3d using the appropriate Zfactor.
+#
+## Optionally exports a comma delimited txt file for other applications
 
 # ==========================================================================================
-# Updated  6/24/2020 - Adolfo Diaz
+# Updated  7/2/2020 - Adolfo Diaz
 #
+# - This tool is almost identical to the Tile Layout and Profile tool!
+#   and the Ridge Layout and Profile tool
 # - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
 # - Combined all cursors into one.
 # - All describe functions use the arcpy.da.Describe functionality.
@@ -92,6 +78,7 @@ def AddMsgAndPrint(msg, severity=0):
     elif severity == 2:
         arcpy.AddError(msg)
 
+
 ## ================================================================================================================
 def logBasicSettings():
     # record basic user inputs and settings to log file for future purposes
@@ -100,106 +87,106 @@ def logBasicSettings():
     arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
 
     f = open(textFilePath,'a+')
-    f.write("\n################################################################################################################\n")
-    f.write("Executing \"8. Wascob Tile Layout and Profile\" tool")
+    f.write("\n##################################################################\n")
+    f.write("Executing \"Line to XYZ\" Tool" + "\n")
     f.write("User Name: " + getpass.getuser() + "\n")
     f.write("Date Executed: " + time.ctime() + "\n")
     f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
     f.write("User Parameters:\n")
     f.write("\tWorkspace: " + userWorkspace + "\n")
-    f.write("\tInput Dem: " + arcpy.Describe(ProjectDEM).CatalogPath + "\n")
+    f.write("\tInput Dem: " + arcpy.Describe(inputDEM).CatalogPath + "\n")
     f.write("\tInterval: " + str(interval) + "\n")
+    f.write("\tElevation Z-units: " + zUnits + "\n")
 
     f.close
     del f
-
 ## ================================================================================================================
 # Import system modules
-import arcpy, sys, os, string, traceback
+import arcpy, sys, os, traceback
 from arcpy.sa import *
 
 if __name__ == '__main__':
 
     try:
+        # Check out 3D and SA licenses
+        if arcpy.CheckExtension("3d") == "Available":
+            arcpy.CheckOutExtension("3d")
+        else:
+            arcpy.AddError("\n3D analyst extension is not enabled. Please enable 3D analyst from the Tools/Extensions menu. Exiting...\n")
+            exit()
+        if arcpy.CheckExtension("spatial") == "Available":
+            arcpy.CheckOutExtension("spatial")
+        else:
+            arcpy.AddError("\nSpatial Analyst Extension not enabled. Please enable Spatial Analyst from the Tools/Extensions menu. Exiting...\n")
+            exit()
 
+        arcpy.SetProgressorLabel("Setting Variables")
         #----------------------------------------------------------------------------------------- Input Parameters
-        inWatershed = arcpy.GetParameterAsText(0)
-        inputLine = arcpy.GetParameterAsText(1)
-        interval = arcpy.GetParameterAsText(2)
-
-        # Check out Spatial Analyst License
-        if arcpy.CheckExtension("Spatial") == "Available":
-            arcpy.CheckOutExtension("Spatial")
-        else:
-            arcpy.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu. Exiting...\n")
-            exit()
-
-        # Check out 3D Analyst License
-        if arcpy.CheckExtension("3D") == "Available":
-            arcpy.CheckOutExtension("3D")
-        else:
-            arcpy.AddError("3D Analyst Extension not enabled. Please enable 3D Analyst from the Tools/Extensions menu. Exiting...\n")
-            exit()
+        userWorkspace = arcpy.GetParameterAsText(0)
+        inputDEM = arcpy.GetParameterAsText(1)
+        zUnits = arcpy.GetParameterAsText(2)
+        inputLine = arcpy.GetParameterAsText(3)
+        interval = arcpy.GetParameterAsText(4)
+        text = arcpy.GetParameter(5)
 
         # Environment settings
-        arcpy.env.overwriteOutput = True
         arcpy.env.parallelProcessingFactor = "75%"
+        arcpy.env.overwriteOutput = True
         arcpy.env.geographicTransformations = "WGS_1984_(ITRF00)_To_NAD_1983"
         arcpy.env.resamplingMethod = "BILINEAR"
         arcpy.env.pyramid = "PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP"
 
-        # --------------------------------------------------------------------- Variables
-        watershed_path = arcpy.Describe(inWatershed).CatalogPath
-        watershedGDB_path = watershed_path[:watershed_path .find(".gdb")+4]
-        watershedFD_path = watershedGDB_path + os.sep + "Layers"
-        userWorkspace = os.path.dirname(watershedGDB_path)
-        outputFolder = userWorkspace + os.sep + "gis_output"
-        tables = outputFolder + os.sep + "tables"
-        stakeoutPoints = watershedFD_path + os.sep + "StakeoutPoints"
+        # --------------------------------------------------------------------- Directory Paths
+        watershedGDB_name = os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.gdb"  # replace spaces for new FGDB name
+        watershedGDB_path = userWorkspace + os.sep + watershedGDB_name
+        watershedFD = watershedGDB_path + os.sep + "Layers"
+        projectName = arcpy.ValidateTableName(os.path.basename(userWorkspace).replace(" ","_"))
 
-        if not arcpy.Exists(outputFolder):
-            arcpy.CreateFolder_management(userWorkspace, "gis_output")
-        if not arcpy.Exists(tables):
-            arcpy.CreateFolder_management(outputFolder, "tables")
-
-        ProjectDEM = watershedGDB_path + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_Project_DEM"
-        zUnits = "Feet"
-
-        # Set path to log file and start logging
+        # log inputs and settings to file
         textFilePath = userWorkspace + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.txt"
         logBasicSettings()
 
         # --------------------------------------------------------------------- Permanent Datasets
-        outLine = watershedFD_path + os.sep + "tileLines"
-        outPoints = watershedFD_path + os.sep + "StationPoints"
-        pointsTable = tables + os.sep + "stations.dbf"
-        stakeoutTable = tables + os.sep + "stakeoutPoints.dbf"
-        outLineLyr = "TileLines"
-        outPointsLyr = "StationPoints"
+        outLine = watershedFD + os.sep + projectName + "_XYZ_line"
+        # Must Have a unique name for output -- Append a unique digit to output if required
+        x = 1
+        y = 0
+
+        while x > 0:
+            if arcpy.Exists(outLine):
+                outLine = watershedFD + os.sep + projectName + "_XYZ_line" + str(x)
+                x += 1
+                y += 1
+            else:
+                x = 0
+        if y > 0:
+            outPoints = watershedFD + os.sep + projectName + "_XYZ_points" + str(y)
+            outTxt = userWorkspace + os.sep + projectName + "_XYZ_line" + str(y) + ".txt"
+        else:
+            outPoints = watershedFD + os.sep + projectName + "_XYZ_points"
+            outTxt = userWorkspace + os.sep + projectName + "_XYZ_line.txt"
+        del x
+        del y
+
+        outLineLyr = "" + os.path.basename(outLine) + ""
+        outPointsLyr = "" + os.path.basename(outPoints) + ""
 
         # --------------------------------------------------------------------- Temp Datasets
         stationLyr = "stations"
         stationElev = watershedGDB_path + os.sep + "stationElev"
 
-        # --------------------------------------------------------------------- Check some parameters
-        AddMsgAndPrint("\nChecking inptus...",0)
+        # --------------------------------------------------------------------- Check station interval
         # Exit if interval not set propertly
         try:
             float(interval)
         except:
-            AddMsgAndPrint("\tStation Interval was invalid; cannot set interpolation interval. Exiting...",2)
+            AddMsgAndPrint("\nStation Interval was invalid; Cannot set interpolation interval. Exiting...\n",2)
             exit()
 
         interval = float(interval)
 
-        if not arcpy.Exists(ProjectDEM):
-            AddMsgAndPrint("\tMissing Project_DEM from FGDB. Can not perform raster analysis.",2)
-            AddMsgAndPrint("\tProject_DEM must be in the same geodatabase as your input watershed.",2)
-            AddMsgAndPrint("\tCheck your the source of your provided watershed. Exiting...",2)
-            exit()
-
-        # ---------------------------------- Retrieve DEM Properties
-        demDesc = arcpy.da.Describe(ProjectDEM)
+        # --------------------------------------------------------------------- Check DEM Coordinate System and Linear Units
+        demDesc = arcpy.da.Describe(inputDEM)
         demName = demDesc['name']
         demPath = demDesc['catalogPath']
         demCellSize = demDesc['meanCellWidth']
@@ -208,21 +195,59 @@ if __name__ == '__main__':
         demCoordType = demSR.type
         linearUnits = demSR.linearUnitName
 
-        if demCoordType == "Projected":
-            if linearUnits in ("Meter","Meters"):
-                linearUnits = "Meters"
-            elif linearUnits in ("Foot","Feet","Foot_US"):
-                linearUnits = "Feet"
-            else:
-                AddMsgAndPrint("\tHorizontal DEM units could not be determined. Please use a projected DEM with meters or feet for horizontal units. Exiting...",2)
+        try:
+            if interval < float(demCellSize):
+                AddMsgAndPrint("\nThe interval specified is less than the DEM cell size. Please re-run with a higher interval value. Exiting...\n",2)
                 exit()
-        else:
-            AddMsgAndPrint("\t" + demName + " is NOT in a Projected Coordinate System. Exiting...",2)
+        except:
+            AddMsgAndPrint("\nThere may be an issue with the DEM cell size. Exiting...\n",2)
             exit()
 
-        # zUnits are feet because we are using WASCOB project DEM
-        # This Zfactor is used for expressing elevations from input data as feet, regardless of input z-units. But z-units are feet in this toolbox. Redundant.
-        Zfactor = 1
+        if linearUnits in ("Meter","Meters"):
+            linearUnits = "Meters"
+        elif linearUnits in ("Foot", "Feet", "Foot_US"):
+            linearUnits = "Feet"
+
+        AddMsgAndPrint("\nGathering information about DEM: " + demName+ "\n")
+
+        # Coordinate System must be a Projected type in order to continue.
+        # zUnits will determine Zfactor for the conversion of elevation values to a profile in feet
+
+        if demCoordType == "Projected":
+            if zUnits == "Meters":
+                Zfactor = 3.280839896
+            elif zUnits == "Centimeters":
+                Zfactor = 0.03280839896
+            elif zUnits == "Inches":
+                Zfactor = 0.0833333
+            # zUnits must be feet; no more choices
+            else:
+                Zfactor = 1
+
+            AddMsgAndPrint("\tProjection Name: " + demSR.name)
+            AddMsgAndPrint("\tXY Linear Units: " + linearUnits)
+            AddMsgAndPrint("\tElevation Values (Z): " + zUnits)
+            AddMsgAndPrint("\tCell Size: " + str(demCellSize) + " x " + str(demCellSize) + " " + linearUnits)
+
+        else:
+            AddMsgAndPrint("\n\n\t" + os.path.basename(inputDEM) + " is NOT in a projected Coordinate System. Exiting...\n",2)
+            exit()
+
+        # ------------------------------------------------------------------------ Create FGDB, FeatureDataset
+        # Boolean - Assume FGDB already exists
+        bFGDBexists = True
+
+        # Create Watershed FGDB and feature dataset if it doesn't exist
+        if not arcpy.Exists(watershedGDB_path):
+            arcpy.CreateFileGDB_management(userWorkspace, watershedGDB_name)
+            arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", demSR)
+            AddMsgAndPrint("\nSuccessfully created File Geodatabase: " + watershedGDB_name)
+            bFGDBexists = False
+
+        # if GDB already existed but feature dataset doesn't
+        if not arcpy.Exists(watershedFD):
+            arcpy.CreateFeatureDataset_management(watershedGDB_path, "Layers", demSR)
+
 
         # ------------------------------------------------------------- Delete [previous toc lyrs if present
         # Copy the input line before deleting the TOC layer reference in case input line IS the previous line selected from the TOC
@@ -230,7 +255,7 @@ if __name__ == '__main__':
         arcpy.CopyFeatures_management(inputLine, lineTemp)
 
         if arcpy.Exists(outLineLyr):
-            AddMsgAndPrint("\nRemoving previous layers from ArcMap",0)
+            AddMsgAndPrint("\nRemoving previous layers from ArcGIS Pro")
             arcpy.Delete_management(outLineLyr)
 
         if arcpy.Exists(outPointsLyr):
@@ -306,8 +331,9 @@ if __name__ == '__main__':
         arcpy.AddField_management(stationEvents, "STATIONID", "TEXT", "", "", "25", "", "NULLABLE", "NON_REQUIRED")
         arcpy.CalculateField_management(stationEvents, "STATIONID", "str(!STATION!) + '_' + str(!ID!)", "PYTHON3")
 
-        stationTemp = watershedFD_path + os.sep + "stations"
-        arcpy.CopyFeatures_management(stationEvents, stationTemp)
+        # Should this next sort actually be done with STATIONID, instead of STATION?
+        stationTemp = watershedFD + os.sep + "stations"
+        arcpy.Sort_management(stationEvents, stationTemp, [["STATION", "ASCENDING"]])
 
         arcpy.AddXY_management(stationTemp)
         arcpy.AddField_management(stationTemp, "POINT_Z", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
@@ -330,7 +356,7 @@ if __name__ == '__main__':
         stationBuffer = arcpy.CreateScratchName("stationBuffer",data_type="FeatureClass",workspace="in_memory")
         arcpy.Buffer_analysis(stationTemp, stationBuffer, bufferSize, "FULL", "ROUND", "NONE", "")
 
-        ZonalStatisticsAsTable(stationBuffer, "STATIONID", ProjectDEM, stationElev, "NODATA", "ALL")
+        ZonalStatisticsAsTable(stationBuffer, "STATIONID", inputDEM, stationElev, "NODATA", "ALL")
 
         arcpy.AddJoin_management(stationLyr, "StationID", stationElev, "StationID", "KEEP_ALL")
 
@@ -342,28 +368,44 @@ if __name__ == '__main__':
 
         # ---------------------------------------------------------------------- Create final output
         # Interpolate Line to 3d via Z factor
-        arcpy.InterpolateShape_3d(ProjectDEM, lineTemp, outLine, "", Zfactor)
+        arcpy.InterpolateShape_3d(inputDEM, lineTemp, outLine, "", Zfactor)
 
         # Copy Station Points
         arcpy.CopyFeatures_management(stationTemp, outPoints)
 
-        # Copy output to tables folder
-        arcpy.CopyRows_management(outPoints, pointsTable)
-        arcpy.CopyRows_management(stakeoutPoints, stakeoutTable)
-
         arcpy.Delete_management(stationElev)
         arcpy.Delete_management(stationTemp)
 
-        # ------------------------------------------------------------------------------------------------ Compact FGDB
+        # Create Txt file if selected and write attributes of station points
+        if text == True:
+            AddMsgAndPrint("Creating Output text file:\n")
+            AddMsgAndPrint("\t" + str(outTxt) + "\n")
+
+            t = open(outTxt, 'w')
+            t.write("ID, STATION, X, Y, Z")
+
+
+            with arcpy.da.SearchCursor(outPoints,['ID', 'STATION', 'POINT_X', 'POINT_Y', 'POINT_Z'],sql_clause=(None,'ORDER BY STATION')) as cursor:
+                for row in cursor:
+                    t.write(str(row[0]) + "," + str(row[1]) + "," + str(row[2]) + "," + str(row[3]) + "," + str(row[4]) + "\n")
+
+            t.close()
+
+        # ---------------------------------------------------------------- Prepare to add to ArcMap
+        AddMsgAndPrint("Adding Layers to ArcGIS Pro\n")
+        arcpy.SetParameterAsText(6, outLine)
+        arcpy.SetParameterAsText(7, outPoints)
+
+        # ---------------------------------------------------------------------------------------------------------------------------- Compact FGDB
+
         arcpy.Compact_management(watershedGDB_path)
-        AddMsgAndPrint("Successfully Compacted FGDB: " + os.path.basename(watershedGDB_path) + "\n")
+        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
 
-        # ---------------------------------------------------------------- Create Layers and apply symbology
-        AddMsgAndPrint("\nAdding Layers to ArcGIS Pro")
-        arcpy.SetParameterAsText(3, outLine)
-        arcpy.SetParameterAsText(4, outPoints)
-
-        AddMsgAndPrint("\nProcessing Complete!")
+        # ---------------------------------------------------------------------------- FIN!
+        AddMsgAndPrint("Processing Complete!\n")
 
     except:
         print_exception()
+
+
+
