@@ -19,7 +19,7 @@ Practice Design - Wascob Design|6. Wascob Design Worksheet|X|
 Practice Design - Wascob Design|7. Design Height & Intake Location|X|
 Practice Design - Wascob Design|8. Tile Layout and Profile|X|
 Practice Design - Wascob Design|9. Ridge Layout and Profile|X|
-Practice Design - Wascob Design|Export Project Data for GPS||
+Practice Design - Wascob Design|Export Project Data for GPS|X|
 Practice Design - Wascob Utilities|Add Points to Tile Profile||
 Practice Design - Wascob Utilities|Calibrate DEM to Field Survey||
 Terrain Analysis Tools|1. Define Area of Interest (Optional)|X|
