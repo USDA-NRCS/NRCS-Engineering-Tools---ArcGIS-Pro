@@ -6,7 +6,7 @@
 ## Notes:
 ## Allows User input of Survey points or a decimal value to adjust a DEM up or down based on differences in Elevation
 ##
-## Updated: Chris Morse, USDA NRCS, 2019
+## Updated: Chris Morse, USDA NRCS, 2020
 
 ## ================================================================================================================
 def print_exception():
@@ -22,6 +22,8 @@ def print_exception():
 ## ================================================================================================================    
 def AddMsgAndPrint(msg, severity=0):
     # prints message to screen if run as a python script
+    # Adds tool message to the geoprocessor
+    # Split the message on  \n first, so that if it's multiple lines, a GPMessage will be added for each line
 
     print(msg)
     
@@ -29,17 +31,16 @@ def AddMsgAndPrint(msg, severity=0):
         f = open(textFilePath,'a+')
         f.write(msg + " \n")
         f.close
-        del f        
-        
-        if severity == 0:
-            arcpy.AddMessage(msg)
-        elif severity == 1:
-            arcpy.AddWarning(msg)
-        elif severity == 2:
-            arcpy.AddError(msg)
-                
+        del f
     except:
         pass
+    
+    if severity == 0:
+        arcpy.AddMessage(msg)
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+    elif severity == 2:
+        arcpy.AddError(msg)
 
 ## ================================================================================================================
 def logBasicSettings():    
@@ -171,12 +172,12 @@ try:
         AddMsgAndPrint(" \n\tCalculating differences in elevation...",0)
         arcpy.AddField_management(tempPoints, "POINTID", "LONG")
         #arcpy.CalculateField_management(tempPoints, "POINTID", "[OBJECTID]", "VB", "")
-        arcpy.CalculateField_management(tempPoints, "POINTID", "!OBJECTID!", "PYTHON_9.3")
+        arcpy.CalculateField_management(tempPoints, "POINTID", "!OBJECTID!", "PYTHON")
         arcpy.AddField_management(tempPoints, "SURV_ELEV", "DOUBLE")
         arcpy.AddField_management(tempPoints, "RAST_ELEV", "DOUBLE")
         arcpy.AddField_management(tempPoints, "DIFF", "DOUBLE")
         #arcpy.CalculateField_management(tempPoints, "SURV_ELEV", "[" + str(inputField) + "]", "VB", "")
-        arcpy.CalculateField_management(tempPoints, "SURV_ELEV", "!" + str(inputField) + "!", "PYTHON_9.3")
+        arcpy.CalculateField_management(tempPoints, "SURV_ELEV", "!" + str(inputField) + "!", "PYTHON")
 
         # Use Zonal Statistics to pull values from project DEM
         arcpy.sa.ZonalStatisticsAsTable(tempPoints, "POINTID", inputDEM, tempStats, "DATA")

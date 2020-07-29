@@ -434,10 +434,10 @@ if __name__ == '__main__':
 
         unitLookUpDict = {'Meter':0,'Meters':0,'Foot':1,'Foot_US':1,'Feet':1,'Centimeter':2,'Centimeters':2,'Inch':3,'Inches':3}
 
-        zFactorList = [[1.0,     0.3048, 0.01,      0.0254],
-                       [3.28084, 1.0,    0.0328084, 0.083333],
-                       [100.0,   30.48,  1.0,       2.54],
-                       [39.3701, 12.0,   0.393701,  1.0]]
+        zFactorList = [[1.0,         0.3048, 0.01,      0.0254],
+                       [3.280839896, 1.0,    0.0328084, 0.083333],
+                       [100.0,       30.48,  1.0,       2.54],
+                       [39.3701,     12.0,   0.393701,  1.0]]
 
         # ---------------------------------------------------------------------------------------------- Set Coord System of Project
         # AOI spatial reference info
@@ -588,7 +588,7 @@ if __name__ == '__main__':
         if len(arcpy.ListFields(projectAOI,"XY_UNITS")) < 1:
             arcpy.AddField_management(projectAOI, "XY_UNITS", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED")
 
-        arcpy.CalculateField_management(projectAOI, "XY_UNITS", "\"" + demLinearUnits + "\"", "PYTHON3", "")
+        arcpy.CalculateField_management(projectAOI, "XY_UNITS", "\"" + demLinearUnits + "\"", "PYTHON3")
 
         # Write Z Units to AOI
         if len(arcpy.ListFields(projectAOI,"Z_UNITS")) < 1:
@@ -609,15 +609,15 @@ if __name__ == '__main__':
         acres = area / acreConversionDict.get(aoiLinearUnits)
 
         if aoiLinearUnits in ('Meter','Meters'):
-            AddMsgAndPrint("\t" + aoiName + " Area:  " + str(splitThousands(round(area,2))) + " Sq. Meters",0)
+            AddMsgAndPrint("\t" + aoiName + " Area:  " + str(splitThousands(round(area,2))) + " Sq. Meters")
 
         elif aoiLinearUnits in ('Feet','Foot','Foot_US'):
-            AddMsgAndPrint("\t" + aoiName + " Area:  " + str(splitThousands(round(area,2))) + " Sq. Ft.",0)
+            AddMsgAndPrint("\t" + aoiName + " Area:  " + str(splitThousands(round(area,2))) + " Sq. Ft.")
 
         else:
-            AddMsgAndPrint("\t" + aoiName + " Area:  " + str(splitThousands(round(area,2))),0)
+            AddMsgAndPrint("\t" + aoiName + " Area:  " + str(splitThousands(round(area,2))))
 
-        AddMsgAndPrint("\t" + aoiName + " Acres: " + str(splitThousands(round(acres,2))) + " Acres",0)
+        AddMsgAndPrint("\t" + aoiName + " Acres: " + str(splitThousands(round(acres,2))) + " Acres")
 
         # ------------------------------------------------------------------------------------------------- Clip inputDEM
         # DEM is in Projected Coord Systed (Local DEM or WMS)

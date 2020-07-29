@@ -28,16 +28,15 @@ def AddMsgAndPrint(msg, severity=0):
         f.write(msg + " \n")
         f.close
         del f
-        
-        if severity == 0:
-            arcpy.AddMessage(msg)
-        elif severity == 1:
-            arcpy.AddWarning(msg)
-        elif severity == 2:
-            arcpy.AddError(msg)
-            
     except:
         pass
+    
+    if severity == 0:
+        arcpy.AddMessage(msg)
+    elif severity == 1:
+        arcpy.AddWarning(msg)
+    elif severity == 2:
+        arcpy.AddError(msg)
 
 ## ================================================================================================================
 def logBasicSettings():    
@@ -200,20 +199,6 @@ try:
     else:
         AddMsgAndPrint("\n\n\t" + os.path.basename(inputDEM) + " is NOT in a Projected Coordinate System. Exiting...",2)
         sys.exit(0)
-        
-##    # ------------------------------------------------------------------------------- Capture default environments
-##    tempExtent = gp.Extent
-##    tempMask = gp.mask
-##    tempSnapRaster = gp.SnapRaster
-##    tempCellSize = gp.CellSize
-##    tempCoordSys = gp.OutputCoordinateSystem
-##
-##    # ------------------------------------------------------------------------------- Set environments
-##    gp.Extent = "MINOF"
-##    gp.CellSize = cellSize
-##    gp.mask = ""
-##    gp.SnapRaster = inputDEM
-##    gp.OutputCoordinateSystem = sr
 
     # ------------------------------------- Remove layers from ArcMap if they exist
     layersToRemove = (slopeOut)   
@@ -228,9 +213,7 @@ try:
                 AddMsgAndPrint("Removing..." + layer + "",0)
             except:
                 pass
-    del x
-    del layer
-    del layersToRemove
+    del x, layersToRemove
     
     # ---------------------------------------------------------------------------------------------- Create FGDB, FeatureDataset
     # Boolean - Assume FGDB already exists
