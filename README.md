@@ -8,7 +8,7 @@ Field Office Tools|Clip DEM to AOI|X|
 Field Office Tools|Create Contours from AOI|X|
 Field Office Tools|Create Cross Section/Profile(s)|X|
 Field Office Tools|Estimate Pool from Contours||
-Field Office Tools|Slope - Average by AOI||
+Field Office Tools|Slope - Average by AOI|X|
 Field Office Tools|Slope - Percent by AOI||
 Practice Design - Wascob Design|1. Define Area of Interest (WASCOB)|X|
 Practice Design - Wascob Design|2. Create Stream Network (WASCOB)|X|
