@@ -1,20 +1,20 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "2.4.0",
-  "build" : 19948,
+  "version" : "2.6.0",
+  "build" : 24783,
   "layers" : [
-    "CIMPATH=eng_tools/prowatershed.xml"
+    "CIMPATH=Map/e37a2fdcdaf64760810fcc4e07bfac52.xml"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "ProWatershed",
-      "uRI" : "CIMPATH=eng_tools/prowatershed.xml",
+      "name" : "Watershed",
+      "uRI" : "CIMPATH=Map/e37a2fdcdaf64760810fcc4e07bfac52.xml",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "ProWatershed",
+      "description" : "Watershed",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
         "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}"
@@ -38,9 +38,9 @@
         "dataConnection" : {
           "type" : "CIMFeatureDatasetDataConnection",
           "featureDataset" : "Layers",
-          "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\NRCS_Engineering_Tools_ArcPro\\Testing\\Testing_EngTools.gdb",
+          "workspaceConnectionString" : "DATABASE=..\\..\\..\\Workspace\\Eng_Pro_Tests\\Eng_Pro_Tests_EngTools.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "ProWatershed",
+          "dataset" : "Watershed",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
@@ -49,19 +49,20 @@
       "featureTemplates" : [
         {
           "type" : "CIMFeatureTemplate",
-          "name" : "ProWatershed",
+          "name" : "Watershed",
           "tags" : "Polygon",
-          "toolProgID" : "8f79967b-66a0-4a1c-b884-f44bc7e26921"
+          "toolProgID" : "00000000-0000-0000-0000-000000000000"
         }
       ],
       "htmlPopupEnabled" : true,
       "selectable" : true,
       "featureCacheType" : "Session",
+      "displayFiltersType" : "ByScale",
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
-          "expression" : "\"Subbasin \" & [Subbasin]  & vbNewLine  & \"Acres: \"  & Round ( [Acres], 1)  & vbNewLine & \"Avg Slope: \" & Round ( [Avg_Slope], 1) ",
-          "expressionEngine" : "VBScript",
+          "expression" : "\"Subbasin \" + $feature.Subbasin + textFormatting.NewLine + text($feature.Acres, '#.00') + \" ac\" + textFormatting.NewLine + \"Avg Slope: \" + Round($feature.Avg_Slope, 1) + \"%\"",
+          "expressionEngine" : "Arcade",
           "featuresToLabel" : "AllVisibleFeatures",
           "maplexLabelPlacementProperties" : {
             "type" : "CIMMaplexLabelPlacementProperties",
@@ -154,7 +155,7 @@
             "primaryOffset" : 1,
             "primaryOffsetUnit" : "Point",
             "removeExtraWhiteSpace" : true,
-            "repetitionIntervalUnit" : "Map",
+            "repetitionIntervalUnit" : "Point",
             "rotationProperties" : {
               "type" : "CIMMaplexRotationProperties",
               "rotationType" : "Arithmetic",
@@ -172,9 +173,10 @@
             "thinningDistanceUnit" : "Point",
             "truncationMarkerCharacter" : ".",
             "truncationMinimumLength" : 1,
-            "truncationPreferredCharacters" : "aeiou"
+            "truncationPreferredCharacters" : "aeiou",
+            "truncationExcludedCharacters" : "0123456789"
           },
-          "name" : "Class 1",
+          "name" : "Watershed Labels",
           "priority" : -1,
           "standardLabelPlacementProperties" : {
             "type" : "CIMStandardLabelPlacementProperties",
@@ -227,7 +229,7 @@
               "fontFamilyName" : "Arial",
               "fontStyleName" : "Bold",
               "fontType" : "TTOpenType",
-              "haloSize" : 2,
+              "haloSize" : 1,
               "haloSymbol" : {
                 "type" : "CIMPolygonSymbol",
                 "symbolLayers" : [
@@ -246,7 +248,7 @@
                   }
                 ]
               },
-              "height" : 8,
+              "height" : 12,
               "hinting" : "Default",
               "horizontalAlignment" : "Left",
               "kerning" : true,
@@ -257,31 +259,13 @@
                 "type" : "CIMPolygonSymbol",
                 "symbolLayers" : [
                   {
-                    "type" : "CIMSolidStroke",
-                    "enable" : true,
-                    "capStyle" : "Round",
-                    "joinStyle" : "Round",
-                    "lineStyle3D" : "Strip",
-                    "miterLimit" : 10,
-                    "width" : 1,
-                    "color" : {
-                      "type" : "CIMRGBColor",
-                      "values" : [
-                        255,
-                        255,
-                        0,
-                        100
-                      ]
-                    }
-                  },
-                  {
                     "type" : "CIMSolidFill",
                     "enable" : true,
                     "color" : {
                       "type" : "CIMRGBColor",
                       "values" : [
-                        0,
-                        0,
+                        255,
+                        255,
                         0,
                         100
                       ]
@@ -324,7 +308,7 @@
                   {
                     "type" : "CIMGeometricEffectOffset",
                     "method" : "Square",
-                    "offset" : 1,
+                    "offset" : 1.5,
                     "option" : "Fast"
                   }
                 ],
@@ -333,7 +317,7 @@
                 "joinStyle" : "Round",
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
-                "width" : 1,
+                "width" : 1.5,
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -346,20 +330,12 @@
               },
               {
                 "type" : "CIMSolidStroke",
-                "effects" : [
-                  {
-                    "type" : "CIMGeometricEffectOffset",
-                    "method" : "Mitered",
-                    "offset" : 0,
-                    "option" : "Fast"
-                  }
-                ],
                 "enable" : true,
                 "capStyle" : "Round",
                 "joinStyle" : "Round",
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
-                "width" : 2,
+                "width" : 3,
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -376,7 +352,7 @@
                   {
                     "type" : "CIMGeometricEffectOffset",
                     "method" : "Square",
-                    "offset" : -1,
+                    "offset" : -1.5,
                     "option" : "Fast"
                   }
                 ],
@@ -385,7 +361,7 @@
                 "joinStyle" : "Round",
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
-                "width" : 1,
+                "width" : 1.5,
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -404,25 +380,6 @@
       "snappable" : true
     }
   ],
-  "elevationSurfaces" : [
-    {
-      "type" : "CIMMapElevationSurface",
-      "elevationMode" : "BaseGlobeSurface",
-      "name" : "Ground",
-      "verticalExaggeration" : 1,
-      "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}",
-      "color" : {
-        "type" : "CIMRGBColor",
-        "values" : [
-          255,
-          255,
-          255,
-          100
-        ]
-      },
-      "surfaceTINShadingMode" : "Smooth",
-      "visibility" : true,
-      "expanded" : true
-    }
-  ]
+  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
 }

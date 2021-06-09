@@ -20,7 +20,7 @@
 # phone: 317.501.1578
 
 # Created by Peter Mead, Adolfo Diaz, USDA NRCS, 2013
-# Updated by Chris Morse, USDA NRCS, 2019
+# Updated by Adolfo Diaz and Chris Morse, USDA NRCS, 2019-2021
 
 # ==========================================================================================
 # Updated  4/15/2020 - Adolfo Diaz
@@ -114,16 +114,13 @@ def AddMsgAndPrint(msg, severity=0):
         f.write(msg + " \n")
         f.close
         del f
-
     except:
         pass
 
     if severity == 0:
         arcpy.AddMessage(msg)
-
     elif severity == 1:
         arcpy.AddWarning(msg)
-
     elif severity == 2:
         arcpy.AddError(msg)
 
@@ -144,18 +141,14 @@ def logBasicSettings():
         f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
         f.write("\nUser Parameters:\n")
         f.write("\tWorkspace: " + userWorkspace + "\n")
-        f.write("\tInput Dem: " + demPath + "\n")
-
+        f.write("\tInput Dem: " + inputDEM + "\n")
+        f.write("\tElevation Z-units: " + zUnits + "\n")
         if interval > 0:
             f.write("\tContour Interval: " + str(interval) + "\n")
         else:
             f.write("\tContour Interval: NOT SPECIFIED\n")
 
-        if len(zUnits) > 0:
-            f.write("\tElevation Z-units: " + zUnits + "\n")
-
-        else:
-            f.write("\tElevation Z-units: Not Available" + "\n")
+        
 
         f.close
 
@@ -249,7 +242,8 @@ def extractSubsetFromGCSdem(demSource,zUnits):
         arcpy.Delete_management(demProject)
 
         # ------------------------------------------------------------------------------------ Report new DEM properties
-        maskDesc = arcpy.da.Describe(DEM_aoi)
+        #maskDesc = arcpy.da.Describe(DEM_aoi)
+        maskDesc = arcpy.da.Describe(outExtract)
         newSR = maskDesc['spatialReference']
         newLinearUnits = newSR.linearUnitName
         newCellSize = maskDesc['meanCellWidth']
@@ -365,12 +359,21 @@ if __name__ == '__main__':
 
         # Input DEM Spatial Reference Information
         demPath = arcpy.da.Describe(inputDEM)['catalogPath']
-        demDesc = arcpy.da.Describe(demPath)
-        demName = demDesc['name']
-        demCellSize = demDesc['meanCellWidth']
-        demSR = demDesc['spatialReference']
+        try:
+            demDesc = arcpy.da.Describe(demPath)
+            demName = demDesc['name']
+            demCellSize = demDesc['meanCellWidth']
+            demFormat = demDesc['format']
+            demSR = demDesc['spatialReference']
+        except:
+            # da.Describe fails for web service DEMs; switch to standard describe with an except catch
+            demDesc = arcpy.Describe(inputDEM)
+            demName = demDesc.name
+            demCellSize = demDesc.meanCellWidth
+            demFormat = demDesc.format
+            demSR = demDesc.spatialReference
+
         demSRname = demSR.name
-        demFormat = demDesc['format']
         demCoordType = demSR.type
 
         if demCoordType == 'Projected':
@@ -620,7 +623,7 @@ if __name__ == '__main__':
         AddMsgAndPrint("\t" + aoiName + " Acres: " + str(splitThousands(round(acres,2))) + " Acres")
 
         # ------------------------------------------------------------------------------------------------- Clip inputDEM
-        # DEM is in Projected Coord Systed (Local DEM or WMS)
+        # DEM is in Projected Coord System (Local DEM or WMS)
         if bProjectedCS:
             outExtract = ExtractByMask(inputDEM, projectAOI)
             outExtract.save(DEM_aoi)
@@ -630,7 +633,7 @@ if __name__ == '__main__':
         # this may cause different XY,
         else:
             if not extractSubsetFromGCSdem(inputDEM,zUnits):
-                AddMsgAndPrint("\nFailed to . EXITING",2)
+                AddMsgAndPrint("\nFailed to extract DEM from web service. EXITING",2)
                 exit()
 
             demAOIsr = arcpy.da.Describe(DEM_aoi)['spatialReference']
@@ -703,6 +706,23 @@ if __name__ == '__main__':
 
         AddMsgAndPrint("\nSuccessfully Created Depth Grid",0)
 
+        # ---------------------------------------------------------------------------------------------- Delete scratch.gdb files
+        # Used to delete the temporary feature classes that get created by the interactive edit session in the draw AOI part of the tool
+        scratchGDB = os.path.join(os.path.dirname(sys.argv[0]), "Scratch.gdb")
+        startWorkspace = arcpy.env.workspace
+        arcpy.env.workspace = scratchGDB
+        fcs = []
+        for fc in arcpy.ListFeatureClasses('*'):
+            fcs.append(os.path.join(scratchGDB, fc))
+        for fc in fcs:
+            if arcpy.Exists(fc):
+                try:
+                    arcpy.Delete_management(fc)
+                except:
+                    pass
+        arcpy.env.workspace = startWorkspace
+        del startWorkspace
+        
         # ------------------------------------------------------------------------------------------------ Compact FGDB
         arcpy.Compact_management(watershedGDB_path)
         AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))

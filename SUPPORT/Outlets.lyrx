@@ -1,25 +1,43 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "2.4.0",
-  "build" : 19948,
+  "version" : "2.6.0",
+  "build" : 24783,
   "layers" : [
-    "CIMPATH=eng_tools/diazwtshd_outlet.xml"
+    "CIMPATH=Map/2b2f28b96f3f4499927356b075fe56ed.xml"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "DiazWtshd_outlet",
-      "uRI" : "CIMPATH=eng_tools/diazwtshd_outlet.xml",
+      "name" : "Watershed_outlet",
+      "uRI" : "CIMPATH=Map/2b2f28b96f3f4499927356b075fe56ed.xml",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "DiazWtshd_outlet",
+      "description" : "Watershed_outlet",
       "layerElevation" : {
-        "type" : "CIMLayerElevationSurface",
-        "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}"
+        "type" : "CIMLayerElevationSurface"
       },
       "expanded" : true,
+      "layer3DProperties" : {
+        "type" : "CIM3DLayerProperties",
+        "castShadows" : true,
+        "isLayerLit" : true,
+        "layerFaceCulling" : "None",
+        "maxDistance" : -1,
+        "minDistance" : -1,
+        "preloadTextureCutoffHigh" : 0,
+        "preloadTextureCutoffLow" : 0.25,
+        "textureCutoffHigh" : 0.25,
+        "textureCutoffLow" : 1,
+        "useCompressedTextures" : true,
+        "verticalExaggeration" : 1,
+        "exaggerationMode" : "ScaleZ",
+        "verticalUnit" : {
+          "uwkid" : 9001
+        },
+        "lighting" : "OneSideDataNormal"
+      },
       "layerType" : "Operational",
       "showLegends" : true,
       "visibility" : true,
@@ -32,7 +50,7 @@
       "autoGenerateFeatureTemplates" : true,
       "featureTable" : {
         "type" : "CIMFeatureTable",
-        "displayField" : "SHAPE_Length",
+        "displayField" : "Name",
         "editable" : true,
         "timeFields" : {
           "type" : "CIMTimeTableDefinition"
@@ -49,9 +67,9 @@
         "dataConnection" : {
           "type" : "CIMFeatureDatasetDataConnection",
           "featureDataset" : "Layers",
-          "workspaceConnectionString" : "DATABASE=..\\..\\..\\NRCS_Engineering_Tools\\ArcMap_Testing\\ArcMap_Testing_EngTools.gdb",
+          "workspaceConnectionString" : "DATABASE=..\\..\\..\\Workspace\\Eng_Pro_Tests\\Eng_Pro_Tests_EngTools.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "DiazWtshd_outlet",
+          "dataset" : "Watershed_outlet",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
@@ -60,19 +78,15 @@
       "featureTemplates" : [
         {
           "type" : "CIMFeatureTemplate",
-          "name" : "DiazWtshd_outlet",
+          "name" : "Watershed_outlet",
           "tags" : "Line",
-          "toolProgID" : "af2dbf8f-280e-44db-8860-e399d0b30cf1",
-          "toolFilter" : [
-            "09c6f589-a3ce-48ab-81bc-46965c58f264",
-            "28c04532-3daf-4d3d-b7be-a589c9c9a03e",
-            "6f0ed2cc-c099-4895-bd7e-beec2f78adbf"
-          ]
+          "toolProgID" : "00000000-0000-0000-0000-000000000000"
         }
       ],
       "isFlattened" : true,
       "selectable" : true,
       "featureCacheType" : "Session",
+      "displayFiltersType" : "ByScale",
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
@@ -299,7 +313,7 @@
                   "type" : "CIMMarkerPlacementAlongLineSameSize",
                   "angleToLine" : true,
                   "controlPointPlacement" : "NoConstraint",
-                  "endings" : "NoConstraint",
+                  "endings" : "WithMarkers",
                   "offsetAlongLine" : 9.5,
                   "placementTemplate" : [
                     10
@@ -407,25 +421,6 @@
       "snappable" : true
     }
   ],
-  "elevationSurfaces" : [
-    {
-      "type" : "CIMMapElevationSurface",
-      "elevationMode" : "BaseGlobeSurface",
-      "name" : "Ground",
-      "verticalExaggeration" : 1,
-      "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}",
-      "color" : {
-        "type" : "CIMRGBColor",
-        "values" : [
-          255,
-          255,
-          255,
-          100
-        ]
-      },
-      "surfaceTINShadingMode" : "Smooth",
-      "visibility" : true,
-      "expanded" : true
-    }
-  ]
+  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
 }

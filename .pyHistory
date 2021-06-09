@@ -1,0 +1,18 @@
+﻿aprx = arcpy.mp.ArcGISProject("CURRENT")
+m = aprx.listMaps("Map")[0]
+dem_lyr = m.listLayers("NRCS Bare Earth*")[0]
+dem_lyr.name
+dem_path = arcpy.da.Describe(dem_lyr)['catalogPath']
+dem_path
+desc = arcpy.da.Describe(dem_path)
+desc = arcpy.Describe(dem_path)
+desc = arcpy.Describe('NRCS Bare Earth Elevation Service - 2m')
+dem_name = desc['name']
+desc.name
+dem_name = desc.name
+dem_name
+demCellSize = desc.meanCellWidth
+demCellSize
+desc.spatialReference
+desc.spatialReference.name
+desc.spatialReference.angularUnitName

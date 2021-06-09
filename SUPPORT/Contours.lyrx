@@ -1,20 +1,20 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "2.4.0",
-  "build" : 19948,
+  "version" : "2.6.0",
+  "build" : 24783,
   "layers" : [
-    "CIMPATH=eng_tools/testing_contours_2ft.xml"
+    "CIMPATH=Map/894d7e55ad3c402d906a90859ba6bf85.xml"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "Testing_Contours_2ft",
-      "uRI" : "CIMPATH=eng_tools/testing_contours_2ft.xml",
+      "name" : "Eng_Pro_Tests_Contours_2ft",
+      "uRI" : "CIMPATH=Map/894d7e55ad3c402d906a90859ba6bf85.xml",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "Testing_Contours_2ft",
+      "description" : "Eng_Pro_Tests_Contours_2ft",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
         "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}"
@@ -49,22 +49,51 @@
         "dataConnection" : {
           "type" : "CIMFeatureDatasetDataConnection",
           "featureDataset" : "Layers",
-          "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\NRCS_Engineering_Tools_ArcPro\\Testing\\Testing_EngTools.gdb",
+          "workspaceConnectionString" : "DATABASE=..\\..\\..\\Workspace\\Eng_Pro_Tests\\Eng_Pro_Tests_EngTools.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "Testing_Contours_2ft",
+          "dataset" : "Eng_Pro_Tests_Contours_2ft",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
         "searchOrder" : "esriSearchOrderSpatial"
       },
+      "featureTemplates" : [
+        {
+          "type" : "CIMFeatureTemplate",
+          "name" : "Intermediate",
+          "tags" : "Line",
+          "toolProgID" : "00000000-0000-0000-0000-000000000000",
+          "defaultValues" : {
+            "type" : "PropertySet",
+            "propertySetItems" : [
+              "index",
+              0
+            ]
+          }
+        },
+        {
+          "type" : "CIMFeatureTemplate",
+          "name" : "Index Contour",
+          "tags" : "Line",
+          "toolProgID" : "00000000-0000-0000-0000-000000000000",
+          "defaultValues" : {
+            "type" : "PropertySet",
+            "propertySetItems" : [
+              "index",
+              1
+            ]
+          }
+        }
+      ],
       "isFlattened" : true,
       "selectable" : true,
       "featureCacheType" : "Session",
+      "displayFiltersType" : "ByScale",
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
-          "expression" : "[CONTOUR]",
-          "expressionEngine" : "VBScript",
+          "expression" : "$feature.CONTOUR",
+          "expressionEngine" : "Arcade",
           "featuresToLabel" : "AllVisibleFeatures",
           "maplexLabelPlacementProperties" : {
             "type" : "CIMMaplexLabelPlacementProperties",
@@ -807,25 +836,6 @@
       "snappable" : true
     }
   ],
-  "elevationSurfaces" : [
-    {
-      "type" : "CIMMapElevationSurface",
-      "elevationMode" : "BaseGlobeSurface",
-      "name" : "Ground",
-      "verticalExaggeration" : 1,
-      "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}",
-      "color" : {
-        "type" : "CIMRGBColor",
-        "values" : [
-          255,
-          255,
-          255,
-          100
-        ]
-      },
-      "surfaceTINShadingMode" : "Smooth",
-      "visibility" : true,
-      "expanded" : true
-    }
-  ]
+  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
 }
