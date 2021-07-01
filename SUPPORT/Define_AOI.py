@@ -338,6 +338,12 @@ if __name__ == '__main__':
             arcpy.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu\n",2)
             exit()
 
+        # Set default scratch database to installed scratch.gdb for temp file processing and management
+        scratchGDB = os.path.join(os.path.dirname(sys.argv[0]), "Scratch.gdb")
+        start_aprx = arcpy.mp.ArcGISProject("CURRENT")
+        start_aprx.defaultGeodatabase = scratchGDB
+        del start_aprx
+        
         # --------------------------------------------------------------------------------------------- Input Parameters
         userWorkspace = arcpy.GetParameterAsText(0)    # User-input directory where FGDB will be created
         inputDEM = arcpy.GetParameterAsText(1)         # DEM
@@ -624,10 +630,11 @@ if __name__ == '__main__':
 
         # ------------------------------------------------------------------------------------------------- Clip inputDEM
         # DEM is in Projected Coord System (Local DEM or WMS)
+        AddMsgAndPrint("\nProcessing input DEM...")
         if bProjectedCS:
             outExtract = ExtractByMask(inputDEM, projectAOI)
             outExtract.save(DEM_aoi)
-            AddMsgAndPrint("\nSuccessully Clipped " + os.path.basename(inputDEM) + " DEM using " + os.path.basename(projectAOI))
+            AddMsgAndPrint("\nSuccessfully Clipped " + os.path.basename(inputDEM) + " DEM using " + os.path.basename(projectAOI))
 
         # DEM is in GCS (Local DEM or WMS); Extract DEM and project it to AOI sr.
         # this may cause different XY,
@@ -644,6 +651,7 @@ if __name__ == '__main__':
 
         if interval > 0:
             bCreateContours = True
+            AddMsgAndPrint("\nCreating Contours...")
 
         else:
             bCreateContours = False
@@ -689,11 +697,13 @@ if __name__ == '__main__':
 
         # ---------------------------------------------------------------------------------------------- Create Hillshade and Depth Grid
         # Process: Creating Hillshade from DEM_aoi
+        AddMsgAndPrint("\nCreating Hillshade...")
         outHillshade = Hillshade(DEM_aoi, "315", "45", "NO_SHADOWS", zFactortoFeet)
         outHillshade.save(Hillshade_aoi)
         AddMsgAndPrint("\nSuccessfully Created Hillshade from " + os.path.basename(DEM_aoi))
 
         # Fills sinks in DEM_aoi to remove small imperfections in the data.
+        AddMsgAndPrint("\nCreating Depth Grid...")
         outFill = Fill(DEM_aoi)
         AddMsgAndPrint("\nSuccessfully filled sinks in " + os.path.basename(DEM_aoi) + " to create Depth Grid")
 
@@ -708,7 +718,6 @@ if __name__ == '__main__':
 
         # ---------------------------------------------------------------------------------------------- Delete scratch.gdb files
         # Used to delete the temporary feature classes that get created by the interactive edit session in the draw AOI part of the tool
-        scratchGDB = os.path.join(os.path.dirname(sys.argv[0]), "Scratch.gdb")
         startWorkspace = arcpy.env.workspace
         arcpy.env.workspace = scratchGDB
         fcs = []

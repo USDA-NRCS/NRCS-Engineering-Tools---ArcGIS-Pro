@@ -195,11 +195,15 @@ if __name__ == '__main__':
         FlowDir = watershedGDB_path + os.sep + "flowDirection"
 
         # check if culverts exist.  This is only needed b/c the script may be executed manually
-        numOfCulverts = int(arcpy.GetCount_management(burnCulverts).getOutput(0))
-        if len(burnCulverts) < 1 or not numOfCulverts:
-            culvertsExist = False
+        arcpy.AddMessage("Burn culverts is: " + burnCulverts)
+        if burnCulverts:
+            numOfCulverts = int(arcpy.GetCount_management(burnCulverts).getOutput(0))
+            if len(burnCulverts) < 1 or not numOfCulverts:
+                culvertsExist = False
+            else:
+                culvertsExist = True
         else:
-            culvertsExist = True
+            culvertsExist = False
 
         # Path of Log file
         textFilePath = userWorkspace + os.sep + projectName + "_EngTools.txt"
