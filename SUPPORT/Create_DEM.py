@@ -17,7 +17,7 @@ from utils import AddMsgAndPrint, deleteScratchLayers, errorMsg, removeMapLayers
 def logBasicSettings(textFilePath, userWorkspace, inputDEMs, zUnits):
     with open(textFilePath,'a+') as f:
         f.write('\n######################################################################\n')
-        f.write('Executing Tool: Create Site DEM\n')
+        f.write('Executing Tool: Create DEM\n')
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
@@ -32,7 +32,7 @@ def logBasicSettings(textFilePath, userWorkspace, inputDEMs, zUnits):
 ### Initial Tool Validation ###
 try:
     aprx = ArcGISProject('CURRENT')
-    map = aprx.listMaps()[0] #TODO: Map name??
+    map = aprx.listMaps()[0]
 except:
     AddMsgAndPrint('This tool must be run from an ArcGIS Pro project that was developed from the template distributed with this toolbox. Exiting!', 2)
     exit()
@@ -43,15 +43,13 @@ else:
     AddMsgAndPrint('Spatial Analyst Extension not enabled. Please enable Spatial Analyst from Project, Licensing, Configure licensing options. Exiting...', 2)
     exit()
 
-
 ### ESRI Environment Settings ###
 env.overwriteOutput = True
 env.resamplingMethod = 'BILINEAR'
 env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 
-
 ### Input Parameters ###
-projectAOI = GetParameterAsText(0)
+inputAOI = GetParameterAsText(0)
 demFormat = GetParameterAsText(1)
 inputDEMs = GetParameterAsText(2).split(';')
 DEMcount = len(inputDEMs)
@@ -63,16 +61,14 @@ demSR = GetParameterAsText(7)
 cluSR = GetParameterAsText(8)
 transform = GetParameterAsText(9)
 
-
 try:
     #### Set base path
-    sourceCLU_path = Describe(projectAOI).CatalogPath
-    # if sourceCLU_path.find('.gdb') > 0 and sourceCLU_path.find('Determinations') > 0 and sourceCLU_path.find('Site_CLU') > 0:
-    basedataGDB_path = sourceCLU_path[:sourceCLU_path.find('.gdb')+4]
-    # else:
-    #     AddMsgAndPrint('\nSelected Site CLU layer is not from a Determinations project folder. Exiting...', 2)
-    #     exit()
-
+    inputAOI_path = Describe(inputAOI).CatalogPath
+    if inputAOI_path.find('.gdb') > 0 and 'AOI' in inputAOI_path:
+        basedataGDB_path = inputAOI_path[:inputAOI_path.find('.gdb')+4]
+    else:
+        AddMsgAndPrint('\nSelected AOI layer is not from a Determinations project folder. Exiting...', 2)
+        exit()
 
     #### Do not run if an unsaved edits exist in the target workspace
     # Pro opens an edit session when any edit has been made and stays open until edits are committed with Save Edits.
@@ -83,22 +79,18 @@ try:
         AddMsgAndPrint('\nYou have an active edit session. Please Save or Discard edits and run this tool again. Exiting...', 2)
         exit()
 
-
     #### Define Variables
-    scratchGDB = path.join(path.dirname(argv[0]), 'Scratch.gdb')
+    scratchGDB = path.join(path.dirname(argv[0]), 'SCRATCH.gdb')
     referenceLayers = path.join(path.dirname(path.dirname(argv[0])), 'Reference_Layers')
     basedataGDB_name = path.basename(basedataGDB_path)
-    basedataFD_name = 'Layers'
-    basedataFD = path.join(basedataGDB_path, basedataFD_name)
     userWorkspace = path.dirname(basedataGDB_path)
     projectName = path.basename(userWorkspace).replace(' ', '_')
-    projectDEM = path.join(basedataGDB_path, 'Site_DEM')
-    projectAOI_buffer = path.join(scratchGDB, 'AOI_Buffer')
+    bufferAOI = path.join(basedataGDB_path, 'Buffer_AOI')
     bufferDist = '500 Feet'
+    projectDEM = path.join(basedataGDB_path, 'Site_DEM')
     wgs_AOI = path.join(scratchGDB, 'AOI_WGS84')
     WGS84_DEM = path.join(scratchGDB, 'WGS84_DEM')
     tempDEM = path.join(scratchGDB, 'tempDEM')
-
 
     # If NRCS Image Service selected, set path to lyrx file
     if '0.5m' in nrcsService:
@@ -113,28 +105,24 @@ try:
         sourceService = externalService
 
     # Temp layers list for cleanup at the start and at the end
-    tempLayers = [projectAOI_buffer, wgs_AOI, WGS84_DEM, tempDEM]
+    tempLayers = [wgs_AOI, WGS84_DEM, tempDEM]
     AddMsgAndPrint('Deleting Temp layers...')
     SetProgressorLabel('Deleting Temp layers...')
     deleteScratchLayers(tempLayers)
-
 
     #### Set up log file path and start logging
     textFilePath = path.join(userWorkspace, f"{projectName}_log.txt")
     logBasicSettings(textFilePath, userWorkspace, inputDEMs, zUnits)
 
-
     #### Create the projectAOI and projectAOI_B layers based on the choice selected by user input
     AddMsgAndPrint('\nBuffering selected extent...', textFilePath=textFilePath)
     SetProgressorLabel('Buffering selected extent...')
-    Buffer(projectAOI, projectAOI_buffer, bufferDist, 'FULL', '', 'ALL', '')
-
+    Buffer(inputAOI, bufferAOI, bufferDist, 'FULL', '', 'ALL', '')
 
     #### Remove existing project DEM and Hillshade if present in map
     AddMsgAndPrint('\nRemoving layers from project maps, if present...', textFilePath=textFilePath)
     SetProgressorLabel('Removing layers from project maps, if present...')
-    removeMapLayers(map, ['Site_DEM'])
-
+    removeMapLayers(map, ['Site_DEM', 'Site_Hillshade'])
 
     #### Process the input DEMs
     AddMsgAndPrint('\nProcessing the input DEM(s)...', textFilePath=textFilePath)
@@ -149,7 +137,7 @@ try:
             AddMsgAndPrint('\nProjecting AOI to match input DEM...', textFilePath=textFilePath)
             SetProgressorLabel('Projecting AOI to match input DEM...')
             wgs_CS = demSR
-            Project(projectAOI, wgs_AOI, wgs_CS)
+            Project(bufferAOI, wgs_AOI, wgs_CS)
             
             AddMsgAndPrint('\nDownloading DEM data...', textFilePath=textFilePath)
             SetProgressorLabel('Downloading DEM data...')
@@ -194,7 +182,7 @@ try:
                 exit()
             outClip = f"{tempDEM}_{str(x)}"
             try:
-                extractedDEM = ExtractByMask(raster_path, projectAOI)
+                extractedDEM = ExtractByMask(raster_path, bufferAOI)
                 extractedDEM.save(outClip)
             except:
                 AddMsgAndPrint('\nOne or more input DEMs may have a problem! Please verify that the input DEMs cover the tract area and try to run again. Exiting...', 2, textFilePath)
@@ -233,7 +221,6 @@ try:
         for raster in DEMlist:
             Delete(raster)
 
-        
     # Gather info on the final temp DEM
     desc = Describe(tempDEM)
     sr = desc.SpatialReference
@@ -280,7 +267,6 @@ try:
     SetProgressorLabel('Adding layers to map...')
     SetParameterAsText(10, projectDEM)
 
-
     #### Clean up
     # Look for and delete anything else that may remain in the installed SCRATCH.gdb
     startWorkspace = env.workspace
@@ -295,7 +281,6 @@ try:
             except:
                 pass
     env.workspace = startWorkspace
-
 
     #### Compact FGDB
     try:
@@ -312,6 +297,6 @@ except SystemExit:
 
 except:
     try:
-        AddMsgAndPrint(errorMsg('Prepare Site DEM'), 2, textFilePath)
+        AddMsgAndPrint(errorMsg('Create DEM'), 2, textFilePath)
     except:
-        AddMsgAndPrint(errorMsg('Prepare Site DEM'), 2)
+        AddMsgAndPrint(errorMsg('Create DEM'), 2)
