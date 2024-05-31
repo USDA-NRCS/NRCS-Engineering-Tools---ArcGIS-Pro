@@ -192,4 +192,4 @@ except SystemExit:
     pass
 
 except:
-    errorMsg()            
+    errorMsg('Change Point Coordinates')            
