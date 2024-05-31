@@ -9,3 +9,4 @@ venv/
 *.lock
 .pyHistory
 test.py
+*_index/
