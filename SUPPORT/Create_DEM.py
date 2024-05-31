@@ -8,7 +8,6 @@ from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetP
 from arcpy.analysis import Buffer
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
-from arcpy.da import Editor
 from arcpy.sa import ExtractByMask
 
 from utils import AddMsgAndPrint, deleteScratchLayers, errorMsg, removeMapLayers
@@ -68,15 +67,6 @@ try:
         basedataGDB_path = inputAOI_path[:inputAOI_path.find('.gdb')+4]
     else:
         AddMsgAndPrint('\nSelected AOI layer is not from a Determinations project folder. Exiting...', 2)
-        exit()
-
-    #### Do not run if an unsaved edits exist in the target workspace
-    # Pro opens an edit session when any edit has been made and stays open until edits are committed with Save Edits.
-    # Check for uncommitted edits and exit if found, giving the user a message directing them to Save or Discard them.
-    workspace = basedataGDB_path
-    edit = Editor(workspace)
-    if edit.isEditing:
-        AddMsgAndPrint('\nYou have an active edit session. Please Save or Discard edits and run this tool again. Exiting...', 2)
         exit()
 
     #### Define Variables
