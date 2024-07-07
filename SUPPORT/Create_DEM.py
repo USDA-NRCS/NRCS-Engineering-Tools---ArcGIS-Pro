@@ -95,7 +95,7 @@ try:
         sourceService = externalService
 
     # Temp layers list for cleanup at the start and at the end
-    tempLayers = [wgs_AOI, WGS84_DEM, tempDEM]
+    tempLayers = [bufferAOI, wgs_AOI, WGS84_DEM, tempDEM]
     AddMsgAndPrint('Deleting Temp layers...')
     SetProgressorLabel('Deleting Temp layers...')
     deleteScratchLayers(tempLayers)
