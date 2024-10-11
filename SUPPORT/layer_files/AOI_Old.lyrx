@@ -1,20 +1,20 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "3.3.0",
-  "build" : 52636,
+  "version" : "2.4.0",
+  "build" : 19948,
   "layers" : [
-    "CIMPATH=engineering/aoi_template.json"
+    "CIMPATH=map/aoi.xml"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
       "name" : "AOI",
-      "uRI" : "CIMPATH=engineering/aoi_template.json",
+      "uRI" : "CIMPATH=map/aoi.xml",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "aoi_template",
+      "description" : "AOI",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface"
       },
@@ -32,12 +32,10 @@
         "textureCutoffLow" : 1,
         "useCompressedTextures" : true,
         "verticalExaggeration" : 1,
-        "exaggerationMode" : "ScaleZ",
         "verticalUnit" : {
           "uwkid" : 9001
         },
-        "lighting" : "OneSideDataNormal",
-        "optimizeMarkerTransparency" : true
+        "lighting" : "OneSideDataNormal"
       },
       "layerType" : "Operational",
       "showLegends" : true,
@@ -48,122 +46,17 @@
       "serviceLayerID" : -1,
       "refreshRate" : -1,
       "refreshRateUnit" : "esriTimeUnitsSeconds",
-      "blendingMode" : "Alpha",
-      "allowDrapingOnIntegratedMesh" : true,
       "autoGenerateFeatureTemplates" : true,
       "featureElevationExpression" : "Shape.Z",
       "featureTable" : {
         "type" : "CIMFeatureTable",
-        "displayField" : "input_dem",
+        "displayField" : "Shape_Length",
         "editable" : true,
-        "fieldDescriptions" : [
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "OBJECTID",
-            "fieldName" : "OBJECTID",
-            "numberFormat" : {
-              "type" : "CIMNumericFormat",
-              "alignmentOption" : "esriAlignRight",
-              "alignmentWidth" : 0,
-              "roundingOption" : "esriRoundNumberOfDecimals",
-              "roundingValue" : 0
-            },
-            "readOnly" : true,
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "Shape",
-            "fieldName" : "Shape",
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "INPUT_DEM",
-            "fieldName" : "input_dem",
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "XY_UNITS",
-            "fieldName" : "xy_units",
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "Z_UNITS",
-            "fieldName" : "z_units",
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "Acres US",
-            "fieldName" : "acres_us",
-            "numberFormat" : {
-              "type" : "CIMNumericFormat",
-              "alignmentOption" : "esriAlignRight",
-              "alignmentWidth" : 0,
-              "roundingOption" : "esriRoundNumberOfDecimals",
-              "roundingValue" : 6
-            },
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "Acres Intl",
-            "fieldName" : "acres_intl",
-            "numberFormat" : {
-              "type" : "CIMNumericFormat",
-              "alignmentOption" : "esriAlignRight",
-              "alignmentWidth" : 0,
-              "roundingOption" : "esriRoundNumberOfDecimals",
-              "roundingValue" : 6
-            },
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "Shape_Length",
-            "fieldName" : "Shape_Length",
-            "numberFormat" : {
-              "type" : "CIMNumericFormat",
-              "alignmentOption" : "esriAlignRight",
-              "alignmentWidth" : 0,
-              "roundingOption" : "esriRoundNumberOfDecimals",
-              "roundingValue" : 6
-            },
-            "readOnly" : true,
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "Shape_Area",
-            "fieldName" : "Shape_Area",
-            "numberFormat" : {
-              "type" : "CIMNumericFormat",
-              "alignmentOption" : "esriAlignRight",
-              "alignmentWidth" : 0,
-              "roundingOption" : "esriRoundNumberOfDecimals",
-              "roundingValue" : 6
-            },
-            "readOnly" : true,
-            "visible" : true,
-            "searchMode" : "Exact"
-          }
-        ],
         "dataConnection" : {
           "type" : "CIMStandardDataConnection",
-          "workspaceConnectionString" : "DATABASE=..\\Support.gdb",
+          "workspaceConnectionString" : "DATABASE=O:\\NRCS_Engineering_Tools_ArcPro\\NRCS_Engineering_Tools_ArcPro_Update.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "aoi_template",
+          "dataset" : "AOI",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
@@ -171,25 +64,19 @@
       },
       "featureTemplates" : [
         {
-          "type" : "CIMRowTemplate",
+          "type" : "CIMFeatureTemplate",
           "name" : "AOI",
-          "defaultValues" : {
-            "type" : "PropertySet",
-            "propertySetItems" : [
-            ]
-          }
+          "tags" : "Polygon",
+          "toolProgID" : "8f79967b-66a0-4a1c-b884-f44bc7e26921"
         }
       ],
       "htmlPopupEnabled" : true,
       "selectable" : true,
       "featureCacheType" : "Session",
-      "displayFiltersType" : "ByScale",
-      "featureBlendingMode" : "Alpha",
-      "layerEffectsMode" : "Layer",
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
-          "expression" : "Text(Round($feature.acres_us,2), '#,###.00') + \" ac.\"",
+          "expression" : "$feature.Shape_Length",
           "expressionEngine" : "Arcade",
           "featuresToLabel" : "AllVisibleFeatures",
           "maplexLabelPlacementProperties" : {
@@ -199,8 +86,7 @@
             "canOverrunFeature" : true,
             "canPlaceLabelOutsidePolygon" : true,
             "canRemoveOverlappingLabel" : true,
-            "canStackLabel" : false,
-            "centerLabelAnchorType" : "Symbol",
+            "canStackLabel" : true,
             "connectionType" : "Unambiguous",
             "constrainOffset" : "NoConstraint",
             "contourAlignmentType" : "Page",
@@ -235,8 +121,7 @@
                   "visible" : true,
                   "splitAfter" : true
                 }
-              ],
-              "trimStackingSeparators" : true
+              ]
             },
             "lineFeatureType" : "General",
             "linePlacementMethod" : "OffsetCurvedFromLine",
@@ -284,7 +169,6 @@
             "polygonPlacementMethod" : "HorizontalInPolygon",
             "primaryOffset" : 1,
             "primaryOffsetUnit" : "Point",
-            "removeAmbiguousLabels" : "All",
             "removeExtraWhiteSpace" : true,
             "repetitionIntervalUnit" : "Map",
             "rotationProperties" : {
@@ -293,11 +177,10 @@
               "alignmentType" : "Straight"
             },
             "secondaryOffset" : 100,
-            "secondaryOffsetUnit" : "Percentage",
             "strategyPriorities" : {
               "type" : "CIMMaplexStrategyPriorities",
-              "stacking" : 2,
-              "overrun" : 1,
+              "stacking" : 1,
+              "overrun" : 2,
               "fontCompression" : 3,
               "fontReduction" : 4,
               "abbreviation" : 5
@@ -305,15 +188,14 @@
             "thinningDistanceUnit" : "Point",
             "truncationMarkerCharacter" : ".",
             "truncationMinimumLength" : 1,
-            "truncationPreferredCharacters" : "aeiou",
-            "polygonAnchorPointPerimeterInsetUnit" : "Point"
+            "truncationPreferredCharacters" : "aeiou"
           },
           "name" : "Class 1",
           "priority" : -1,
           "standardLabelPlacementProperties" : {
             "type" : "CIMStandardLabelPlacementProperties",
             "featureType" : "Line",
-            "featureWeight" : "None",
+            "featureWeight" : "Low",
             "labelWeight" : "High",
             "numLabelsOption" : "OneLabelPerName",
             "lineLabelPosition" : {
@@ -359,10 +241,10 @@
               "fontEffects" : "Normal",
               "fontEncoding" : "Unicode",
               "fontFamilyName" : "Tahoma",
-              "fontStyleName" : "Bold",
+              "fontStyleName" : "Regular",
               "fontType" : "Unspecified",
               "haloSize" : 1,
-              "height" : 12,
+              "height" : 10,
               "hinting" : "Default",
               "horizontalAlignment" : "Left",
               "kerning" : true,
@@ -378,15 +260,14 @@
                     "color" : {
                       "type" : "CIMRGBColor",
                       "values" : [
-                        255,
-                        255,
+                        0,
+                        0,
                         0,
                         100
                       ]
                     }
                   }
-                ],
-                "angleAlignment" : "Map"
+                ]
               },
               "textCase" : "Normal",
               "textDirection" : "LTR",
@@ -401,10 +282,8 @@
           "iD" : -1
         }
       ],
-      "labelVisibility" : true,
       "renderer" : {
         "type" : "CIMSimpleRenderer",
-        "sampleSize" : 10000,
         "patch" : "Default",
         "symbol" : {
           "type" : "CIMSymbolReference",
@@ -419,12 +298,10 @@
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
                 "width" : 2,
-                "height3D" : 1,
-                "anchor3D" : "Center",
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
-                    255,
+                    230,
                     0,
                     0,
                     100
@@ -444,15 +321,12 @@
                   ]
                 }
               }
-            ],
-            "angleAlignment" : "Map"
+            ]
           }
         }
       },
       "scaleSymbols" : true,
       "snappable" : true
     }
-  ],
-  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
-  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
+  ]
 }

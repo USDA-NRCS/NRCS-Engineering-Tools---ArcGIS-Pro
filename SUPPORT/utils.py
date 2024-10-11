@@ -1,8 +1,10 @@
+from os import path
 from sys import exc_info
 from traceback import format_exception
 
-from arcpy import AddError, AddMessage, AddWarning, GetActivePortalURL, GetSigninToken, ListPortalURLs
-from arcpy.management import Delete
+from arcpy import AddError, AddMessage, AddWarning, Exists, GetActivePortalURL, GetSigninToken, ListPortalURLs
+from arcpy.da import Walk
+from arcpy.management import CalculateGeometryAttributes, Delete
 from arcpy.metadata import Metadata
 
 
@@ -104,3 +106,24 @@ def removeMapLayers(map, map_layers):
                 map.removeLayer(lyr)
         except:
             continue
+
+
+def delete_datasets(datasets):
+    for fc in datasets:
+        try:
+            if Exists(fc):
+                Delete(fc)
+        except:
+            continue
+
+
+def emptyScratchGDB(gdb_path):
+    ''' Delete everything in a given geodatabase.'''
+    gdb_contents = []
+    for dirpath, dirnames, filenames in Walk(gdb_path):
+        for filename in filenames:
+            gdb_contents.append(path.join(dirpath, filename))
+    for fc in gdb_contents:
+        Delete(fc)
+
+
