@@ -45,7 +45,10 @@ output_sr_name = output_sr.name
 output_sr_code = output_sr.factoryCode
 
 ### Create Project Folder ###
-if not path.exists(workspace_path):
+if path.exists(workspace_path):
+    AddMsgAndPrint('A project workspace with this name already exists. Exiting...', 1)
+    exit()
+else:
     try:
         SetProgressorLabel('Creating project folder...')
         AddMsgAndPrint('\nCreating project folder...')
