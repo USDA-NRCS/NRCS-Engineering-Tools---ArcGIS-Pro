@@ -1,10 +1,10 @@
+from getpass import getuser
 from os import mkdir, path
 from sys import exit
 from time import ctime
-from getpass import getuser
 
 from arcpy import Exists, GetParameter, GetParameterAsText, SetProgressorLabel
-from arcpy.management import CreateFileGDB, CreateFeatureDataset
+from arcpy.management import CreateFeatureDataset, CreateFileGDB
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint
@@ -35,7 +35,7 @@ output_folder = GetParameterAsText(0)
 project_name = GetParameterAsText(1).replace(' ','_')
 output_sr = GetParameter(2)
 
-### Local Variables ###
+### Set Paths and Variables ###
 workspace_path = path.join(output_folder, project_name)
 log_file_path = path.join(workspace_path, f"{project_name}_log.txt")
 gdb_name = f"{project_name}.gdb"

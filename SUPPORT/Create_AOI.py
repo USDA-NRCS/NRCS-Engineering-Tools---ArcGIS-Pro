@@ -1,167 +1,118 @@
-## ===============================================================================================================
-## Name: Create AOI
-## Purpose:
-## Create a project area of interest from importing a user-selected polygon file or the user drawing a polygon.
-##
-## Created: 9/19/2024
-##
-## ===============================================================================================================
-## Changes
-## ===============================================================================================================
-##
-## start 9/19/2024
-## Initial tool creation 
-##
-## ===============================================================================================================
-## ===============================================================================================================    
-
-## ===============================================================================================================
-#### Imports
+from getpass import getuser
 from os import path
 from sys import argv, exit
 from time import ctime
-from datetime import datetime
-from getpass import getuser
 
-from arcpy import AddMessage, env, Exists, GetParameterAsText, SetParameterAsText, SetProgressorLabel, SpatialReference
-from arcpy.da import Describe
-from arcpy.management import Append, CalculateGeometryAttributes, CalculateField, CreateFeatureclass, CopyFeatures, Delete, GetCount
+from arcpy import Describe, env, Exists, GetParameterAsText, SetParameterAsText, SetProgressorLabel
+from arcpy.management import Append, CalculateGeometryAttributes, CalculateField, Compact, \
+    CreateFeatureclass, GetCount, MakeFeatureLayer
 from arcpy.mp import ArcGISProject
 
-from utils import AddMsgAndPrint, calc_acres_us, calc_acres_intl, delete_datasets, emptyScratchGDB, errorMsg, removeMapLayers
+from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
-## ===============================================================================================================
-#### Functions
-def logBasicSettings(textFilePath, wk_path):
-    with open (textFilePath, 'a+') as f:
-        f.write("\n######################################################################\n")
-        f.write("Executing Tool: Create AOI\n")
+
+def logBasicSettings(log_file_path, project_workspace):
+    with open (log_file_path, 'a+') as f:
+        f.write('\n######################################################################\n')
+        f.write('Executing Tool: Create Project Workspace\n')
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\tProject Folder: {wk_path}\n")
+        f.write(f"\tProject Workspace: {project_workspace}\n")
 
-## ===============================================================================================================
-#### Initialize
+
+### Initial Tool Validation ###
 try:
     aprx = ArcGISProject('CURRENT')
+    map = aprx.listMaps('Engineering')[0]
 except:
-    AddMsgAndPrint('This tool must be run from an ArcGIS Pro project. Exiting...', 2)
+    AddMsgAndPrint('This tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting...', 2)
     exit()
 
-try:
-    m = aprx.listMaps("Engineering")[0]
-except:
-    AddMsgAndPrint('There is no Map object named "Engineering" in the project. Engineering Tools expect "Engineering" to be the primary Map object for its work. Exiting...', 2)
+### Input Parameters ###
+project_workspace = GetParameterAsText(0)
+input_aoi = GetParameterAsText(1)
+
+### Set Paths and Variables ###
+project_name = path.basename(project_workspace)
+log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
+gdb_name = f"{project_name}.gdb"
+gdb_path = path.join(project_workspace, gdb_name)
+fd_path = path.join(gdb_path, 'Layers')
+input_aoi_path = Describe(input_aoi).catalogPath
+output_aoi_name = f"{project_name}_AOI"
+output_aoi_path = path.join(fd_path, output_aoi_name)
+template_aoi = path.join(path.dirname(argv[0]), 'Support.gdb', 'aoi_template')
+scratch_gdb = path.join(path.dirname(argv[0]), 'Scratch.gdb')
+
+### Verify Project Workspace and GDB ###
+if not path.exists(project_workspace) or not Exists(gdb_path) or not Exists(fd_path):
+    AddMsgAndPrint('\nThe project folder or geodatabase does not exist. Please run the Create Project Workspace tool. Exiting...', 2)
     exit()
 
+logBasicSettings(log_file_path, project_workspace)
+
+### ESRI Environment Settings ###
+project_sr = Describe(fd_path).spatialReference
+env.outputCoordinateSystem = project_sr
 env.overwriteOutput = True
-        
-#### Input Parameters
-wk_path = GetParameterAsText(0)
-aoi_in = arcpy.GetParameterAsText(1)
 
-#### Execution
 try:
-    ## Variables
-    wk_name = path.basename(wk_path)
-    textFilePath = path.join(wk_path, f"{wk_name}_EngTools.txt")
-    gdb_name = wk_name + '_EngTools.gdb'
-    gdb_path = path.join(wk_path, gdb_name)
-    fd_name = 'Layers'
-    fd_path = path.join(gdb_path, fd_name)
-    aoi_in_path = Describe(aoi_in)['catalogPath']
-    aoi_name = wk_name + "_AOI"
-    template_aoi = path.join(path.dirname(argv[0]), 'Support.gdb', 'aoi_template')
-
-    ### Permanent Datasets
-    project_aoi = path.join(fd_path, aoi_name)
-    datasets_to_delete = [project_aoi]
-
-    ### ArcGIS Pro Layers
-    aoi_out = "" + wk_name + "_AOI"
-    m_layers = [aoi_out]
-    
-    ## Set default geodatabase
-    scratch_gdb = path.join(path.dirname(argv[0]), 'Scratch.gdb')
-    aprx.defaultGeodatabase = path.join(path.dirname(argv[0]), 'Scratch.gdb')
-
-    ## Start logging in the project folder
-    if not Exists(wk_path):
-        AddMsgAndPrint('\nThe project folder does not exist. Please run Create Project Workspace. Exiting...\n', 2)
+    ### Validate Input AOI Layer ###
+    if int(GetCount(input_aoi).getOutput(0)) > 1:
+        AddMsgAndPrint('\nThe defined AOI can only have one polygon. Exiting...', 2, log_file_path)
         exit()
-    logBasicSettings(textFilePath, wk_path)
 
-    ## Check project integrity. On fail, exit and direct user back to Create Project Workspace tool.
-    SetProgressorLabel('Checking project integrity...')
-    if not Exists(gdb_path):
-        AddMsgAndPrint('\nNo project geodatabase found in specified folder. Run Create Project Workspace. Exiting...', 2, textFilePath)
-    if not Exists(fd_path):
-        AddMsgAndPrint('\nProject geodatabase integrity check failed. Run Create Project Workspace. Exiting...', 2, textFilePath)
+    removeMapLayers(map, [output_aoi_name])
+
+    ### Create New AOI Layer from Input ###
+    if input_aoi_path != output_aoi_path:
+        SetProgressorLabel('Creating new project AOI layer...')
+        AddMsgAndPrint('\nCreating new project AOI layer...', textFilePath=log_file_path)
+        # Create new feature class using template_aoi
+        CreateFeatureclass(fd_path, output_aoi_name, 'POLYGON', template_aoi)
+        # Append any existing records from input aoi
+        MakeFeatureLayer(input_aoi, 'input_aoi_temp')
+        Append('input_aoi_temp', output_aoi_path, 'NO_TEST')
     else:
-        fd_sr = Describe(fd_path)['spatialReference']
-        m.spatialReference = fd_sr
-        env.outputCoordinateSystem = fd_sr
+        AddMsgAndPrint('\nExisting project AOI layer used as input...', textFilePath=log_file_path)
 
-    ## Exit if AOI contains more than 1 digitized area
-    if int(GetCount(aoi_in).getOutput(0)) > 1:
-        AddMsgAndPrint('\nThe defined AOI can only have one polygon! Please try again. Exiting...', 2, textFilePath)
+    ### Update Acres Fields ###
+    SetProgressorLabel('Updating acres fields...')
+    AddMsgAndPrint('\nUpdating acres fields...', textFilePath=log_file_path)
+    CalculateGeometryAttributes(output_aoi_path, 'acres_us AREA_GEODESIC', '', 'ACRES_US', project_sr, 'SAME_AS_INPUT')
+    CalculateGeometryAttributes(output_aoi_path, 'acres_intl AREA_GEODESIC', '', 'ACRES', project_sr, 'SAME_AS_INPUT')
+    CalculateField(output_aoi_path, 'acres_us', 'Round($feature.acres_us,2)', 'ARCADE')
+    CalculateField(output_aoi_path, 'acres_intl', 'Round($feature.acres_intl,2)', 'ARCADE')
 
-    ## Remove AOI layer from ArcGIS Pro session, if present
-    removeMapLayers(m, m_layers)
+    ### Add AOI Layer to Map ###
+    SetProgressorLabel('Adding AOI layer to the map...')
+    AddMsgAndPrint('\nAdding AOI layer to the map...', textFilePath=log_file_path)
+    SetParameterAsText(2, output_aoi_path)
 
-    ## Create or re-use the AOI
-    if aoi_in_path != project_aoi:
-        ### Attempt to delete the existing project_aoi and create the new one
-        SetProgressorLabel("Creating a new project AOI...")
-        AddMsgAndPrint("\nCreating a new project AOI...", textFilePath=textFilePath)
-        delete_datasets(datasets_to_delete)
-        
-        ### Create AOI from a template AOI feature class (fields already exist) and then append records from input AOI
-        CreateFeatureclass(fd_path, aoi_name, "POLYGON", template_aoi)
-        Append(aoi_in, project_aoi, 'NO_TEST')
+    ### Remove Digitized Layer (if present) ###
+    for lyr in map.listLayers():
+        if '02. Create AOI' in lyr.name:
+            map.removeLayer(lyr)
 
-        ### Update acres fields
-        SetProgressorLabel("Updating acres...")
-        AddMsgAndPrint("\nUpdating acres...", textFilePath=textFilePath)
-        CalculateGeometryAttributes(project_aoi,"acres_us AREA_GEODESIC","","ACRES_US",fd_sr,"SAME_AS_INPUT")
-        CalculateGeometryAttributes(project_aoi,"acres_intl AREA_GEODESIC","","ACRES",fd_sr,"SAME_AS_INPUT")
-        CalculateField(project_aoi, "acres_us", "Round($feature.acres_us,2)", "ARCADE")
-        CalculateField(project_aoi, "acres_intl", "Round($feature.acres_intl,2)", "ARCADE")
-    else:
-        AddMsgAndPrint("\nExisting Project AOI was defined as input...", textFilePath=textFilePath)
-        ### Update acres fields, in case the input AOI was manually edited between initial creation and re-run
-        SetProgressorLabel("Updating acres...")
-        AddMsgAndPrint("\nUpdating acres...", textFilePath=textFilePath)
-        CalculateGeometryAttributes(project_aoi,"acres_us AREA_GEODESIC","","ACRES_US",fd_sr,"SAME_AS_INPUT")
-        CalculateGeometryAttributes(project_aoi,"acres_intl AREA_GEODESIC","","ACRES",fd_sr,"SAME_AS_INPUT")
-        CalculateField(project_aoi, "acres_us", "Round($feature.acres_us,2)", "ARCADE")
-        CalculateField(project_aoi, "acres_intl", "Round($feature.acres_intl,2)", "ARCADE")
-
-    ## Delete the temporary edit layer (for drawn AOI input)
-    emptyScratchGDB(scratch_gdb)
-
-    ## Add results to map
-    SetProgressorLabel("Adding results to the map...")
-    AddMsgAndPrint("\nAdding results to the map...", textFilePath=textFilePath)
-    SetParameterAsText(2, project_aoi)
-
-    
-    ## Finish up
+    ### Compact Project GDB ###
     try:
-        SetProgressorLabel("Compacting File Geodatabase...")
-        AddMsgAndPrint("\nCompacting File Geodatabase...", textFilePath=textFilePath)
+        SetProgressorLabel('Compacting project geodatabase...')
+        AddMsgAndPrint('\nCompacting project geodatabase...', textFilePath=log_file_path)
         Compact(gdb_path)
     except:
         pass
 
-    AddMsgAndPrint('\nCreate AOI completed successfully!', textFilePath=textFilePath)
+    AddMsgAndPrint('\nCreate AOI completed successfully', textFilePath=log_file_path)
 
 except SystemExit:
     pass
 
 except:
     try:
-        AddMsgAndPrint(errorMsg('Create AOI'), 2, textFilePath)
+        AddMsgAndPrint(errorMsg('Create AOI'), 2, log_file_path)
     except:
         AddMsgAndPrint(errorMsg('Create AOI'), 2)
+
+finally:
+    emptyScratchGDB(scratch_gdb)

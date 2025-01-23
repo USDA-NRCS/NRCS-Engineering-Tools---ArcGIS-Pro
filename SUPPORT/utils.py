@@ -99,20 +99,11 @@ def getPortalTokenInfo(portalURL):
 
 
 def removeMapLayers(map, map_layers):
-    ''' Remove layers from the active map for a given list of lyr objects.'''
+    ''' Remove layers from the active map for a given list of layer names.'''
     for lyr in map.listLayers():
         try:
             if lyr.name in map_layers:
                 map.removeLayer(lyr)
-        except:
-            continue
-
-
-def delete_datasets(datasets):
-    for fc in datasets:
-        try:
-            if Exists(fc):
-                Delete(fc)
         except:
             continue
 
@@ -125,5 +116,3 @@ def emptyScratchGDB(gdb_path):
             gdb_contents.append(path.join(dirpath, filename))
     for fc in gdb_contents:
         Delete(fc)
-
-
