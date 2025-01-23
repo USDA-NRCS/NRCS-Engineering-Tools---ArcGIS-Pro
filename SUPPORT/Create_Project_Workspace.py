@@ -1,138 +1,93 @@
-## ===============================================================================================================
-## Name:    Create Project Workspace
-## Purpose:
-## Create a project folder and geodatabase with a user-specified name at a user-specified location.
-## Set coordinate system for the project as specified by the user.
-## Add new folder to the APRX's Folder Connections list.
-##
-## Created: 9/19/2024
-##
-## ===============================================================================================================
-## Changes
-## ===============================================================================================================
-##
-## start 9/19/2024
-## Initial tool creation 
-##
-## ===============================================================================================================
-## ===============================================================================================================    
-
-## ===============================================================================================================
-#### Imports
 from os import mkdir, path
-from sys import argv, exit
+from sys import exit
 from time import ctime
-from datetime import datetime
 from getpass import getuser
 
-from arcpy import AddMessage, Exists, GetParameter, GetParameterAsText, SetProgressorLabel
-from arcpy.da import Describe
-from arcpy.management import CreateFileGDB, CreateFeatureDataset, Compact
+from arcpy import Exists, GetParameter, GetParameterAsText, SetProgressorLabel
+from arcpy.management import CreateFileGDB, CreateFeatureDataset
 from arcpy.mp import ArcGISProject
 
-from utils import AddMsgAndPrint, errorMsg
+from utils import AddMsgAndPrint
 
-## ===============================================================================================================
-#### Functions
-def logBasicSettings(textFilePath, output_loc, wk_name, sr_name):
-    with open (textFilePath, 'a+') as f:
-        f.write("\n######################################################################\n")
-        f.write("Executing Tool: Create Project Workspace\n")
+
+def logBasicSettings(log_file_path, output_folder, project_name, output_sr_name):
+    with open (log_file_path, 'a+') as f:
+        f.write('\n######################################################################\n')
+        f.write('Executing Tool: Create Project Workspace\n')
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\tOutput Location: {output_loc}\n")
-        f.write(f"\tWorkspace Name: {wk_name}\n")
-        f.write(f"\tSpatial Reference: {sr_name}\n")
+        f.write(f"\tOutput Folder: {output_folder}\n")
+        f.write(f"\tProject Name: {project_name}\n")
+        f.write(f"\tSpatial Reference: {output_sr_name}\n")
 
-## ===============================================================================================================
-#### Initialize
+
+### Initial Tool Validation ###
 try:
     aprx = ArcGISProject('CURRENT')
+    map = aprx.listMaps('Engineering')[0]
 except:
-    AddMsgAndPrint('This tool must be run from an ArcGIS Pro project. Exiting...', 2)
+    AddMsgAndPrint('This tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting...', 2)
     exit()
 
-try:
-    m = aprx.listMaps("Engineering")[0]
-except:
-    AddMsgAndPrint('There is no Map object named "Engineering" in the project. Engineering Tools expect "Engineering" to be the primary Map object for its work. Exiting...', 2)
-    exit()
-    
-#### Input Parameters
-output_loc = GetParameterAsText(0)
-wk_name = (GetParameterAsText(1)).replace(' ','_')
-sr = GetParameter(2)
+### Input Parameters ###
+output_folder = GetParameterAsText(0)
+project_name = GetParameterAsText(1).replace(' ','_')
+output_sr = GetParameter(2)
 
-#### Execution
-try:
-    ## Variables
-    wk_path = path.join(output_loc, wk_name)
-    textFilePath = path.join(wk_path, f"{wk_name}_EngTools.txt")
-    gdb_name = wk_name + '_EngTools.gdb'
-    gdb_path = path.join(wk_path, gdb_name)
-    fd_name = 'Layers'
-    fd_path = path.join(gdb_path, fd_name)
-    sr_name = sr.name
-    sr_code = sr.factoryCode
+### Local Variables ###
+workspace_path = path.join(output_folder, project_name)
+log_file_path = path.join(workspace_path, f"{project_name}_log.txt")
+gdb_name = f"{project_name}.gdb"
+gdb_path = path.join(workspace_path, gdb_name)
+fd_path = path.join(gdb_path, 'Layers')
+output_sr_name = output_sr.name
+output_sr_code = output_sr.factoryCode
 
-    ## Set default geodatabase and Map spatial reference.
-    aprx.defaultGeodatabase = path.join(path.dirname(argv[0]), 'Scratch.gdb')
-    m.spatialReference = sr
-    
-    ## Create project folder
-    SetProgressorLabel('Checking project directories...')
-    AddMsgAndPrint('\nChecking project directories...', textFilePath=textFilePath)
-    if not path.exists(wk_path):
-        try:
-            SetProgressorLabel('Creating project folder...')
-            mkdir(wk_path)
-        except:
-            AddMsgAndPrint('\nThe project folder cannot be created. Please check the Output Location and your write access to the Output Location and try again. Exiting...\n', 2)
-            exit()
+### Create Project Folder ###
+if not path.exists(workspace_path):
+    try:
+        SetProgressorLabel('Creating project folder...')
+        AddMsgAndPrint('\nCreating project folder...')
+        mkdir(workspace_path)
+    except:
+        AddMsgAndPrint('\nThe project folder could not be created. Please check your write access to the output location and try again. Exiting...', 2)
+        exit()
 
-    ## Start logging in the project folder
-    logBasicSettings(textFilePath, output_loc, wk_name, sr_name)
+# Create log file in project folder
+logBasicSettings(log_file_path, output_folder, project_name, output_sr_name)
 
-    ## Create project geodatabase and feature dataset
-    SetProgressorLabel('Creating project contents...')
-    if not Exists(gdb_path):
-        AddMsgAndPrint('\nCreating project geodatabase...', textFilePath=textFilePath)
+### Create Geodatabase ###
+if not Exists(gdb_path):
+    try:
         SetProgressorLabel('Creating project geodatabase...')
-        CreateFileGDB(wk_path, gdb_name)
+        AddMsgAndPrint('\nCreating project geodatabase...', textFilePath=log_file_path)
+        CreateFileGDB(workspace_path, gdb_name)
+    except:
+        AddMsgAndPrint('\nThe project geodatabase could not be created. Exiting...', 2)
+        exit()
 
-    if not Exists(fd_path):
+### Create Feature Dataset ###
+if not Exists(fd_path):
+    try:
         SetProgressorLabel('Creating project feature dataset...')
-        AddMsgAndPrint('\nCreating project feature dataset...', textFilePath=textFilePath)
-        CreateFeatureDataset(gdb_path, fd_name, sr_code)
-
-    ##  Update Folder Connections to add the new project without removing existing Folder Connections from the aprx
-    SetProgressorLabel('Updating Catalog...')
-    AddMsgAndPrint('\nUpdating Catalog...', textFilePath=textFilePath)
-    fc_list = []
-    for item in aprx.folderConnections:
-        fc_list.append(item)
-    fcDict = {'alias':'', 'connectionString':wk_path, 'isHomeFolder':False}
-    if fcDict not in fc_list:
-        fc_list.append(fcDict)
-        aprx.updateFolderConnections(fc_list, validate=True)
-
-
-    ## Finish up
-    try:
-        AddMsgAndPrint("\nCompacting File Geodatabase...", textFilePath=textFilePath)
-        SetProgressorLabel("Compacting File Geodatabase...")
-        Compact(gdb_path)
+        AddMsgAndPrint('\nCreating project feature dataset...', textFilePath=log_file_path)
+        CreateFeatureDataset(gdb_path, 'Layers', output_sr_code)
     except:
-        pass
+        AddMsgAndPrint('\nThe project feature dataset could not be created. Exiting...', 2)
+        exit()
 
-    AddMsgAndPrint('\nCreate Project Workspace completed successfully!', textFilePath=textFilePath)
-
-except SystemExit:
-    pass
-
+### Update Project Folder Connections ###
+try:
+    connection_list = [item for item in aprx.folderConnections]
+    new_connection = {'alias': '', 'connectionString': workspace_path, 'isHomeFolder': False}
+    if new_connection not in connection_list:
+        SetProgressorLabel('Updating folder connections...')
+        AddMsgAndPrint('\nUpdating folder connections...', textFilePath=log_file_path)
+        connection_list.append(new_connection)
+        aprx.updateFolderConnections(connection_list, validate=True)
 except:
-    try:
-        AddMsgAndPrint(errorMsg('Create Project Workspace'), 2, textFilePath)
-    except:
-        AddMsgAndPrint(errorMsg('Create Project Workspace'), 2)
+    AddMsgAndPrint('\nFailed to update project folder connections. End of script...', 1, textFilePath=log_file_path)
+
+
+AddMsgAndPrint('\nCreate Project Workspace completed successfully', textFilePath=log_file_path)
