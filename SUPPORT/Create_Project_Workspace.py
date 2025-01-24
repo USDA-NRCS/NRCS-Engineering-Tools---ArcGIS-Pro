@@ -64,7 +64,7 @@ logBasicSettings(log_file_path, output_folder, project_name, output_sr_name)
 if not Exists(gdb_path):
     try:
         SetProgressorLabel('Creating project geodatabase...')
-        AddMsgAndPrint('\nCreating project geodatabase...', textFilePath=log_file_path)
+        AddMsgAndPrint('\nCreating project geodatabase...', log_file_path=log_file_path)
         CreateFileGDB(workspace_path, gdb_name)
     except:
         AddMsgAndPrint('\nThe project geodatabase could not be created. Exiting...', 2)
@@ -74,7 +74,7 @@ if not Exists(gdb_path):
 if not Exists(fd_path):
     try:
         SetProgressorLabel('Creating project feature dataset...')
-        AddMsgAndPrint('\nCreating project feature dataset...', textFilePath=log_file_path)
+        AddMsgAndPrint('\nCreating project feature dataset...', log_file_path=log_file_path)
         CreateFeatureDataset(gdb_path, 'Layers', output_sr_code)
     except:
         AddMsgAndPrint('\nThe project feature dataset could not be created. Exiting...', 2)
@@ -86,11 +86,11 @@ try:
     new_connection = {'alias': '', 'connectionString': workspace_path, 'isHomeFolder': False}
     if new_connection not in connection_list:
         SetProgressorLabel('Updating folder connections...')
-        AddMsgAndPrint('\nUpdating folder connections...', textFilePath=log_file_path)
+        AddMsgAndPrint('\nUpdating folder connections...', log_file_path=log_file_path)
         connection_list.append(new_connection)
         aprx.updateFolderConnections(connection_list, validate=True)
 except:
-    AddMsgAndPrint('\nFailed to update project folder connections. End of script...', 1, textFilePath=log_file_path)
+    AddMsgAndPrint('\nFailed to update project folder connections. End of script...', 1, log_file_path=log_file_path)
 
 
-AddMsgAndPrint('\nCreate Project Workspace completed successfully', textFilePath=log_file_path)
+AddMsgAndPrint('\nCreate Project Workspace completed successfully', log_file_path=log_file_path)

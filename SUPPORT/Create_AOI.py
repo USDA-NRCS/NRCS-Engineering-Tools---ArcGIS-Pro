@@ -68,18 +68,18 @@ try:
     ### Create New AOI Layer from Input ###
     if input_aoi_path != output_aoi_path:
         SetProgressorLabel('Creating new project AOI layer...')
-        AddMsgAndPrint('\nCreating new project AOI layer...', textFilePath=log_file_path)
+        AddMsgAndPrint('\nCreating new project AOI layer...', log_file_path=log_file_path)
         # Create new feature class using template_aoi
         CreateFeatureclass(fd_path, output_aoi_name, 'POLYGON', template_aoi)
         # Append any existing records from input aoi
         MakeFeatureLayer(input_aoi, 'input_aoi_temp')
         Append('input_aoi_temp', output_aoi_path, 'NO_TEST')
     else:
-        AddMsgAndPrint('\nExisting project AOI layer used as input...', textFilePath=log_file_path)
+        AddMsgAndPrint('\nExisting project AOI layer used as input...', log_file_path=log_file_path)
 
     ### Update Acres Fields ###
     SetProgressorLabel('Updating acres fields...')
-    AddMsgAndPrint('\nUpdating acres fields...', textFilePath=log_file_path)
+    AddMsgAndPrint('\nUpdating acres fields...', log_file_path=log_file_path)
     CalculateGeometryAttributes(output_aoi_path, 'acres_us AREA', '', 'ACRES_US', project_sr, 'SAME_AS_INPUT')
     CalculateGeometryAttributes(output_aoi_path, 'acres_intl AREA', '', 'ACRES', project_sr, 'SAME_AS_INPUT')
     CalculateField(output_aoi_path, 'acres_us', 'Round($feature.acres_us,2)', 'ARCADE')
@@ -87,7 +87,7 @@ try:
 
     ### Add AOI Layer to Map ###
     SetProgressorLabel('Adding AOI layer to the map...')
-    AddMsgAndPrint('\nAdding AOI layer to the map...', textFilePath=log_file_path)
+    AddMsgAndPrint('\nAdding AOI layer to the map...', log_file_path=log_file_path)
     SetParameterAsText(2, output_aoi_path)
 
     ### Remove Digitized Layer (if present) ###
@@ -98,12 +98,12 @@ try:
     ### Compact Project GDB ###
     try:
         SetProgressorLabel('Compacting project geodatabase...')
-        AddMsgAndPrint('\nCompacting project geodatabase...', textFilePath=log_file_path)
+        AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
         Compact(gdb_path)
     except:
         pass
 
-    AddMsgAndPrint('\nCreate AOI completed successfully', textFilePath=log_file_path)
+    AddMsgAndPrint('\nCreate AOI completed successfully', log_file_path=log_file_path)
 
 except SystemExit:
     pass

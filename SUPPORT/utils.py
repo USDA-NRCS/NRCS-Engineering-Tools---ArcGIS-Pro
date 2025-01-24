@@ -23,10 +23,10 @@ def addLyrxByConnectionProperties(map, lyr_name_list, lyrx_layer, gdb_path, visi
             lyr.visible = visible
 
 
-def AddMsgAndPrint(msg, severity=0, textFilePath=None):
+def AddMsgAndPrint(msg, severity=0, log_file_path=None):
     ''' Log messages to text file and ESRI tool messages dialog.'''
-    if textFilePath:
-        with open(textFilePath, 'a+') as f:
+    if log_file_path:
+        with open(log_file_path, 'a+') as f:
             f.write(f"{msg}\n")
     if severity == 0:
         AddMessage(msg)
