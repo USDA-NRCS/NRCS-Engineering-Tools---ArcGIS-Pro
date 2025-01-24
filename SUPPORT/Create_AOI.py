@@ -80,8 +80,8 @@ try:
     ### Update Acres Fields ###
     SetProgressorLabel('Updating acres fields...')
     AddMsgAndPrint('\nUpdating acres fields...', textFilePath=log_file_path)
-    CalculateGeometryAttributes(output_aoi_path, 'acres_us AREA_GEODESIC', '', 'ACRES_US', project_sr, 'SAME_AS_INPUT')
-    CalculateGeometryAttributes(output_aoi_path, 'acres_intl AREA_GEODESIC', '', 'ACRES', project_sr, 'SAME_AS_INPUT')
+    CalculateGeometryAttributes(output_aoi_path, 'acres_us AREA', '', 'ACRES_US', project_sr, 'SAME_AS_INPUT')
+    CalculateGeometryAttributes(output_aoi_path, 'acres_intl AREA', '', 'ACRES', project_sr, 'SAME_AS_INPUT')
     CalculateField(output_aoi_path, 'acres_us', 'Round($feature.acres_us,2)', 'ARCADE')
     CalculateField(output_aoi_path, 'acres_intl', 'Round($feature.acres_intl,2)', 'ARCADE')
 

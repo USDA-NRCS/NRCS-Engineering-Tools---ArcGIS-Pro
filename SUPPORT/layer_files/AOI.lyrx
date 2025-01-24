@@ -379,7 +379,7 @@
                       "type" : "CIMRGBColor",
                       "values" : [
                         255,
-                        255,
+                        170,
                         0,
                         100
                       ]
@@ -425,7 +425,7 @@
                   "type" : "CIMRGBColor",
                   "values" : [
                     255,
-                    0,
+                    170,
                     0,
                     100
                   ]
