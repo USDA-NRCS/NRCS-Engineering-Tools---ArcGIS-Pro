@@ -3,35 +3,29 @@ from os import path
 from sys import argv
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetParameterAsText, ListDatasets, \
-    SetParameterAsText, SetProgressorLabel
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetParameterAsText, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Buffer
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask
 
-from utils import AddMsgAndPrint, deleteScratchLayers, errorMsg, removeMapLayers
+from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(textFilePath, userWorkspace, inputDEMs, zUnits):
-    with open(textFilePath,'a+') as f:
+def logBasicSettings(log_file_path, project_workspace):
+    with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create DEM\n')
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\tWorkspace: {userWorkspace}\n")
-        f.write(f"\tInput DEMs: {str(inputDEMs)}\n")
-        if len (zUnits) > 0:
-            f.write(f"\tElevation Z-units: {zUnits}\n")
-        else:
-            f.write('\tElevation Z-units: NOT SPECIFIED\n')
+        f.write(f"\tProject Workspace: {project_workspace}\n")
 
 
 ### Initial Tool Validation ###
 try:
     aprx = ArcGISProject('CURRENT')
-    map = aprx.listMaps()[0]
+    map = aprx.listMaps('Engineering')[0]
 except:
     AddMsgAndPrint('This tool must be run from an ArcGIS Pro project that was developed from the template distributed with this toolbox. Exiting!', 2)
     exit()
@@ -48,88 +42,79 @@ env.resamplingMethod = 'BILINEAR'
 env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 
 ### Input Parameters ###
-inputAOI = GetParameterAsText(0)
-demFormat = GetParameterAsText(1)
-inputDEMs = GetParameterAsText(2).split(';')
-DEMcount = len(inputDEMs)
-nrcsService = GetParameterAsText(3)
-externalService = GetParameterAsText(4)
-sourceCellsize = GetParameterAsText(5)
-zUnits = GetParameterAsText(6)
-demSR = GetParameterAsText(7)
-cluSR = GetParameterAsText(8)
-transform = GetParameterAsText(9)
+project_aoi = GetParameterAsText(0)
+dem_format = GetParameterAsText(1)
+input_dems = GetParameterAsText(2).split(';')
+dem_count = len(input_dems)
+nrcs_service = GetParameterAsText(3)
+external_service = GetParameterAsText(4)
+cell_size = GetParameterAsText(5)
+dem_sr = GetParameterAsText(6)
+project_aoi_sr = GetParameterAsText(7)
+transformation = GetParameterAsText(8)
+
+### Locate Project GDB ###
+project_aoi_path = Describe(project_aoi).CatalogPath
+if project_aoi_path.find('.gdb') > 0 and 'AOI' in project_aoi_path:
+    project_gdb = project_aoi_path[:project_aoi_path.find('.gdb')+4]
+else:
+    AddMsgAndPrint('\nSelected AOI layer is not from an Engineering project workspace. Exiting...', 2)
+    exit()
+
+### Set Paths and Variables ###
+scratch_gdb = path.join(path.dirname(argv[0]), 'Scratch.gdb')
+project_workspace = path.dirname(project_gdb)
+project_name = path.basename(project_workspace)
+log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
+project_dem = path.join(project_gdb, f"{project_name}_DEM")
+buffer_aoi = path.join(project_gdb, 'Layers', 'Buffer_AOI')
+wgs_AOI = path.join(scratch_gdb, 'AOI_WGS84')
+wgs84_dem = path.join(scratch_gdb, 'WGS84_DEM')
+temp_dem = path.join(scratch_gdb, 'tempDEM')
+
+# If NRCS Image Service selected, set path to lyrx file
+reference_layers = path.join(path.dirname(path.dirname(argv[0])), 'Reference_Layers')
+if '0.5m' in nrcs_service:
+    sourceService = path.join(reference_layers, 'NRCS Bare Earth 0.5m.lyrx')
+elif '1m' in nrcs_service:
+    sourceService = path.join(reference_layers, 'NRCS Bare Earth 1m.lyrx')
+elif '2m' in nrcs_service:
+    sourceService = path.join(reference_layers, 'NRCS Bare Earth 2m.lyrx')
+elif '3m' in nrcs_service:
+    sourceService = path.join(reference_layers, 'NRCS Bare Earth 3m.lyrx')
+elif external_service != '':
+    sourceService = external_service
 
 try:
-    #### Set base path
-    inputAOI_path = Describe(inputAOI).CatalogPath
-    if inputAOI_path.find('.gdb') > 0 and 'AOI' in inputAOI_path:
-        basedataGDB_path = inputAOI_path[:inputAOI_path.find('.gdb')+4]
-    else:
-        AddMsgAndPrint('\nSelected AOI layer is not from a Determinations project folder. Exiting...', 2)
-        exit()
-
-    #### Define Variables
-    scratchGDB = path.join(path.dirname(argv[0]), 'SCRATCH.gdb')
-    referenceLayers = path.join(path.dirname(path.dirname(argv[0])), 'Reference_Layers')
-    basedataGDB_name = path.basename(basedataGDB_path)
-    userWorkspace = path.dirname(basedataGDB_path)
-    projectName = path.basename(userWorkspace).replace(' ', '_')
-    bufferAOI = path.join(basedataGDB_path, 'Buffer_AOI')
-    bufferDist = '500 Feet'
-    projectDEM = path.join(basedataGDB_path, 'Site_DEM')
-    wgs_AOI = path.join(scratchGDB, 'AOI_WGS84')
-    WGS84_DEM = path.join(scratchGDB, 'WGS84_DEM')
-    tempDEM = path.join(scratchGDB, 'tempDEM')
-
-    # If NRCS Image Service selected, set path to lyrx file
-    if '0.5m' in nrcsService:
-        sourceService = path.join(referenceLayers, 'NRCS Bare Earth 0.5m.lyrx')
-    elif '1m' in nrcsService:
-        sourceService = path.join(referenceLayers, 'NRCS Bare Earth 1m.lyrx')
-    elif '2m' in nrcsService:
-        sourceService = path.join(referenceLayers, 'NRCS Bare Earth 2m.lyrx')
-    elif '3m' in nrcsService:
-        sourceService = path.join(referenceLayers, 'NRCS Bare Earth 3m.lyrx')
-    elif externalService != '':
-        sourceService = externalService
-
-    # Temp layers list for cleanup at the start and at the end
-    tempLayers = [bufferAOI, wgs_AOI, WGS84_DEM, tempDEM]
-    AddMsgAndPrint('Deleting Temp layers...')
-    SetProgressorLabel('Deleting Temp layers...')
-    deleteScratchLayers(tempLayers)
-
-    #### Set up log file path and start logging
-    textFilePath = path.join(userWorkspace, f"{projectName}_log.txt")
-    logBasicSettings(textFilePath, userWorkspace, inputDEMs, zUnits)
+    emptyScratchGDB(scratch_gdb)
+    logBasicSettings(log_file_path, project_workspace)
 
     #### Create the projectAOI and projectAOI_B layers based on the choice selected by user input
-    AddMsgAndPrint('\nBuffering selected extent...', textFilePath=textFilePath)
+    AddMsgAndPrint('\nBuffering selected extent...', log_file_path=log_file_path)
     SetProgressorLabel('Buffering selected extent...')
-    Buffer(inputAOI, bufferAOI, bufferDist, 'FULL', '', 'ALL', '')
+    Buffer(project_aoi, buffer_aoi, '500 Feet', 'FULL', '', 'ALL', '')
 
     #### Remove existing project DEM and Hillshade if present in map
-    AddMsgAndPrint('\nRemoving layers from project maps, if present...', textFilePath=textFilePath)
+    AddMsgAndPrint('\nRemoving layers from project maps, if present...', log_file_path=log_file_path)
     SetProgressorLabel('Removing layers from project maps, if present...')
     removeMapLayers(map, ['Site_DEM', 'Site_Hillshade'])
 
     #### Process the input DEMs
-    AddMsgAndPrint('\nProcessing the input DEM(s)...', textFilePath=textFilePath)
+    AddMsgAndPrint('\nProcessing the input DEM(s)...', log_file_path=log_file_path)
     SetProgressorLabel('Processing the input DEM(s)...')
 
     # Extract and process the DEM if it's an image service
-    if demFormat in ['NRCS Image Service', 'External Image Service']:
-        if sourceCellsize == '':
-            AddMsgAndPrint('\nAn output DEM cell size was not specified. Exiting...', 2, textFilePath)
+    if dem_format in ['NRCS Image Service', 'External Image Service']:
+        if cell_size == '':
+            AddMsgAndPrint('\nAn output DEM cell size was not specified. Exiting...', 2, log_file_path)
             exit()
         else:
-            AddMsgAndPrint('\nProjecting AOI to match input DEM...', textFilePath=textFilePath)
+            AddMsgAndPrint('\nProjecting AOI to match input DEM...', log_file_path=log_file_path)
             SetProgressorLabel('Projecting AOI to match input DEM...')
-            wgs_CS = demSR
-            Project(bufferAOI, wgs_AOI, wgs_CS)
+            wgs_CS = dem_sr
+            Project(buffer_aoi, wgs_AOI, wgs_CS)
             
-            AddMsgAndPrint('\nDownloading DEM data...', textFilePath=textFilePath)
+            AddMsgAndPrint('\nDownloading DEM data...', log_file_path=log_file_path)
             SetProgressorLabel('Downloading DEM data...')
             aoi_ext = Describe(wgs_AOI).extent
             xMin = aoi_ext.XMin
@@ -137,26 +122,26 @@ try:
             xMax = aoi_ext.XMax
             yMax = aoi_ext.YMax
             clip_ext = f"{str(xMin)} {str(yMin)} {str(xMax)} {str(yMax)}"
-            Clip(sourceService, clip_ext, WGS84_DEM, '', '', '', 'NO_MAINTAIN_EXTENT')
+            Clip(sourceService, clip_ext, wgs84_dem, '', '', '', 'NO_MAINTAIN_EXTENT')
 
-            AddMsgAndPrint('\nProjecting downloaded DEM...', textFilePath=textFilePath)
+            AddMsgAndPrint('\nProjecting downloaded DEM...', log_file_path=log_file_path)
             SetProgressorLabel('Projecting downloaded DEM...')
-            ProjectRaster(WGS84_DEM, tempDEM, cluSR, 'BILINEAR', sourceCellsize)
+            ProjectRaster(wgs84_dem, temp_dem, project_aoi_sr, 'BILINEAR', cell_size)
 
     # Else, extract the local file DEMs
     else:
         # Manage spatial references
-        env.outputCoordinateSystem = cluSR
-        if transform != '':
-            env.geographicTransformations = transform
+        env.outputCoordinateSystem = project_aoi_sr
+        if transformation != '':
+            env.geographicTransformations = transformation
         
         # Clip out the DEMs that were entered
-        AddMsgAndPrint('\tExtracting input DEM(s)...', textFilePath=textFilePath)
+        AddMsgAndPrint('\tExtracting input DEM(s)...', log_file_path=log_file_path)
         SetProgressorLabel('Extracting input DEM(s)...')
         x = 0
         DEMlist = []
-        while x < DEMcount:
-            raster = inputDEMs[x].replace("'", '')
+        while x < dem_count:
+            raster = input_dems[x].replace("'", '')
             desc = Describe(raster)
             raster_path = desc.CatalogPath
             sr = desc.SpatialReference
@@ -168,20 +153,20 @@ try:
             elif units == 'Foot_US':
                 units = 'Feet'
             else:
-                AddMsgAndPrint('\nHorizontal units of one or more input DEMs do not appear to be feet or meters! Exiting...', 2, textFilePath)
+                AddMsgAndPrint('\nHorizontal units of one or more input DEMs do not appear to be feet or meters! Exiting...', 2, log_file_path)
                 exit()
-            outClip = f"{tempDEM}_{str(x)}"
+            out_clip = f"{temp_dem}_{str(x)}"
             try:
-                extractedDEM = ExtractByMask(raster_path, bufferAOI)
-                extractedDEM.save(outClip)
+                extractedDEM = ExtractByMask(raster_path, buffer_aoi)
+                extractedDEM.save(out_clip)
             except:
-                AddMsgAndPrint('\nOne or more input DEMs may have a problem! Please verify that the input DEMs cover the tract area and try to run again. Exiting...', 2, textFilePath)
+                AddMsgAndPrint('\nOne or more input DEMs may have a problem! Please verify that the input DEMs cover the tract area and try to run again. Exiting...', 2, log_file_path)
                 exit()
             if x == 0:
-                mosaicInputs = str(outClip)
+                mosaicInputs = str(out_clip)
             else:
-                mosaicInputs = f"{mosaicInputs};{str(outClip)}"
-            DEMlist.append(str(outClip))
+                mosaicInputs = f"{mosaicInputs};{str(out_clip)}"
+            DEMlist.append(str(out_clip))
             x += 1
 
         cellsize = 0
@@ -194,99 +179,63 @@ try:
                 cellsize = cellwidth
 
         # Merge the DEMs
-        if DEMcount > 1:
-            AddMsgAndPrint('\nMerging multiple input DEM(s)...', textFilePath=textFilePath)
+        if dem_count > 1:
+            AddMsgAndPrint('\nMerging multiple input DEM(s)...', log_file_path=log_file_path)
             SetProgressorLabel('Merging multiple input DEM(s)...')
-            MosaicToNewRaster(mosaicInputs, scratchGDB, 'tempDEM', '#', '32_BIT_FLOAT', cellsize, '1', 'MEAN', '#')
+            MosaicToNewRaster(mosaicInputs, scratch_gdb, 'tempDEM', '#', '32_BIT_FLOAT', cellsize, '1', 'MEAN', '#')
 
         # Else just convert the one input DEM to become the tempDEM
         else:
-            AddMsgAndPrint('\nOnly one input DEM detected. Carrying extract forward for final DEM processing...', textFilePath=textFilePath)
-            firstDEM = DEMlist[0]
-            CopyRaster(firstDEM, tempDEM)
+            AddMsgAndPrint('\nOnly one input DEM detected. Carrying extract forward for final DEM processing...', log_file_path=log_file_path)
+            CopyRaster(DEMlist[0], temp_dem)
 
         # Delete clippedDEM files
-        AddMsgAndPrint('\nDeleting temp DEM file(s)...', textFilePath=textFilePath)
+        AddMsgAndPrint('\nDeleting temp DEM file(s)...', log_file_path=log_file_path)
         SetProgressorLabel('Deleting temp DEM file(s)...')
         for raster in DEMlist:
             Delete(raster)
 
     # Gather info on the final temp DEM
-    desc = Describe(tempDEM)
+    desc = Describe(temp_dem)
     sr = desc.SpatialReference
-    # linear units should now be meters, since outputs were UTM zone specified
     units = sr.LinearUnitName
 
     if sr.Type == 'Projected':
-        if zUnits == 'Meters':
-            Zfactor = 1
-        elif zUnits == 'Meter':
-            Zfactor = 1
-        elif zUnits == 'Feet':
-            Zfactor = 0.3048
-        elif zUnits == 'Inches':
-            Zfactor = 0.0254
-        elif zUnits == 'Centimeters':
-            Zfactor = 0.01
-        else:
-            AddMsgAndPrint('\nZunits were not selected at runtime....Exiting!', 2, textFilePath)
-            exit()
-
-        AddMsgAndPrint(f"\tDEM Projection Name: {sr.Name}", textFilePath=textFilePath)
-        AddMsgAndPrint(f"\tDEM XY Linear Units: {units}", textFilePath=textFilePath)
-        AddMsgAndPrint(f"\tDEM Elevation Values (Z): {zUnits}", textFilePath=textFilePath)
-        AddMsgAndPrint(f"\tZ-factor for Slope Modeling: {str(Zfactor)}", textFilePath=textFilePath)
-        AddMsgAndPrint(f"\tDEM Cell Size: {str(desc.MeanCellWidth)} x {str(desc.MeanCellHeight)} {units}", textFilePath=textFilePath)
-
+        AddMsgAndPrint(f"\tDEM Projection Name: {sr.Name}", log_file_path=log_file_path)
+        AddMsgAndPrint(f"\tDEM XY Linear Units: {units}", log_file_path=log_file_path)
+        AddMsgAndPrint(f"\tDEM Cell Size: {str(desc.MeanCellWidth)} x {str(desc.MeanCellHeight)} {units}", log_file_path=log_file_path)
     else:
-        AddMsgAndPrint(f"\n\t{path.basename(tempDEM)} is not in a projected Coordinate System! Exiting...", 2, textFilePath)
+        AddMsgAndPrint(f"\n\t{path.basename(temp_dem)} is not in a projected Coordinate System! Exiting...", 2, log_file_path)
         exit()
 
     # Clip out the DEM with extended buffer for temp processing and standard buffer for final DEM display
-    AddMsgAndPrint('\nCopying out final DEM...', textFilePath=textFilePath)
+    AddMsgAndPrint('\nCopying out final DEM...', log_file_path=log_file_path)
     SetProgressorLabel('Copying out final DEM...')
-    CopyRaster(tempDEM, projectDEM)
+    CopyRaster(temp_dem, project_dem)
 
-    #### Delete temp data
-    AddMsgAndPrint('\nDeleting temp data...', textFilePath=textFilePath)
-    SetProgressorLabel('Deleting temp data...')
-    deleteScratchLayers(tempLayers)
-
-    #### Add layers to Pro Map
-    AddMsgAndPrint('\nAdding layers to map...', textFilePath=textFilePath)
+    ### Add Output DEM to Map ###
+    AddMsgAndPrint('\nAdding layers to map...', log_file_path=log_file_path)
     SetProgressorLabel('Adding layers to map...')
-    SetParameterAsText(10, projectDEM)
+    SetParameterAsText(9, project_dem)
 
-    #### Clean up
-    # Look for and delete anything else that may remain in the installed SCRATCH.gdb
-    startWorkspace = env.workspace
-    env.workspace = scratchGDB
-    dss = []
-    for ds in ListDatasets('*'):
-        dss.append(path.join(scratchGDB, ds))
-    for ds in dss:
-        if Exists(ds):
-            try:
-                Delete(ds)
-            except:
-                pass
-    env.workspace = startWorkspace
-
-    #### Compact FGDB
+    ### Compact Project GDB ###
     try:
-        AddMsgAndPrint('\nCompacting File Geodatabase...', textFilePath=textFilePath)
-        SetProgressorLabel('Compacting File Geodatabase...')
-        Compact(basedataGDB_path)
+        SetProgressorLabel('Compacting project geodatabase...')
+        AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
+        Compact(project_gdb)
     except:
         pass
 
-    AddMsgAndPrint('\nScript completed successfully', textFilePath=textFilePath)
+    AddMsgAndPrint('\nCreate DEM completed successfully', log_file_path=log_file_path)
 
 except SystemExit:
     pass
 
 except:
     try:
-        AddMsgAndPrint(errorMsg('Create DEM'), 2, textFilePath)
+        AddMsgAndPrint(errorMsg('Create DEM'), 2, log_file_path)
     except:
         AddMsgAndPrint(errorMsg('Create DEM'), 2)
+
+finally:
+    emptyScratchGDB(scratch_gdb)
