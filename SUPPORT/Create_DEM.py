@@ -12,7 +12,7 @@ from arcpy.sa import ExtractByMask
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_workspace):
+def logBasicSettings(log_file_path, project_workspace, dem_format, input_z_units, input_dem_sr, output_sr, cell_size):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create DEM\n')
@@ -20,6 +20,11 @@ def logBasicSettings(log_file_path, project_workspace):
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
         f.write(f"\tProject Workspace: {project_workspace}\n")
+        f.write(f"\tDEM Format: {dem_format}\n")
+        f.write(f"\tInput DEM Elevation Units: {input_z_units}\n")
+        f.write(f"\tInput DEM Spatial Reference: {input_dem_sr}\n")
+        f.write(f"\tOutput DEM Spatial Reference: {output_sr}\n")
+        f.write(f"\tOutput DEM Cell Size: {cell_size}\n")
 
 
 ### Initial Tool Validation ###
@@ -45,13 +50,13 @@ env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 project_aoi = GetParameterAsText(0)
 dem_format = GetParameterAsText(1)
 input_dems = GetParameterAsText(2).split(';')
-dem_count = len(input_dems)
 nrcs_service = GetParameterAsText(3)
 external_service = GetParameterAsText(4)
 cell_size = GetParameterAsText(5)
-dem_sr = GetParameterAsText(6)
-project_aoi_sr = GetParameterAsText(7)
-transformation = GetParameterAsText(8)
+input_z_units = GetParameterAsText(6)
+input_dem_sr = GetParameterAsText(7)
+output_sr = GetParameterAsText(8)
+transformation = GetParameterAsText(9)
 
 ### Locate Project GDB ###
 project_aoi_path = Describe(project_aoi).CatalogPath
@@ -66,7 +71,8 @@ scratch_gdb = path.join(path.dirname(argv[0]), 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-project_dem = path.join(project_gdb, f"{project_name}_DEM")
+project_dem_name = f"{project_name}_DEM"
+project_dem_path = path.join(project_gdb, project_dem_name)
 buffer_aoi = path.join(project_gdb, 'Layers', 'Buffer_AOI')
 wgs_AOI = path.join(scratch_gdb, 'AOI_WGS84')
 wgs84_dem = path.join(scratch_gdb, 'WGS84_DEM')
@@ -87,7 +93,7 @@ elif external_service != '':
 
 try:
     emptyScratchGDB(scratch_gdb)
-    logBasicSettings(log_file_path, project_workspace)
+    logBasicSettings(log_file_path, project_workspace, dem_format, input_z_units, input_dem_sr, output_sr, cell_size)
 
     #### Create the projectAOI and projectAOI_B layers based on the choice selected by user input
     AddMsgAndPrint('\nBuffering selected extent...', log_file_path=log_file_path)
@@ -97,7 +103,7 @@ try:
     #### Remove existing project DEM and Hillshade if present in map
     AddMsgAndPrint('\nRemoving layers from project maps, if present...', log_file_path=log_file_path)
     SetProgressorLabel('Removing layers from project maps, if present...')
-    removeMapLayers(map, ['Site_DEM', 'Site_Hillshade'])
+    removeMapLayers(map, [project_dem_name])
 
     #### Process the input DEMs
     AddMsgAndPrint('\nProcessing the input DEM(s)...', log_file_path=log_file_path)
@@ -111,7 +117,7 @@ try:
         else:
             AddMsgAndPrint('\nProjecting AOI to match input DEM...', log_file_path=log_file_path)
             SetProgressorLabel('Projecting AOI to match input DEM...')
-            wgs_CS = dem_sr
+            wgs_CS = input_dem_sr
             Project(buffer_aoi, wgs_AOI, wgs_CS)
             
             AddMsgAndPrint('\nDownloading DEM data...', log_file_path=log_file_path)
@@ -126,12 +132,13 @@ try:
 
             AddMsgAndPrint('\nProjecting downloaded DEM...', log_file_path=log_file_path)
             SetProgressorLabel('Projecting downloaded DEM...')
-            ProjectRaster(wgs84_dem, temp_dem, project_aoi_sr, 'BILINEAR', cell_size)
+            ProjectRaster(wgs84_dem, temp_dem, output_sr, 'BILINEAR', cell_size)
 
     # Else, extract the local file DEMs
     else:
+        dem_count = len(input_dems)
         # Manage spatial references
-        env.outputCoordinateSystem = project_aoi_sr
+        env.outputCoordinateSystem = output_sr
         if transformation != '':
             env.geographicTransformations = transformation
         
@@ -211,12 +218,21 @@ try:
     # Clip out the DEM with extended buffer for temp processing and standard buffer for final DEM display
     AddMsgAndPrint('\nCopying out final DEM...', log_file_path=log_file_path)
     SetProgressorLabel('Copying out final DEM...')
-    CopyRaster(temp_dem, project_dem)
+    CopyRaster(temp_dem, project_dem_name)
 
     ### Add Output DEM to Map ###
     AddMsgAndPrint('\nAdding layers to map...', log_file_path=log_file_path)
     SetProgressorLabel('Adding layers to map...')
-    SetParameterAsText(9, project_dem)
+    SetParameterAsText(9, project_dem_name)
+
+    #TODO: trying to update symbology range - does not work using SetParameterAsText above - layer does not exist yet
+    # dem_layer = map.listLayers(f"{project_name}_DEM")[0]
+    # dem_symbology = dem_layer.symbology
+    # dem_symbology.colorizer.stretchType = 'StandardDeviation'
+
+    # if lyr.isRasterLayer:
+    #     lyr.symbology = symbology_layer.symbology
+    #     lyr.symbology.updateColorizer(symbology_layer.symbology.colorizer)
 
     ### Compact Project GDB ###
     try:

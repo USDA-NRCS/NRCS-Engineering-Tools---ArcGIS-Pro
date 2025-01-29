@@ -35,6 +35,11 @@ output_folder = GetParameterAsText(0)
 project_name = GetParameterAsText(1).replace(' ','_')
 output_sr = GetParameter(2)
 
+### Validate Chosen Coordinate System ###
+if 'WGS' not in output_sr.name or '1984' not in output_sr.name or 'UTM' not in output_sr.name:
+    AddMsgAndPrint('\nThe selected coordinate system is not a WGS 1984 UTM Zone. Exiting...', 2)
+    exit()
+
 ### Set Paths and Variables ###
 workspace_path = path.join(output_folder, project_name)
 log_file_path = path.join(workspace_path, f"{project_name}_log.txt")

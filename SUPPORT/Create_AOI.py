@@ -49,6 +49,11 @@ scratch_gdb = path.join(path.dirname(argv[0]), 'Scratch.gdb')
 if not path.exists(project_workspace) or not Exists(gdb_path) or not Exists(fd_path):
     AddMsgAndPrint('\nThe project folder or geodatabase does not exist. Please run the Create Project Workspace tool. Exiting...', 2)
     exit()
+else:
+    fd_sr = Describe(fd_path).spatialReference
+    if 'WGS' not in fd_sr.name or '1984' not in fd_sr.name or 'UTM' not in fd_sr.name:
+        AddMsgAndPrint('\nThe geodatabase found in the chosen workspace is not using a WGS 1984 UTM coordinate system. Please run the Create Project Workspace tool. Exiting...', 2)
+        exit()
 
 logBasicSettings(log_file_path, project_workspace)
 
