@@ -11,7 +11,7 @@ from arcpy.sa import Con, Fill, Hillshade, Minus, Slope, Times
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_workspace, project_dem, elevation_units):
+def logBasicSettings(log_file_path, project_workspace, project_dem):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create DEM\n')
@@ -20,7 +20,6 @@ def logBasicSettings(log_file_path, project_workspace, project_dem, elevation_un
         f.write('User Parameters:\n')
         f.write(f"\tProject Workspace: {project_workspace}\n")
         f.write(f"\tProject DEM: {project_dem}\n")
-        f.write(f"\tElevation Units: {elevation_units}\n")
 
 
 ### Initial Tool Validation ###
@@ -44,7 +43,6 @@ env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 
 ### Input Parameters ###
 project_dem = GetParameterAsText(0)
-elevation_units = GetParameterAsText(1)
 
 ### Locate Project GDB ###
 project_dem_path = Describe(project_dem).CatalogPath
@@ -66,21 +64,21 @@ depth_grid_name = f"{project_name}_DepthGrid"
 depth_grid_path = path.join(project_gdb, depth_grid_name)
 
 ### Set Unit Conversion Variables ###
-if elevation_units == 'Meters':
-    z_factor = 1
-    cz_factor = 3.28084
-elif elevation_units == 'Centimeters':
-    z_factor = 0.01
-    cz_factor = 0.0328084
-elif elevation_units == 'Feet':
-    z_factor = 0.3048
-    cz_factor = 1
-elif elevation_units == 'Inches':
-    z_factor = 0.0254
-    cz_factor = 0.0833333
+# if elevation_units == 'Meters':
+#     z_factor = 1
+#     cz_factor = 3.28084
+# elif elevation_units == 'Centimeters':
+#     z_factor = 0.01
+#     cz_factor = 0.0328084
+# elif elevation_units == 'Feet':
+#     z_factor = 0.3048
+#     cz_factor = 1
+# elif elevation_units == 'Inches':
+#     z_factor = 0.0254
+#     cz_factor = 0.0833333
 
 try:
-    logBasicSettings(log_file_path, project_workspace, project_dem, elevation_units)
+    logBasicSettings(log_file_path, project_workspace, project_dem)
     removeMapLayers(map, [hillshade_name, slope_name, depth_grid_name])
     
     ### Create Hillshade ###
@@ -128,9 +126,9 @@ try:
     ### Add Outputs to Map ###
     #TODO: Does layer order/visibility matter here?
     #TODO: Update lyrx files if needed
-    SetParameterAsText(2, hillshade_path)
-    SetParameterAsText(3, slope_path)
-    SetParameterAsText(4, depth_grid_path)
+    SetParameterAsText(1, hillshade_path)
+    SetParameterAsText(2, slope_path)
+    SetParameterAsText(3, depth_grid_path)
 
     AddMsgAndPrint('\nCreate Hillshade, Slope, Depth Grid completed successfully', log_file_path=log_file_path)
 
