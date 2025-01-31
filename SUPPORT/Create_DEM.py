@@ -7,7 +7,7 @@ from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetParameter
 from arcpy.analysis import Buffer
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
-from arcpy.sa import ExtractByMask
+from arcpy.sa import ExtractByMask, Times
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
@@ -41,11 +41,6 @@ else:
     AddMsgAndPrint('Spatial Analyst Extension not enabled. Please enable Spatial Analyst from Project, Licensing, Configure licensing options. Exiting...', 2)
     exit()
 
-### ESRI Environment Settings ###
-env.overwriteOutput = True
-env.resamplingMethod = 'BILINEAR'
-env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
-
 ### Input Parameters ###
 project_aoi = GetParameterAsText(0)
 dem_format = GetParameterAsText(1)
@@ -67,7 +62,8 @@ else:
     exit()
 
 ### Set Paths and Variables ###
-scratch_gdb = path.join(path.dirname(argv[0]), 'Scratch.gdb')
+support_dir = path.dirname(argv[0])
+scratch_gdb = path.join(support_dir, 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
@@ -78,8 +74,14 @@ wgs_AOI = path.join(scratch_gdb, 'AOI_WGS84')
 wgs84_dem = path.join(scratch_gdb, 'WGS84_DEM')
 temp_dem = path.join(scratch_gdb, 'tempDEM')
 
+### ESRI Environment Settings ###
+env.overwriteOutput = True
+env.resamplingMethod = 'BILINEAR'
+env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
+env.cellSize = cell_size #TODO: Is this sufficient for converting xy?
+
 # If NRCS Image Service selected, set path to lyrx file
-reference_layers = path.join(path.dirname(path.dirname(argv[0])), 'Reference_Layers')
+reference_layers = path.join(path.dirname(support_dir), 'Reference_Layers')
 if '0.5m' in nrcs_service:
     sourceService = path.join(reference_layers, 'NRCS Bare Earth 0.5m.lyrx')
 elif '1m' in nrcs_service:
@@ -90,6 +92,20 @@ elif '3m' in nrcs_service:
     sourceService = path.join(reference_layers, 'NRCS Bare Earth 3m.lyrx')
 elif external_service != '':
     sourceService = external_service
+
+# Set z-factor for converting vertical units to International Feet
+if input_z_units == 'Meters':
+    z_factor = 3.28083989501
+elif input_z_units == 'Centimeters':
+    z_factor = 328.083989501
+elif input_z_units == 'International Feet':
+    z_factor = 1
+elif input_z_units == 'International Inches':
+    z_factor = 12
+elif input_z_units == 'US Survey Feet':
+    z_factor = 1.000002000
+elif input_z_units == 'US Survey Inches':
+    z_factor = 12.000002400
 
 try:
     emptyScratchGDB(scratch_gdb)
@@ -189,7 +205,7 @@ try:
         if dem_count > 1:
             AddMsgAndPrint('\nMerging multiple input DEM(s)...', log_file_path=log_file_path)
             SetProgressorLabel('Merging multiple input DEM(s)...')
-            MosaicToNewRaster(mosaicInputs, scratch_gdb, 'tempDEM', '#', '32_BIT_FLOAT', cellsize, '1', 'MEAN', '#')
+            MosaicToNewRaster(mosaicInputs, scratch_gdb, temp_dem, '#', '32_BIT_FLOAT', cellsize, '1', 'MEAN', '#')
 
         # Else just convert the one input DEM to become the tempDEM
         else:
@@ -215,24 +231,16 @@ try:
         AddMsgAndPrint(f"\n\t{path.basename(temp_dem)} is not in a projected Coordinate System! Exiting...", 2, log_file_path)
         exit()
 
-    # Clip out the DEM with extended buffer for temp processing and standard buffer for final DEM display
-    AddMsgAndPrint('\nCopying out final DEM...', log_file_path=log_file_path)
-    SetProgressorLabel('Copying out final DEM...')
-    CopyRaster(temp_dem, project_dem_name)
+    ### Convert DEM Values to International Feet ###
+    AddMsgAndPrint('\nFinalizing DEM...', log_file_path=log_file_path)
+    SetProgressorLabel('Finalizing DEM...')
+    output_dem = Times(temp_dem, z_factor)
+    output_dem.save(project_dem_path)
 
     ### Add Output DEM to Map ###
-    AddMsgAndPrint('\nAdding layers to map...', log_file_path=log_file_path)
-    SetProgressorLabel('Adding layers to map...')
-    SetParameterAsText(9, project_dem_name)
-
-    #TODO: trying to update symbology range - does not work using SetParameterAsText above - layer does not exist yet
-    # dem_layer = map.listLayers(f"{project_name}_DEM")[0]
-    # dem_symbology = dem_layer.symbology
-    # dem_symbology.colorizer.stretchType = 'StandardDeviation'
-
-    # if lyr.isRasterLayer:
-    #     lyr.symbology = symbology_layer.symbology
-    #     lyr.symbology.updateColorizer(symbology_layer.symbology.colorizer)
+    AddMsgAndPrint('\nAdding DEM to map...', log_file_path=log_file_path)
+    SetProgressorLabel('Adding DEM to map...')
+    SetParameterAsText(10, project_dem_path)
 
     ### Compact Project GDB ###
     try:
