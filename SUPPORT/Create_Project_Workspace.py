@@ -43,7 +43,7 @@ if 'WGS' not in output_sr.name or '1984' not in output_sr.name or 'UTM' not in o
 ### Set Paths and Variables ###
 workspace_path = path.join(output_folder, project_name)
 log_file_path = path.join(workspace_path, f"{project_name}_log.txt")
-gdb_name = f"{project_name}.gdb"
+gdb_name = f"{project_name}_EngPro.gdb"
 gdb_path = path.join(workspace_path, gdb_name)
 fd_path = path.join(gdb_path, 'Layers')
 output_sr_name = output_sr.name

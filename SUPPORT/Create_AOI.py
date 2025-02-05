@@ -36,7 +36,7 @@ input_aoi = GetParameterAsText(1)
 ### Set Paths and Variables ###
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-gdb_name = f"{project_name}.gdb"
+gdb_name = f"{project_name}_EngPro.gdb"
 gdb_path = path.join(project_workspace, gdb_name)
 fd_path = path.join(gdb_path, 'Layers')
 input_aoi_path = Describe(input_aoi).catalogPath

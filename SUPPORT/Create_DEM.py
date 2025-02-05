@@ -55,7 +55,7 @@ transformation = GetParameterAsText(9)
 
 ### Locate Project GDB ###
 project_aoi_path = Describe(project_aoi).CatalogPath
-if project_aoi_path.find('.gdb') > 0 and 'AOI' in project_aoi_path:
+if project_aoi_path.find('EngPro.gdb') > 0 and 'AOI' in project_aoi_path:
     project_gdb = project_aoi_path[:project_aoi_path.find('.gdb')+4]
 else:
     AddMsgAndPrint('\nSelected AOI layer is not from an Engineering project workspace. Exiting...', 2)

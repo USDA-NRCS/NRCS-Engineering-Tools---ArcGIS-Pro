@@ -46,7 +46,7 @@ project_dem = GetParameterAsText(0)
 
 ### Locate Project GDB ###
 project_dem_path = Describe(project_dem).CatalogPath
-if project_dem_path.find('.gdb') > 0 and 'DEM' in project_dem_path:
+if project_dem_path.find('EngPro.gdb') > 0 and 'DEM' in project_dem_path:
     project_gdb = project_dem_path[:project_dem_path.find('.gdb')+4]
 else:
     AddMsgAndPrint('\nSelected DEM layer is not from an Engineering project workspace. Exiting...', 2)
