@@ -49,7 +49,7 @@ project_dem_path = Describe(project_dem).CatalogPath
 if project_dem_path.find('EngPro.gdb') > 0 and 'DEM' in project_dem_path:
     project_gdb = project_dem_path[:project_dem_path.find('.gdb')+4]
 else:
-    AddMsgAndPrint('\nSelected DEM layer is not from an Engineering project workspace. Exiting...', 2)
+    AddMsgAndPrint('\nThe selected DEM is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
     exit()
 
 ### Set Paths and Variables ###
@@ -67,7 +67,7 @@ slope_name = f"{project_name}_Slope"
 slope_path = path.join(project_gdb, slope_name)
 depth_grid_name = f"{project_name}_DepthGrid"
 depth_grid_path = path.join(project_gdb, depth_grid_name)
-z_factor = 3.280839895 # Meters to Intl Feet
+z_factor = 0.3048 # Meters to Intl Feet
 
 try:
     emptyScratchGDB(scratch_gdb)
@@ -95,7 +95,7 @@ try:
     ### Create Slope ###
     SetProgressorLabel('Creating Slope...')
     AddMsgAndPrint('\nCreating Slope...', log_file_path=log_file_path)
-    output_slope = Slope(project_dem, 'PERCENT_RISE', z_factor)
+    output_slope = Slope(smoothed_dem_path, 'PERCENT_RISE', z_factor)
     output_slope.save(slope_path)
 
     # ### Create Depth Grid ###
