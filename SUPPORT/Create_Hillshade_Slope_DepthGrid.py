@@ -1,15 +1,14 @@
 from getpass import getuser
 from os import path
-from sys import argv
+from sys import argv, exit
 from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, \
     SetParameterAsText, SetProgressorLabel
-from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Con, Fill, FocalStatistics, Hillshade, Minus, Slope, Times
+from arcpy.sa import Con, Fill, FocalStatistics, Hillshade, Minus, Slope
 
-from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
+from utils import AddMsgAndPrint, errorMsg, removeMapLayers
 
 
 def logBasicSettings(log_file_path, project_workspace, project_dem):
@@ -48,7 +47,7 @@ project_dem = GetParameterAsText(0)
 
 ### Locate Project GDB ###
 project_dem_path = Describe(project_dem).CatalogPath
-if project_dem_path.find('EngPro.gdb') > 0 and 'DEM' in project_dem_path:
+if 'EngPro.gdb' in project_dem_path and 'DEM' in project_dem_path:
     project_gdb = project_dem_path[:project_dem_path.find('.gdb')+4]
 else:
     AddMsgAndPrint('\nThe selected DEM is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
@@ -56,11 +55,9 @@ else:
 
 ### Set Paths and Variables ###
 support_dir = path.dirname(argv[0])
-scratch_gdb = path.join(support_dir, 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-temp_dem = path.join(scratch_gdb, 'tempDEM')
 smoothed_dem_name = path.join(project_gdb, f"{project_name}_Smooth_3_3")
 smoothed_dem_path = path.join(project_gdb, smoothed_dem_name)
 hillshade_name = f"{project_name}_Hillshade"
@@ -72,7 +69,6 @@ depth_grid_path = path.join(project_gdb, depth_grid_name)
 z_factor = 0.3048 # Meters to Intl Feet
 
 try:
-    emptyScratchGDB(scratch_gdb)
     removeMapLayers(map, [hillshade_name, slope_name, depth_grid_name])
     logBasicSettings(log_file_path, project_workspace, project_dem)
     
@@ -82,17 +78,11 @@ try:
     output_hillshade = Hillshade(project_dem, '315', '45', 'NO_SHADOWS', z_factor)
     output_hillshade.save(hillshade_path)
 
-    #TODO: Is this necessary?
-    # Create a temporary smoothed DEM to use for creating a slope layer and a contours layer
-    SetProgressorLabel('Creating 3-meter resolution DEM...')
-    AddMsgAndPrint('\nCreating a 3-meter resolution DEM for use in slopes and contours...')
-    dem_sr = Describe(project_dem).spatialReference
-    ProjectRaster(project_dem, temp_dem, dem_sr, 'BILINEAR', cell_size=3)
-
+    ### Create Smoothed DEM (3x3) ###
     SetProgressorLabel('Smoothing DEM with Focal Statistics...')
     AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
-    outFocalStats = FocalStatistics(temp_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
-    outFocalStats.save(smoothed_dem_path)
+    output_focal_stats = FocalStatistics(project_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
+    output_focal_stats.save(smoothed_dem_path)
 
     ### Create Slope ###
     SetProgressorLabel('Creating Slope...')
@@ -100,31 +90,20 @@ try:
     output_slope = Slope(smoothed_dem_path, 'PERCENT_RISE', z_factor)
     output_slope.save(slope_path)
 
-    # ### Create Depth Grid ###
-    # SetProgressorLabel('Creating Depth Grid...')
-    # AddMsgAndPrint('\nCreating Depth Grid...', log_file_path=log_file_path)
-    # fill = False
-    # try:
-    #     # Fills sinks in project DEM to remove small imperfections in the data.
-    #     # Convert the projectDEM to a raster with z units in feet to create this layer
-    #     Temp_DEMbase = Times(project_dem, cz_factor)
-    #     Fill_DEMaoi = Fill(Temp_DEMbase, '')
-    #     fill = True
-    # except:
-    #     pass
-    # #TODO: if this is False, Depth Grid wont be created?
-    # if fill:
-    #     FilMinus = Minus(Fill_DEMaoi, Temp_DEMbase)
-    #     # Create a Depth Grid whereby any pixel with a difference is written to a new raster
-    #     output_depth_grid = Con(FilMinus, FilMinus, '', 'VALUE > 0')
-    #     output_depth_grid.save(depth_grid_path)
+    ### Create Depth Grid ###
+    SetProgressorLabel('Creating Depth Grid...')
+    AddMsgAndPrint('\nCreating Depth Grid...', log_file_path=log_file_path)
+    output_fill = Fill(project_dem)
+    output_minus = Minus(output_fill, project_dem)
+    output_depth_grid = Con(output_minus, output_minus, '', 'VALUE > 0')
+    output_depth_grid.save(depth_grid_path)
 
     ### Add Outputs to Map ###
-    #TODO: Does layer order/visibility matter here?
-    #TODO: Update lyrx files if needed
-    SetParameterAsText(1, hillshade_path)
-    SetParameterAsText(2, slope_path)
-    # SetParameterAsText(3, depth_grid_path)
+    SetProgressorLabel('Adding outputs to map...')
+    AddMsgAndPrint('\nAdding outputs to map...', log_file_path=log_file_path)
+    SetParameterAsText(1, slope_path)
+    SetParameterAsText(2, hillshade_path)
+    SetParameterAsText(3, depth_grid_path)
 
     AddMsgAndPrint('\nCreate Hillshade, Slope, Depth Grid completed successfully', log_file_path=log_file_path)
 
@@ -136,6 +115,3 @@ except:
         AddMsgAndPrint(errorMsg('Create Hillshade, Slope, Depth Grid'), 2, log_file_path)
     except:
         AddMsgAndPrint(errorMsg('Create Hillshade, Slope, Depth Grid'), 2)
-
-# finally:
-#     emptyScratchGDB(scratch_gdb)
