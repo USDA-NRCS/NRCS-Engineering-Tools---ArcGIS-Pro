@@ -3,9 +3,9 @@ from os import path
 from sys import argv, exit
 from time import ctime
 
-from arcpy import Describe, env, Exists, GetParameterAsText, SetParameterAsText, SetProgressorLabel
-from arcpy.management import Append, CalculateGeometryAttributes, CalculateField, Compact, \
-    CreateFeatureclass, GetCount, MakeFeatureLayer
+from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, SetParameterAsText, SetProgressorLabel
+from arcpy.management import Append, CalculateGeometryAttributes, CalculateField, Compact, CreateFeatureclass, \
+    GetCount, MakeFeatureLayer
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
@@ -14,7 +14,8 @@ from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 def logBasicSettings(log_file_path, project_workspace):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
-        f.write('Executing Tool: Create Project Workspace\n')
+        f.write('Executing Tool: Create AOI\n')
+        f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')

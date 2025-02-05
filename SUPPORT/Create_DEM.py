@@ -3,7 +3,8 @@ from os import path
 from sys import argv
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetParameterAsText, SetParameterAsText, SetProgressorLabel
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, \
+    SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Buffer
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
@@ -16,6 +17,7 @@ def logBasicSettings(log_file_path, project_workspace, dem_format, input_z_units
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create DEM\n')
+        f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')

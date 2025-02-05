@@ -3,7 +3,8 @@ from os import path
 from sys import argv
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetParameter, GetParameterAsText, SetParameterAsText, SetProgressorLabel
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameter, \
+    GetParameterAsText, SetParameterAsText, SetProgressorLabel
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Contour, FocalStatistics
@@ -14,7 +15,8 @@ from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 def logBasicSettings(log_file_path, project_workspace, project_dem, contour_interval):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
-        f.write('Executing Tool: Create DEM\n')
+        f.write('Executing Tool: Create Contours\n')
+        f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')

@@ -3,7 +3,7 @@ from os import mkdir, path
 from sys import exit
 from time import ctime
 
-from arcpy import Exists, GetParameter, GetParameterAsText, SetProgressorLabel
+from arcpy import Exists, GetInstallInfo, GetParameter, GetParameterAsText, SetProgressorLabel
 from arcpy.management import CreateFeatureDataset, CreateFileGDB
 from arcpy.mp import ArcGISProject
 
@@ -14,6 +14,7 @@ def logBasicSettings(log_file_path, output_folder, project_name, output_sr_name)
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create Project Workspace\n')
+        f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
