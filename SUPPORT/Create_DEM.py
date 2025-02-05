@@ -78,7 +78,7 @@ temp_dem = path.join(scratch_gdb, 'tempDEM')
 env.overwriteOutput = True
 env.resamplingMethod = 'BILINEAR'
 env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
-env.cellSize = cell_size #TODO: Is this sufficient for converting xy?
+env.cellSize = cell_size
 
 # If NRCS Image Service selected, set path to lyrx file
 reference_layers = path.join(path.dirname(support_dir), 'Reference_Layers')

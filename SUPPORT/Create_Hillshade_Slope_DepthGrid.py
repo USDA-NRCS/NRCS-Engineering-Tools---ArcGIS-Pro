@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetParameterAsText, SetParameterAsText, SetProgressorLabel
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Con, Fill, Hillshade, Minus, Slope, Times
+from arcpy.sa import Con, Fill, FocalStatistics, Hillshade, Minus, Slope, Times
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
@@ -53,33 +53,26 @@ else:
     exit()
 
 ### Set Paths and Variables ###
+support_dir = path.dirname(argv[0])
+scratch_gdb = path.join(support_dir, 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
+temp_dem = path.join(scratch_gdb, 'tempDEM')
+smoothed_dem_name = path.join(project_gdb, f"{project_name}_Smooth_3_3")
+smoothed_dem_path = path.join(project_gdb, smoothed_dem_name)
 hillshade_name = f"{project_name}_Hillshade"
 hillshade_path = path.join(project_gdb, hillshade_name)
 slope_name = f"{project_name}_Slope"
 slope_path = path.join(project_gdb, slope_name)
 depth_grid_name = f"{project_name}_DepthGrid"
 depth_grid_path = path.join(project_gdb, depth_grid_name)
-
-### Set Unit Conversion Variables ###
-# if elevation_units == 'Meters':
-#     z_factor = 1
-#     cz_factor = 3.28084
-# elif elevation_units == 'Centimeters':
-#     z_factor = 0.01
-#     cz_factor = 0.0328084
-# elif elevation_units == 'Feet':
-#     z_factor = 0.3048
-#     cz_factor = 1
-# elif elevation_units == 'Inches':
-#     z_factor = 0.0254
-#     cz_factor = 0.0833333
+z_factor = 3.280839895 # Meters to Intl Feet
 
 try:
-    logBasicSettings(log_file_path, project_workspace, project_dem)
+    emptyScratchGDB(scratch_gdb)
     removeMapLayers(map, [hillshade_name, slope_name, depth_grid_name])
+    logBasicSettings(log_file_path, project_workspace, project_dem)
     
     ### Create Hillshade ###
     SetProgressorLabel('Creating Hillshade...')
@@ -88,15 +81,16 @@ try:
     output_hillshade.save(hillshade_path)
 
     #TODO: Is this necessary?
-    # # Create a temporary smoothed DEM to use for creating a slope layer and a contours layer
-    # AddMsgAndPrint('\tCreating a 3-meter pixel resolution version of the DEM for use in contours and slopes...')
-    # SetProgressorLabel('Creating 3-meter resolution DEM...')
-    # ProjectRaster(tempDEM, DEMagg, cluSR, 'BILINEAR', '3', '#', '#', '#')
+    # Create a temporary smoothed DEM to use for creating a slope layer and a contours layer
+    SetProgressorLabel('Creating 3-meter resolution DEM...')
+    AddMsgAndPrint('\nCreating a 3-meter resolution DEM for use in slopes and contours...')
+    dem_sr = Describe(project_dem).spatialReference
+    ProjectRaster(project_dem, temp_dem, dem_sr, 'BILINEAR', cell_size=3)
 
-    # AddMsgAndPrint('\tSmoothing the DEM with Focal Statistics...')
-    # SetProgressorLabel('Smoothing DEM with Focal Stats...')
-    # outFocalStats = FocalStatistics(DEMagg, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
-    # outFocalStats.save(DEMsmooth)
+    SetProgressorLabel('Smoothing DEM with Focal Statistics...')
+    AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
+    outFocalStats = FocalStatistics(temp_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
+    outFocalStats.save(smoothed_dem_path)
 
     ### Create Slope ###
     SetProgressorLabel('Creating Slope...')
@@ -104,31 +98,31 @@ try:
     output_slope = Slope(project_dem, 'PERCENT_RISE', z_factor)
     output_slope.save(slope_path)
 
-    ### Create Depth Grid ###
-    SetProgressorLabel('Creating Depth Grid...')
-    AddMsgAndPrint('\nCreating Depth Grid...', log_file_path=log_file_path)
-    fill = False
-    try:
-        # Fills sinks in project DEM to remove small imperfections in the data.
-        # Convert the projectDEM to a raster with z units in feet to create this layer
-        Temp_DEMbase = Times(project_dem, cz_factor)
-        Fill_DEMaoi = Fill(Temp_DEMbase, '')
-        fill = True
-    except:
-        pass
-    #TODO: if this is False, Depth Grid wont be created?
-    if fill:
-        FilMinus = Minus(Fill_DEMaoi, Temp_DEMbase)
-        # Create a Depth Grid whereby any pixel with a difference is written to a new raster
-        output_depth_grid = Con(FilMinus, FilMinus, '', 'VALUE > 0')
-        output_depth_grid.save(depth_grid_path)
+    # ### Create Depth Grid ###
+    # SetProgressorLabel('Creating Depth Grid...')
+    # AddMsgAndPrint('\nCreating Depth Grid...', log_file_path=log_file_path)
+    # fill = False
+    # try:
+    #     # Fills sinks in project DEM to remove small imperfections in the data.
+    #     # Convert the projectDEM to a raster with z units in feet to create this layer
+    #     Temp_DEMbase = Times(project_dem, cz_factor)
+    #     Fill_DEMaoi = Fill(Temp_DEMbase, '')
+    #     fill = True
+    # except:
+    #     pass
+    # #TODO: if this is False, Depth Grid wont be created?
+    # if fill:
+    #     FilMinus = Minus(Fill_DEMaoi, Temp_DEMbase)
+    #     # Create a Depth Grid whereby any pixel with a difference is written to a new raster
+    #     output_depth_grid = Con(FilMinus, FilMinus, '', 'VALUE > 0')
+    #     output_depth_grid.save(depth_grid_path)
 
     ### Add Outputs to Map ###
     #TODO: Does layer order/visibility matter here?
     #TODO: Update lyrx files if needed
     SetParameterAsText(1, hillshade_path)
     SetParameterAsText(2, slope_path)
-    SetParameterAsText(3, depth_grid_path)
+    # SetParameterAsText(3, depth_grid_path)
 
     AddMsgAndPrint('\nCreate Hillshade, Slope, Depth Grid completed successfully', log_file_path=log_file_path)
 
@@ -140,3 +134,6 @@ except:
         AddMsgAndPrint(errorMsg('Create Hillshade, Slope, Depth Grid'), 2, log_file_path)
     except:
         AddMsgAndPrint(errorMsg('Create Hillshade, Slope, Depth Grid'), 2)
+
+# finally:
+#     emptyScratchGDB(scratch_gdb)
