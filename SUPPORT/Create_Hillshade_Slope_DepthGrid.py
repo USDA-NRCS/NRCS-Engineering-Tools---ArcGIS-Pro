@@ -27,15 +27,15 @@ def logBasicSettings(log_file_path, project_workspace, project_dem):
 ### Initial Tool Validation ###
 try:
     aprx = ArcGISProject('CURRENT')
-    map = aprx.listMaps()[0]
+    map = aprx.listMaps('Engineering')[0]
 except:
-    AddMsgAndPrint('This tool must be run from an ArcGIS Pro project that was developed from the template distributed with this toolbox. Exiting!', 2)
+    AddMsgAndPrint('\nThis tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting!', 2)
     exit()
 
 if CheckExtension('Spatial') == 'Available':
     CheckOutExtension('Spatial')
 else:
-    AddMsgAndPrint('Spatial Analyst Extension not enabled. Please enable Spatial Analyst from Project, Licensing, Configure licensing options. Exiting...', 2)
+    AddMsgAndPrint('\nSpatial Analyst Extension not enabled. Please enable Spatial Analyst from Project, Licensing, Configure licensing options. Exiting...', 2)
     exit()
 
 ### ESRI Environment Settings ###
