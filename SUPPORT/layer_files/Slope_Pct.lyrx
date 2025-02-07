@@ -1,39 +1,41 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "2.6.0",
-  "build" : 24783,
+  "version" : "3.3.0",
+  "build" : 52636,
   "layers" : [
-    "CIMPATH=Determinations/c10c0ac6db394719a548072fe03ce351.xml"
+    "CIMPATH=engineering/newproject_slope.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMRasterLayer",
-      "name" : "Site_Slope_Pct",
-      "uRI" : "CIMPATH=Determinations/c10c0ac6db394719a548072fe03ce351.xml",
+      "name" : "NewProject_Slope",
+      "uRI" : "CIMPATH=engineering/newproject_slope.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "Site_Slope_Pct",
+      "description" : "NewProject_Slope",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
-        "mapElevationID" : "d75ec4041c77439f82243b268f0b0706"
+        "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
       },
       "expanded" : true,
       "layerType" : "Operational",
       "showLegends" : true,
-      "visibility" : false,
+      "visibility" : true,
       "displayCacheType" : "Permanent",
       "maxDisplayCacheAge" : 5,
       "showPopups" : true,
       "serviceLayerID" : -1,
       "refreshRate" : -1,
       "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
       "dataConnection" : {
         "type" : "CIMStandardDataConnection",
-        "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\Determinations\\in001_t0000309_2021_05\\in001_t0000309_2021_05_BaseData.gdb",
+        "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\NewProject\\NewProject_EngPro.gdb",
         "workspaceFactory" : "FileGDB",
-        "dataset" : "Site_Slope_Pct",
+        "dataset" : "NewProject_Slope",
         "datasetType" : "esriDTRasterDataset"
       },
       "colorizer" : {
@@ -210,7 +212,6 @@
           ]
         },
         "field" : "<VALUE>",
-        "hillshadeZFactor" : 1,
         "showInAscendingOrder" : true,
         "numberFormat" : {
           "type" : "CIMPercentageFormat",
@@ -219,11 +220,46 @@
           "roundingOption" : "esriRoundNumberOfDecimals",
           "roundingValue" : 2,
           "zeroPad" : true
-        },
-        "heading" : "<VALUE>"
+        }
       }
     }
   ],
   "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
-  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2",
+  "elevationSurfaceLayerDefinitions" : [
+    {
+      "type" : "CIMElevationSurfaceLayer",
+      "name" : "Ground",
+      "uRI" : "CIMPATH=map/ground.json",
+      "sourceModifiedTime" : {
+        "type" : "TimeInstant"
+      },
+      "useSourceMetadata" : true,
+      "description" : "Ground",
+      "expanded" : true,
+      "layerType" : "Operational",
+      "showLegends" : false,
+      "visibility" : true,
+      "displayCacheType" : "Permanent",
+      "maxDisplayCacheAge" : 5,
+      "showPopups" : true,
+      "serviceLayerID" : -1,
+      "refreshRate" : -1,
+      "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
+      "elevationMode" : "BaseGlobeSurface",
+      "verticalExaggeration" : 1,
+      "color" : {
+        "type" : "CIMRGBColor",
+        "values" : [
+          255,
+          255,
+          255,
+          100
+        ]
+      },
+      "surfaceTINShadingMode" : "Smooth"
+    }
+  ]
 }
