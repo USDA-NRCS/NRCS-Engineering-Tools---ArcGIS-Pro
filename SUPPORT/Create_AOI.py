@@ -27,7 +27,7 @@ try:
     aprx = ArcGISProject('CURRENT')
     map = aprx.listMaps('Engineering')[0]
 except:
-    AddMsgAndPrint('This tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting...', 2)
+    AddMsgAndPrint('\nThis tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting...', 2)
     exit()
 
 ### Input Parameters ###
