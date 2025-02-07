@@ -4,7 +4,7 @@ from sys import argv, exit
 from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, \
-    SetParameterAsText, SetProgressorLabel
+    GetParameter, SetParameterAsText, SetProgressorLabel
 from arcpy.management import Compact
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Con, Fill, FocalStatistics, Hillshade, Minus, Slope
@@ -45,6 +45,9 @@ env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 
 ### Input Parameters ###
 project_dem = GetParameterAsText(0)
+create_hillshade = GetParameter(1)
+create_slope = GetParameter(2)
+create_depth_grid = GetParameter(3)
 
 ### Locate Project GDB ###
 project_dem_path = Describe(project_dem).CatalogPath
@@ -67,44 +70,51 @@ slope_name = f"{project_name}_Slope"
 slope_path = path.join(project_gdb, slope_name)
 depth_grid_name = f"{project_name}_DepthGrid"
 depth_grid_path = path.join(project_gdb, depth_grid_name)
-z_factor = 0.3048 # Meters to Intl Feet
+z_factor = 0.3048 # Intl Feet to Meters
 
 try:
-    removeMapLayers(map, [hillshade_name, slope_name, depth_grid_name])
+    remove_layers = []
+    if create_hillshade: remove_layers.append(hillshade_name)
+    if create_slope: remove_layers.append(slope_name)
+    if create_depth_grid: remove_layers.append(depth_grid_name)
+    removeMapLayers(map, remove_layers)
     logBasicSettings(log_file_path, project_workspace, project_dem)
-    
-    ### Create Hillshade ###
-    SetProgressorLabel('Creating Hillshade...')
-    AddMsgAndPrint('\nCreating Hillshade...', log_file_path=log_file_path)
-    output_hillshade = Hillshade(project_dem, '315', '45', 'NO_SHADOWS', z_factor)
-    output_hillshade.save(hillshade_path)
 
-    ### Create Smoothed DEM (3x3) ###
-    SetProgressorLabel('Smoothing DEM with Focal Statistics...')
-    AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
-    output_focal_stats = FocalStatistics(project_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
-    output_focal_stats.save(smoothed_dem_path)
+    if create_hillshade:
+        ### Create Hillshade ###
+        SetProgressorLabel('Creating Hillshade...')
+        AddMsgAndPrint('\nCreating Hillshade...', log_file_path=log_file_path)
+        output_hillshade = Hillshade(project_dem, '315', '45', 'NO_SHADOWS', z_factor)
+        output_hillshade.save(hillshade_path)
 
-    ### Create Slope ###
-    SetProgressorLabel('Creating Slope...')
-    AddMsgAndPrint('\nCreating Slope...', log_file_path=log_file_path)
-    output_slope = Slope(smoothed_dem_path, 'PERCENT_RISE', z_factor)
-    output_slope.save(slope_path)
+    if create_slope:
+        ### Create Smoothed DEM (3x3) ###
+        SetProgressorLabel('Smoothing DEM with Focal Statistics...')
+        AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
+        output_focal_stats = FocalStatistics(project_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
+        output_focal_stats.save(smoothed_dem_path)
 
-    ### Create Depth Grid ###
-    SetProgressorLabel('Creating Depth Grid...')
-    AddMsgAndPrint('\nCreating Depth Grid...', log_file_path=log_file_path)
-    output_fill = Fill(project_dem)
-    output_minus = Minus(output_fill, project_dem)
-    output_depth_grid = Con(output_minus, output_minus, '', 'VALUE > 0')
-    output_depth_grid.save(depth_grid_path)
+        ### Create Slope ###
+        SetProgressorLabel('Creating Slope...')
+        AddMsgAndPrint('\nCreating Slope...', log_file_path=log_file_path)
+        output_slope = Slope(smoothed_dem_path, 'PERCENT_RISE', z_factor)
+        output_slope.save(slope_path)
+
+    if create_depth_grid:
+        ### Create Depth Grid ###
+        SetProgressorLabel('Creating Depth Grid...')
+        AddMsgAndPrint('\nCreating Depth Grid...', log_file_path=log_file_path)
+        output_fill = Fill(project_dem)
+        output_minus = Minus(output_fill, project_dem)
+        output_depth_grid = Con(output_minus, output_minus, '', 'VALUE > 0')
+        output_depth_grid.save(depth_grid_path)
 
     ### Add Outputs to Map ###
     SetProgressorLabel('Adding outputs to map...')
     AddMsgAndPrint('\nAdding outputs to map...', log_file_path=log_file_path)
-    SetParameterAsText(1, slope_path)
-    SetParameterAsText(2, hillshade_path)
-    SetParameterAsText(3, depth_grid_path)
+    if create_slope: SetParameterAsText(4, slope_path)
+    if create_hillshade: SetParameterAsText(5, hillshade_path)
+    if create_depth_grid: SetParameterAsText(6, depth_grid_path)
 
     ### Compact Project GDB ###
     try:
