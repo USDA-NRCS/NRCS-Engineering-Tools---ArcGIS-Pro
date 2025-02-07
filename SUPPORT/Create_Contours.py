@@ -3,11 +3,12 @@ from os import path
 from sys import argv
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameter, \
-    GetParameterAsText, SetParameterAsText, SetProgressorLabel
-from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, \
+    SetParameterAsText, SetProgressorLabel
+from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, DeleteField, MakeFeatureLayer, \
+    SelectLayerByAttribute
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Contour
+from arcpy.sa import Contour, FocalStatistics
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
@@ -22,7 +23,7 @@ def logBasicSettings(log_file_path, project_workspace, project_dem, contour_inte
         f.write('User Parameters:\n')
         f.write(f"\tProject Workspace: {project_workspace}\n")
         f.write(f"\tProject DEM: {project_dem}\n")
-        f.write(f"\tElevation Units: {contour_interval}\n")
+        f.write(f"\tContour Interval: {contour_interval}\n")
 
 
 ### Initial Tool Validation ###
@@ -56,53 +57,75 @@ else:
     AddMsgAndPrint('\nThe selected DEM is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
     exit()
 
+### Validate Contour Interval (1 - 1000) ###
+if not 0 < float(contour_interval) <= 1000:
+    AddMsgAndPrint('\nThe contour interval must be between 1 and 1000. Exiting...', 2)
+    exit()
+
 ### Set Paths and Variables ###
+support_dir = path.dirname(argv[0])
+scratch_gdb = path.join(support_dir, 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 smoothed_dem_path = path.join(project_gdb, f"{project_name}_Smooth_3_3")
-contour_name = f"{project_name}_Contour_{contour_interval}"
+temp_contour_path = path.join(scratch_gdb, 'temp_contour')
+contour_name = f"{project_name}_Contour_{contour_interval.replace('.','_dot_')}"
 contour_path = path.join(project_gdb, 'Layers', contour_name)
-# z_factor = 0.3048 # Meters to Intl Feet
 
 try:
+    emptyScratchGDB(scratch_gdb)
     removeMapLayers(map, [contour_name])
     logBasicSettings(log_file_path, project_workspace, project_dem, contour_interval)
 
+    ### Create Smoothed DEM if Needed ###
+    if not Exists(smoothed_dem_path):
+        SetProgressorLabel('Smoothing DEM with Focal Statistics...')
+        AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
+        output_focal_stats = FocalStatistics(project_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
+        output_focal_stats.save(smoothed_dem_path)
+
     ### Create Contours ###
-    SetProgressorLabel('Creating Contours...')
-    AddMsgAndPrint('\nCreating Contours...', log_file_path=log_file_path)
-    Contour(smoothed_dem_path, contour_path, contour_interval)
+    SetProgressorLabel('Creating temporary Contours layer...')
+    AddMsgAndPrint('\nCreating temporary Contours layer...', log_file_path=log_file_path)
+    Contour(smoothed_dem_path, temp_contour_path, contour_interval)
 
-    # arcpy.AddField_management(ContoursTemp, "Index", "DOUBLE", "", "", "", "", "NULLABLE", "NON_REQUIRED", "")
-    # if Exists("ContourLYR"):
-    #     try:
-    #         arcpy.Delete_management("ContourLYR")
-    #     except:
-    #         pass
+    ### Add Index Field ###
+    SetProgressorLabel('Updating fields in temporary Contours layer...')
+    AddMsgAndPrint('\nUpdating fields in temporary Contours layer...', log_file_path=log_file_path)
+    DeleteField(temp_contour_path, 'Id')
+    AddField(temp_contour_path, 'Index', 'DOUBLE')
 
-    # arcpy.MakeFeatureLayer_management(ContoursTemp,"ContourLYR","","","")
+    ### Update Every 5th Index to 1 ###
+    SetProgressorLabel('Updating contour index field...')
+    AddMsgAndPrint('\nUpdating contour index field...', log_file_path=log_file_path)
+    MakeFeatureLayer(temp_contour_path, 'contour_lyr')
+    expression = "MOD( \"CONTOUR\"," + str(float(contour_interval) * 5) + ") = 0"
+    SelectLayerByAttribute('contour_lyr', 'NEW_SELECTION', expression)
+    CalculateField('contour_lyr', 'Index', 1, 'PYTHON3')
 
-    # # Every 5th contour will be indexed to 1
-    # expression = "MOD( \"CONTOUR\"," + str(float(interval) * 5) + ") = 0"
-    # arcpy.SelectLayerByAttribute_management("ContourLYR", "NEW_SELECTION", expression)
-    # del expression
+    ### Update All Other Indexes to 0 ###
+    SelectLayerByAttribute('contour_lyr', 'SWITCH_SELECTION')
+    CalculateField('contour_lyr', 'Index', 0, 'PYTHON3')
 
-    # indexValue = 1
-    # #arcpy.CalculateField_management("ContourLYR", "Index", indexValue, "VB","")
-    # arcpy.CalculateField_management("ContourLYR", "Index", indexValue, "PYTHON_9.3")
-    # del indexValue
+    ### Copy Final Contour Output ###
+    SetProgressorLabel('Finalizing Contour output...')
+    AddMsgAndPrint('\nFinalizing Contour output...', log_file_path=log_file_path)
+    SelectLayerByAttribute('contour_lyr', 'CLEAR_SELECTION')
+    CopyFeatures('contour_lyr', contour_path)
 
-    # # All othe contours will be indexed to 0
-    # arcpy.SelectLayerByAttribute_management("ContourLYR", "SWITCH_SELECTION")
-    # indexValue = 0
-    # #arcpy.CalculateField_management("ContourLYR", "Index", indexValue, "VB","")
-    # arcpy.CalculateField_management("ContourLYR", "Index", indexValue, "PYTHON_9.3")
-    # del indexValue
+    ### Add Output to Map ###
+    AddMsgAndPrint('\nAdding Contours to map...', log_file_path=log_file_path)
+    SetProgressorLabel('Adding Contours to map...')
+    SetParameterAsText(2, contour_path)
 
-    # # Clear selection and write all contours to a new feature class
-    # arcpy.SelectLayerByAttribute_management("ContourLYR","CLEAR_SELECTION")
-    # arcpy.CopyFeatures_management("ContourLYR", Contours)
+    ### Compact Project GDB ###
+    try:
+        SetProgressorLabel('Compacting project geodatabase...')
+        AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
+        Compact(project_gdb)
+    except:
+        pass
 
     AddMsgAndPrint('\nCreate Contours completed successfully', log_file_path=log_file_path)
 
@@ -114,3 +137,6 @@ except:
         AddMsgAndPrint(errorMsg('Create Contours'), 2, log_file_path)
     except:
         AddMsgAndPrint(errorMsg('Create Contours'), 2)
+
+finally:
+    emptyScratchGDB(scratch_gdb)
