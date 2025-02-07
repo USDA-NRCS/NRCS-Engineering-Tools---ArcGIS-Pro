@@ -8,7 +8,7 @@ from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallIn
 from arcpy.analysis import Buffer
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
-from arcpy.sa import ExtractByMask, Times
+from arcpy.sa import ExtractByMask, Fill, Times
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
@@ -236,7 +236,8 @@ try:
     ### Convert DEM Values to International Feet ###
     AddMsgAndPrint('\nFinalizing DEM...', log_file_path=log_file_path)
     SetProgressorLabel('Finalizing DEM...')
-    output_dem = Times(temp_dem, z_factor)
+    output_ft_dem = Times(temp_dem, z_factor)
+    output_dem = Fill(output_ft_dem, 0.25)
     output_dem.save(project_dem_path)
 
     ### Add Output DEM to Map ###
