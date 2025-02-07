@@ -5,6 +5,7 @@ from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, \
     SetParameterAsText, SetProgressorLabel
+from arcpy.management import Compact
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Con, Fill, FocalStatistics, Hillshade, Minus, Slope
 
@@ -104,6 +105,14 @@ try:
     SetParameterAsText(1, slope_path)
     SetParameterAsText(2, hillshade_path)
     SetParameterAsText(3, depth_grid_path)
+
+    ### Compact Project GDB ###
+    try:
+        SetProgressorLabel('Compacting project geodatabase...')
+        AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
+        Compact(project_gdb)
+    except:
+        pass
 
     AddMsgAndPrint('\nCreate Hillshade, Slope, Depth Grid completed successfully', log_file_path=log_file_path)
 
