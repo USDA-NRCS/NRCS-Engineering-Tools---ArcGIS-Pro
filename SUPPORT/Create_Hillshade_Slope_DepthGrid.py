@@ -12,7 +12,7 @@ from arcpy.sa import Con, Fill, FocalStatistics, Hillshade, Minus, Slope
 from utils import AddMsgAndPrint, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_workspace, project_dem):
+def logBasicSettings(log_file_path, project_dem, create_hillshade, create_slope, create_depth_grid):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create Hillshade, Slope, Depth Grid\n')
@@ -20,8 +20,10 @@ def logBasicSettings(log_file_path, project_workspace, project_dem):
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\tProject Workspace: {project_workspace}\n")
         f.write(f"\tProject DEM: {project_dem}\n")
+        f.write(f"\tCreate Hillshade: {'True' if create_hillshade else 'False'}\n")
+        f.write(f"\tCreate Slope: {'True' if create_slope else 'False'}\n")
+        f.write(f"\tCreate Depth Grid: {'True' if create_depth_grid else 'False'}\n")
 
 
 ### Initial Tool Validation ###
@@ -78,7 +80,7 @@ try:
     if create_slope: remove_layers.append(slope_name)
     if create_depth_grid: remove_layers.append(depth_grid_name)
     removeMapLayers(map, remove_layers)
-    logBasicSettings(log_file_path, project_workspace, project_dem)
+    logBasicSettings(log_file_path, project_dem, create_hillshade, create_slope, create_depth_grid)
 
     if create_hillshade:
         ### Create Hillshade ###
