@@ -13,7 +13,7 @@ from arcpy.sa import Contour, FocalStatistics
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_workspace, project_dem, contour_interval):
+def logBasicSettings(log_file_path, project_dem, contour_interval):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create Contours\n')
@@ -21,7 +21,6 @@ def logBasicSettings(log_file_path, project_workspace, project_dem, contour_inte
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\tProject Workspace: {project_workspace}\n")
         f.write(f"\tProject DEM: {project_dem}\n")
         f.write(f"\tContour Interval: {contour_interval}\n")
 
@@ -76,7 +75,7 @@ contour_path = path.join(project_gdb, 'Layers', contour_name)
 try:
     emptyScratchGDB(scratch_gdb)
     removeMapLayers(map, [contour_name])
-    logBasicSettings(log_file_path, project_workspace, project_dem, contour_interval)
+    logBasicSettings(log_file_path, project_dem, contour_interval)
 
     ### Create Smoothed DEM if Needed ###
     if not Exists(smoothed_dem_path):
