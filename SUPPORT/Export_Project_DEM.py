@@ -61,9 +61,9 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 
 # Set z-factor for converting vertical units from International Feet
 if output_z_units == 'Meters':
-    z_factor = 3.28083989501
+    z_factor = 0.3048
 elif output_z_units == 'Centimeters':
-    z_factor = 328.083989501
+    z_factor = 30.48
 elif output_z_units == 'International Feet':
     z_factor = 1
 elif output_z_units == 'International Inches':
