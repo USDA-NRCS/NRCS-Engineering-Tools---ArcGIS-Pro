@@ -3,18 +3,18 @@
   "version" : "3.3.0",
   "build" : 52636,
   "layers" : [
-    "CIMPATH=engineering/newproject_depthgrid.json"
+    "CIMPATH=engineering/test_project_depthgrid.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMRasterLayer",
-      "name" : "NewProject_DepthGrid",
-      "uRI" : "CIMPATH=engineering/newproject_depthgrid.json",
+      "name" : "Test_Project_DepthGrid",
+      "uRI" : "CIMPATH=engineering/test_project_depthgrid.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "NewProject_DepthGrid",
+      "description" : "Test_Project_DepthGrid",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
         "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
@@ -33,9 +33,9 @@
       "allowDrapingOnIntegratedMesh" : true,
       "dataConnection" : {
         "type" : "CIMStandardDataConnection",
-        "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\NewProject\\NewProject_EngPro.gdb",
+        "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\Test_Project\\Test_Project_EngPro.gdb",
         "workspaceFactory" : "FileGDB",
-        "dataset" : "NewProject_DepthGrid",
+        "dataset" : "Test_Project_DepthGrid",
         "datasetType" : "esriDTRasterDataset"
       },
       "colorizer" : {
@@ -231,7 +231,8 @@
           "roundingValue" : 5,
           "useSeparator" : true,
           "zeroPad" : true
-        }
+        },
+        "heading" : "Value"
       }
     }
   ],
