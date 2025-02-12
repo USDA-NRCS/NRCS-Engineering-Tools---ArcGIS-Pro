@@ -3,8 +3,7 @@ from os import path
 from sys import argv
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, \
-    SetParameterAsText, SetProgressorLabel
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Buffer
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
@@ -72,9 +71,9 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_dem_name = f"{project_name}_DEM"
 project_dem_path = path.join(project_gdb, project_dem_name)
 buffer_aoi = path.join(project_gdb, 'Layers', 'Buffer_AOI')
-wgs_AOI = path.join(scratch_gdb, 'AOI_WGS84')
-wgs84_dem = path.join(scratch_gdb, 'WGS84_DEM')
-temp_dem = path.join(scratch_gdb, 'tempDEM')
+temp_aoi = path.join(scratch_gdb, 'temp_aoi')
+clipped_dem = path.join(scratch_gdb, 'clipped_dem')
+temp_dem = path.join(scratch_gdb, 'temp_dem')
 
 ### ESRI Environment Settings ###
 env.overwriteOutput = True
@@ -111,60 +110,45 @@ elif input_z_units == 'US Survey Inches':
 
 try:
     emptyScratchGDB(scratch_gdb)
+    removeMapLayers(map, [project_dem_name])
     logBasicSettings(log_file_path, project_workspace, dem_format, input_z_units, input_dem_sr, output_sr, cell_size)
 
-    #### Create the projectAOI and projectAOI_B layers based on the choice selected by user input
-    AddMsgAndPrint('\nBuffering selected extent...', log_file_path=log_file_path)
+    ### Buffer Project AOI ###
     SetProgressorLabel('Buffering selected extent...')
+    AddMsgAndPrint('\nBuffering selected extent...', log_file_path=log_file_path)
     Buffer(project_aoi, buffer_aoi, '500 Feet', 'FULL', '', 'ALL', '')
 
-    #### Remove existing project DEM and Hillshade if present in map
-    AddMsgAndPrint('\nRemoving layers from project maps, if present...', log_file_path=log_file_path)
-    SetProgressorLabel('Removing layers from project maps, if present...')
-    removeMapLayers(map, [project_dem_name])
-
-    #### Process the input DEMs
-    AddMsgAndPrint('\nProcessing the input DEM(s)...', log_file_path=log_file_path)
-    SetProgressorLabel('Processing the input DEM(s)...')
-
-    # Extract and process the DEM if it's an image service
+    ### Image Service Extract ###
     if dem_format in ['NRCS Image Service', 'External Image Service']:
         if cell_size == '':
             AddMsgAndPrint('\nAn output DEM cell size was not specified. Exiting...', 2, log_file_path)
             exit()
         else:
-            AddMsgAndPrint('\nProjecting AOI to match input DEM...', log_file_path=log_file_path)
-            SetProgressorLabel('Projecting AOI to match input DEM...')
-            wgs_CS = input_dem_sr
-            Project(buffer_aoi, wgs_AOI, wgs_CS)
-            
-            AddMsgAndPrint('\nDownloading DEM data...', log_file_path=log_file_path)
+            SetProgressorLabel('Projecting buffered AOI to match input DEM...')
+            AddMsgAndPrint('\nProjecting buffered AOI to match input DEM...', log_file_path=log_file_path)
+            Project(buffer_aoi, temp_aoi, input_dem_sr)
+
             SetProgressorLabel('Downloading DEM data...')
-            aoi_ext = Describe(wgs_AOI).extent
-            xMin = aoi_ext.XMin
-            yMin = aoi_ext.YMin
-            xMax = aoi_ext.XMax
-            yMax = aoi_ext.YMax
-            clip_ext = f"{str(xMin)} {str(yMin)} {str(xMax)} {str(yMax)}"
-            Clip(sourceService, clip_ext, wgs84_dem, '', '', '', 'NO_MAINTAIN_EXTENT')
+            AddMsgAndPrint('\nDownloading DEM data...', log_file_path=log_file_path)
+            aoi_ext = Describe(temp_aoi).extent
+            clip_ext = f"{str(aoi_ext.XMin)} {str(aoi_ext.YMin)} {str(aoi_ext.XMax)} {str(aoi_ext.YMax)}"
+            Clip(sourceService, clip_ext, clipped_dem, '', '', '', 'NO_MAINTAIN_EXTENT')
 
-            AddMsgAndPrint('\nProjecting downloaded DEM...', log_file_path=log_file_path)
             SetProgressorLabel('Projecting downloaded DEM...')
-            ProjectRaster(wgs84_dem, temp_dem, output_sr, 'BILINEAR', cell_size)
+            AddMsgAndPrint('\nProjecting downloaded DEM...', log_file_path=log_file_path)
+            ProjectRaster(clipped_dem, temp_dem, output_sr, 'BILINEAR', cell_size)
 
-    # Else, extract the local file DEMs
+    ### Local File(s) Extract ###
     else:
         dem_count = len(input_dems)
-        # Manage spatial references
         env.outputCoordinateSystem = output_sr
         if transformation != '':
             env.geographicTransformations = transformation
-        
-        # Clip out the DEMs that were entered
-        AddMsgAndPrint('\tExtracting input DEM(s)...', log_file_path=log_file_path)
+
         SetProgressorLabel('Extracting input DEM(s)...')
+        AddMsgAndPrint('\nExtracting input DEM(s)...', log_file_path=log_file_path)
         x = 0
-        DEMlist = []
+        dem_list = []
         while x < dem_count:
             raster = input_dems[x].replace("'", '')
             desc = Describe(raster)
@@ -182,21 +166,21 @@ try:
                 exit()
             out_clip = f"{temp_dem}_{str(x)}"
             try:
-                extractedDEM = ExtractByMask(raster_path, buffer_aoi)
-                extractedDEM.save(out_clip)
+                extracted_dem = ExtractByMask(raster_path, buffer_aoi)
+                extracted_dem.save(out_clip)
             except:
-                AddMsgAndPrint('\nOne or more input DEMs may have a problem! Please verify that the input DEMs cover the tract area and try to run again. Exiting...', 2, log_file_path)
+                AddMsgAndPrint('\nOne or more input DEMs may have a problem. Please verify that the input DEMs cover the tract area and try to run again. Exiting...', 2, log_file_path)
                 exit()
             if x == 0:
-                mosaicInputs = str(out_clip)
+                mosaic_inputs = str(out_clip)
             else:
-                mosaicInputs = f"{mosaicInputs};{str(out_clip)}"
-            DEMlist.append(str(out_clip))
+                mosaic_inputs = f"{mosaic_inputs};{str(out_clip)}"
+            dem_list.append(str(out_clip))
             x += 1
 
         cellsize = 0
         # Determine largest cell size
-        for raster in DEMlist:
+        for raster in dem_list:
             desc = Describe(raster)
             sr = desc.SpatialReference
             cellwidth = desc.MeanCellWidth
@@ -205,26 +189,23 @@ try:
 
         # Merge the DEMs
         if dem_count > 1:
-            AddMsgAndPrint('\nMerging multiple input DEM(s)...', log_file_path=log_file_path)
             SetProgressorLabel('Merging multiple input DEM(s)...')
-            MosaicToNewRaster(mosaicInputs, scratch_gdb, temp_dem, '#', '32_BIT_FLOAT', cellsize, '1', 'MEAN', '#')
-
-        # Else just convert the one input DEM to become the tempDEM
+            AddMsgAndPrint('\nMerging multiple input DEM(s)...', log_file_path=log_file_path)
+            MosaicToNewRaster(mosaic_inputs, scratch_gdb, temp_dem, '#', '32_BIT_FLOAT', cellsize, '1', 'MEAN', '#')
         else:
             AddMsgAndPrint('\nOnly one input DEM detected. Carrying extract forward for final DEM processing...', log_file_path=log_file_path)
-            CopyRaster(DEMlist[0], temp_dem)
+            CopyRaster(dem_list[0], temp_dem)
 
-        # Delete clippedDEM files
-        AddMsgAndPrint('\nDeleting temp DEM file(s)...', log_file_path=log_file_path)
+        # Delete clipped DEM files
         SetProgressorLabel('Deleting temp DEM file(s)...')
-        for raster in DEMlist:
+        AddMsgAndPrint('\nDeleting temp DEM file(s)...', log_file_path=log_file_path)
+        for raster in dem_list:
             Delete(raster)
 
     # Gather info on the final temp DEM
     desc = Describe(temp_dem)
     sr = desc.SpatialReference
     units = sr.LinearUnitName
-
     if sr.Type == 'Projected':
         AddMsgAndPrint(f"\tDEM Projection Name: {sr.Name}", log_file_path=log_file_path)
         AddMsgAndPrint(f"\tDEM XY Linear Units: {units}", log_file_path=log_file_path)
@@ -234,16 +215,29 @@ try:
         exit()
 
     ### Convert DEM Values to International Feet ###
-    AddMsgAndPrint('\nFinalizing DEM...', log_file_path=log_file_path)
     SetProgressorLabel('Finalizing DEM...')
+    AddMsgAndPrint('\nFinalizing DEM...', log_file_path=log_file_path)
     output_ft_dem = Times(temp_dem, z_factor)
     output_dem = Fill(output_ft_dem, 0.25)
     output_dem.save(project_dem_path)
 
-    ### Add Output DEM to Map ###
-    AddMsgAndPrint('\nAdding DEM to map...', log_file_path=log_file_path)
+    ### Add Output DEM to Map and Symbolize ###
     SetProgressorLabel('Adding DEM to map...')
-    SetParameterAsText(10, project_dem_path)
+    AddMsgAndPrint('\nAdding DEM to map...', log_file_path=log_file_path)
+    map.addDataFromPath(project_dem_path)
+    dem_layer = map.listLayers(project_dem_name)[0]
+    sym = dem_layer.symbology
+    sym.colorizer.resamplingType = 'Bilinear' #NOTE: Pro does not seem to honor this
+    sym.colorizer.stretchType = 'StandardDeviation'
+    sym.colorizer.standardDeviation = 2.5
+    sym.colorizer.colorRamp = aprx.listColorRamps('Elevation #1')[0]
+    dem_layer.symbology = sym
+
+    ### Update Layer Order in TOC ###
+    if map.listLayers()[0].name == project_dem_name:
+        SetProgressorLabel('Updating layer order...')
+        AddMsgAndPrint('\nUpdating layer order...', log_file_path=log_file_path)
+        map.moveLayer(map.listLayers()[1], dem_layer, 'AFTER')
 
     ### Compact Project GDB ###
     try:
