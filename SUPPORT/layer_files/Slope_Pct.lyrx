@@ -3,18 +3,18 @@
   "version" : "3.3.0",
   "build" : 52636,
   "layers" : [
-    "CIMPATH=engineering/newproject_slope.json"
+    "CIMPATH=engineering/test_project_slope.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMRasterLayer",
-      "name" : "NewProject_Slope",
-      "uRI" : "CIMPATH=engineering/newproject_slope.json",
+      "name" : "Test_Project_Slope",
+      "uRI" : "CIMPATH=engineering/test_project_slope.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "NewProject_Slope",
+      "description" : "Test_Project_Slope",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
         "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
@@ -33,9 +33,9 @@
       "allowDrapingOnIntegratedMesh" : true,
       "dataConnection" : {
         "type" : "CIMStandardDataConnection",
-        "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\NewProject\\NewProject_EngPro.gdb",
+        "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\Test_Project\\Test_Project_EngPro.gdb",
         "workspaceFactory" : "FileGDB",
-        "dataset" : "NewProject_Slope",
+        "dataset" : "Test_Project_Slope",
         "datasetType" : "esriDTRasterDataset"
       },
       "colorizer" : {
@@ -220,7 +220,8 @@
           "roundingOption" : "esriRoundNumberOfDecimals",
           "roundingValue" : 2,
           "zeroPad" : true
-        }
+        },
+        "heading" : "Value"
       }
     }
   ],
