@@ -1,447 +1,236 @@
-# ==========================================================================================
-# Name: Create_Stream_Network.py
-#
-# Author: Peter Mead
-#         Becker Soil Water Conservation District
-#         Red River Valley Conservation Service Area
-# e-mail: pemead@co.becker.mn.us
-#
-# Author: Adolfo.Diaz
-#         GIS Specialist
-#         National Soil Survey Center
-#         USDA - NRCS
-# e-mail: adolfo.diaz@usda.gov
-# phone: 608.662.4422 ext. 216
-#
-# Author: Chris Morse
-#         IN State GIS Coordinator
-#         USDA - NRCS
-# e-mail: chris.morse@usda.gov
-# phone: 317.501.1578
-#
-# Created by Peter Mead, Adolfo Diaz, USDA NRCS, 2013
-# Updated by Chris Morse, USDA NRCS, 2019
-#
-# ==========================================================================================
-# Updated  4/20/2020 - Adolfo Diaz
-#
-# - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
-# - All temporary raster layers such as Fill and Minus are stored in Memory and no longer
-#   written to hard disk.
-# - All describe functions use the arcpy.da.Describe functionality.
-# - Removed determineOverlap() function since this can now be done using the extent
-#   object to determine overalop of culverts within the AOI
-# - All field calculation expressions are in PYTHON3 format.
-# - Used acre conversiont dictionary and z-factor lookup table
-# - All cursors were updated to arcpy.da
-# - Updated AddMsgAndPrint to remove ArcGIS 10 boolean and gp function
-# - Updated print_exception function.  Traceback functions slightly changed for Python 3.6.
-# - Added Snap Raster environment
-# - Added parallel processing factor environment
-# - swithced from sys.exit() to exit()
-# - All gp functions were translated to arcpy
-# - Every function including main is in a try/except clause
-# - Main code is wrapped in if __name__ == '__main__': even though script will never be
-#   used as independent library.
-# - Normal messages are no longer Warnings unnecessarily.
+from getpass import getuser
+from os import path
+from sys import argv, exit
+from time import ctime
 
-# ==========================================================================================
-# Updated  4/20/2020 - Adolfo Diaz
-#
-# - Decided to clip the culverts to the AOI instead of using the extent object b/c
-#   county or statewide culvert layers may be used in the future and there is no sense
-#   in assessing every culvert within a couty/state wide layer.
-# - Added code to remove layers from an .aprx rather than simply deleting them
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, \
+    SetParameterAsText, SetProgressorLabel
+from arcpy.analysis import Buffer, Clip
+from arcpy.management import AddField, CalculateField, CalculateStatistics, Compact, Delete, GetCount, MosaicToNewRaster
+from arcpy.mp import ArcGISProject
+from arcpy.sa import Con, Fill, FlowAccumulation, FlowDirection, StreamLink, StreamToFeature, ZonalStatistics
 
-#
-## ===============================================================================================================
-def print_exception():
+from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
-    try:
 
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        theMsg = "\t" + traceback.format_exception(exc_type, exc_value, exc_traceback)[1] + "\n\t" + traceback.format_exception(exc_type, exc_value, exc_traceback)[-1]
+def logBasicSettings(log_file_path, project_aoi, input_culverts, stream_threshold):
+    with open (log_file_path, 'a+') as f:
+        f.write('\n######################################################################\n')
+        f.write('Executing Tool: Create Stream Network\n')
+        f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
+        f.write(f"User Name: {getuser()}\n")
+        f.write(f"Date Executed: {ctime()}\n")
+        f.write('User Parameters:\n')
+        f.write(f"\tProject AOI: {project_aoi}\n")
+        f.write(f"\tInput Culverts: {input_culverts if input_culverts else 'None'}\n")
+        f.write(f"\tStream Threshold: {stream_threshold}\n")
 
-        if theMsg.find("exit") > -1:
-            AddMsgAndPrint("\n\n")
-            pass
+
+### Initial Tool Validation ###
+try:
+    aprx = ArcGISProject('CURRENT')
+    map = aprx.listMaps('Engineering')[0]
+except:
+    AddMsgAndPrint('\nThis tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting!', 2)
+    exit()
+
+if CheckExtension('Spatial') == 'Available':
+    CheckOutExtension('Spatial')
+else:
+    AddMsgAndPrint('\nSpatial Analyst Extension not enabled. Please enable Spatial Analyst from Project, Licensing, Configure licensing options. Exiting...', 2)
+    exit()
+
+### Input Parameters ###
+project_aoi = GetParameterAsText(0)
+input_culverts = GetParameterAsText(1)
+stream_threshold = float(GetParameterAsText(2))
+
+### Locate Project GDB ###
+project_aoi_path = Describe(project_aoi).catalogPath
+if 'EngPro.gdb' in project_aoi_path and 'AOI' in project_aoi_path:
+    project_gdb = project_aoi_path[:project_aoi_path.find('.gdb')+4]
+else:
+    AddMsgAndPrint('\nThe selected AOI layer is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
+    exit()
+
+### Set Paths and Variables ###
+support_dir = path.dirname(argv[0])
+scratch_gdb = path.join(support_dir, 'Scratch.gdb')
+project_workspace = path.dirname(project_gdb)
+project_name = path.basename(project_workspace)
+log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
+project_dem_name = f"{project_name}_DEM"
+project_dem_path = path.join(project_gdb, project_dem_name)
+input_culverts_path = Describe(input_culverts).catalogPath
+output_culverts_name = f"{project_name}_Culverts"
+output_culverts_path = path.join(project_gdb, 'Layers', output_culverts_name)
+culverts_buffer_path = path.join(scratch_gdb, 'Culverts_Buffer')
+culverts_raster_path = path.join(project_gdb, 'Culverts_Raster') #TODO: should this be in project gdb or scratch?
+streams_name = f"{project_name}_Streams"
+streams_path = path.join(project_gdb, 'Layers', streams_name)
+hydro_dem_name = 'Hydro_DEM'
+hydro_dem_path = path.join(project_gdb, hydro_dem_name)
+flow_accum_name = 'Flow_Accumulation'
+flow_accum_path = path.join(project_gdb, flow_accum_name)
+flow_dir_name = 'Flow_Direction'
+flow_dir_path = path.join(project_gdb, flow_dir_name)
+
+### Ensure Project DEM Exists ###
+if not Exists(project_dem_path):
+    AddMsgAndPrint('\nCould not locate the project DEM layer for specified AOI. Exiting...', 2)
+    exit()
+project_dem_desc = Describe(project_dem_path)
+dem_cell_size = project_dem_desc.meanCellWidth
+dem_sr = project_dem_desc.spatialReference
+linear_units = dem_sr.linearUnitName
+
+### ESRI Environment Settings ###
+#TODO: set resampling and pyramids like the other DEM tools?
+env.overwriteOutput = True
+env.extent = 'MINOF'
+env.cellSize = dem_cell_size
+env.snapRaster = project_dem_path
+env.outputCoordinateSystem = dem_sr
+
+#TODO: Clarify this: Z-factor conversion Lookup table
+# lookup dictionary to convert XY units to area.  Key = XY unit of DEM; Value = conversion factor to sq.meters
+# Assign Z-factor based on XY and Z units of DEM
+# the following represents a matrix of possible z-Factors
+# using different combination of xy and z units
+# ----------------------------------------------------
+#                      Z - Units
+#                       Meter    Foot     Centimeter     Inch
+#          Meter         1	    0.3048	    0.01	    0.0254
+#  XY      Foot        3.28084	  1	      0.0328084	    0.083333
+# Units    Centimeter   100	    30.48	     1	         2.54
+#          Inch        39.3701	  12       0.393701	      1
+# ---------------------------------------------------
+acreConversionDict = {'Meters':4046.8564224,'Meter':4046.8564224,'Foot':43560,'Foot_US':43560,'Feet':43560, 'Centimeter':40470000,'Inch':6273000}
+unitLookUpDict = {'Meter':0,'Meters':0,'Foot':1,'Foot_US':1,'Feet':1,'Centimeter':2,'Centimeters':2,'Inch':3,'Inches':3}
+zFactorList = [[1,0.3048,0.01,0.0254],
+                [3.28084,1,0.0328084,0.083333],
+                [100,30.48,1.0,2.54],
+                [39.3701,12,0.393701,1.0]]
+
+try:
+    removeMapLayers(map, [output_culverts_name, streams_name, hydro_dem_name, flow_accum_name, flow_dir_name])
+    logBasicSettings(log_file_path, project_aoi, input_culverts, stream_threshold)
+
+    ### Process Input Culverts ###
+    if input_culverts:
+        SetProgressorLabel('Processing input culverts...')
+        AddMsgAndPrint('\nProcessing input culverts...', log_file_path=log_file_path)
+
+        if input_culverts_path != output_culverts_path:
+            SetProgressorLabel('Clipping input culverts to project AOI layer...')
+            AddMsgAndPrint('\nClipping input culverts to project AOI layer...', log_file_path=log_file_path)
+            Clip(input_culverts, project_aoi, output_culverts_path)
         else:
-            AddMsgAndPrint("\n----------------------------------- ERROR Start -----------------------------------",2)
-            AddMsgAndPrint(theMsg,2)
-            AddMsgAndPrint("------------------------------------- ERROR End -----------------------------------\n",2)
+            AddMsgAndPrint('\nExisting project culverts layer used as input...', log_file_path=log_file_path)
 
-    except:
-        AddMsgAndPrint("Unhandled error in print_exception method", 2)
+        # Ensure output culverts layer has at least one feature in AOI
+        if int(GetCount(output_culverts_path).getOutput(0)) > 0:
 
-## ================================================================================================================
-def AddMsgAndPrint(msg, severity=0):
-    # prints message to screen if run as a python script
-    # Adds tool message to the geoprocessor
-    # Split the message on  \n first, so that if it's multiple lines, a GPMessage will be added for each line
+            # Buffer the culverts to 1 pixel
+            SetProgressorLabel('Buffering culverts by DEM cell size...')
+            AddMsgAndPrint('\nBuffering culverts by DEM cell size...', log_file_path=log_file_path)
+            buffer_size = f"{str(dem_cell_size)} Meters"
+            Buffer(output_culverts_path, culverts_buffer_path, buffer_size, 'FULL', 'ROUND', 'NONE')
 
-    print(msg)
+            # Dummy field just to execute Zonal Stats on each feature
+            AddField(culverts_buffer_path, 'ZONE', 'TEXT')
+            CalculateField(culverts_buffer_path, 'ZONE', f"!{Describe(culverts_buffer_path).OIDFieldName}!", 'PYTHON3')
 
+            # Get the minimum elevation value for each culvert
+            SetProgressorLabel('Finding minimum elevation of culverts...')
+            AddMsgAndPrint('\nFinding minimum elevation of culverts...', log_file_path=log_file_path)
+            culverts_min_value = ZonalStatistics(culverts_buffer_path, 'ZONE', project_dem_path, 'MINIMUM', 'NODATA')
+            culverts_min_value.save(culverts_raster_path)
+
+            # Elevation cells that overlap the culverts will get the minimum elevation value
+            mosaic_list = f"{project_dem_path};{culverts_raster_path}"
+            MosaicToNewRaster(mosaic_list, project_gdb, hydro_dem_name, '#', '32_BIT_FLOAT', dem_cell_size, '1', 'LAST')
+
+            hydro_dem_fill = Fill(hydro_dem_path)
+
+    else:
+        SetProgressorLabel('No culverts within project AOI...')
+        AddMsgAndPrint('\nNo culverts within project AOI...', log_file_path=log_file_path)
+        hydro_dem_fill = Fill(project_dem_path)
+
+    ### Create Flow Direction Grid ###
+    SetProgressorLabel('Creating Flow Direction...')
+    AddMsgAndPrint('\nCreating Flow Direction...')
+    flow_direction = FlowDirection(hydro_dem_fill, 'NORMAL')
+    flow_direction.save(flow_dir_path)
+
+    ### Create Flow Accumulation Grid ###
+    SetProgressorLabel('Creating Flow Accumulation...')
+    AddMsgAndPrint('\nCreating Flow Accumulation...', log_file_path=log_file_path)
+    flow_accumulation = FlowAccumulation(flow_dir_path, '', 'INTEGER')
+    flow_accumulation.save(flow_accum_path)
+    # Compute a histogram for the FlowAccumulation layer so that the full range of values are captured for subsequent stream generation
+    # This tries to fix a bug of the primary channel not generating for large watersheds with high values in flow accumulation grid
+    CalculateStatistics(flow_accum_path)
+
+    ### Create Stream Link ###
+    #TODO: Why is this checking for grater than 0, else??
+    if stream_threshold > 0:
+        # created using pixels that have a flow accumulation greater than the user-specified acre threshold
+        #TODO: Do we need acreConversionDict??
+        acreConvFactor = acreConversionDict.get(linear_units)
+        acreThresholdVal = round((stream_threshold * acreConvFactor)/(dem_cell_size**2))
+
+        # Select all cells that are greater than or equal to the acre stream threshold value
+        con_flow_accumulation = Con(flow_accum_path, flow_accum_path, '', f"Value >= {str(acreThresholdVal)}")
+
+        # Create Stream Link Works
+        SetProgressorLabel('Creating Stream Link...')
+        AddMsgAndPrint('\nCreating Stream Link...', log_file_path=log_file_path)
+        stream_link = StreamLink(con_flow_accumulation, flow_dir_path)
+
+    # All values in flowAccum will be used to create stream link
+    else:
+        SetProgressorLabel('Creating Stream Link...')
+        AddMsgAndPrint('\nCreating Stream Link...', log_file_path=log_file_path)
+        stream_link = StreamLink(flow_accum_path, flow_dir_path)
+
+    ### Convert Raster to Stream Network ###
+    SetProgressorLabel('Creating Stream Network...')
+    AddMsgAndPrint('\nCreating Stream Network...', log_file_path=log_file_path)
+    StreamToFeature(stream_link, flow_dir_path, streams_path, 'SIMPLIFY')
+
+    # Delete unwanted datasets
+    Delete(hydro_dem_fill)
+    Delete(stream_link)
+
+    ### Add Outputs to Map ###
+    SetParameterAsText(3, streams_path)
+    SetParameterAsText(4, output_culverts_path)
+
+    ### Remove Digitized Layer (if present) ###
+    for lyr in map.listLayers():
+        if '01. Create Stream Network' in lyr.name:
+            map.removeLayer(lyr)
+
+    ### Compact Project GDB ###
     try:
-        f = open(textFilePath,'a+')
-        f.write(msg + " \n")
-        f.close
-        del f
-
+        SetProgressorLabel('Compacting project geodatabase...')
+        AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
+        Compact(project_gdb)
     except:
         pass
 
-    if severity == 0:
-        arcpy.AddMessage(msg)
+    AddMsgAndPrint('\nCreate Stream Network completed successfully', log_file_path=log_file_path)
 
-    elif severity == 1:
-        arcpy.AddWarning(msg)
+except SystemExit:
+    pass
 
-    elif severity == 2:
-        arcpy.AddError(msg)
-
-## ================================================================================================================
-def logBasicSettings():
-    # record basic user inputs and settings to log file for future purposes
-
+except:
     try:
-        import getpass, time
-
-        arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
-
-        f = open(textFilePath,'a+')
-        f.write("\n################################################################################################################\n")
-        f.write("Executing \"2.Create Stream Network\" Tool\n")
-        f.write("User Name: " + getpass.getuser() + "\n")
-        f.write("Date Executed: " + time.ctime() + "\n")
-        f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
-        f.write("User Parameters:\n")
-        f.write("\tWorkspace: " + userWorkspace + "\n")
-        f.write("\tDem_AOI: " + DEM_aoi + "\n")
-
-        if culvertsExist:
-
-            if int(arcpy.GetCount_management(burnCulverts).getOutput(0)) > 1:
-                f.write("\tCulverts Digitized: " + str(numOfCulverts) + "\n")
-            else:
-                f.write("\tCulverts Digitized: 0\n")
-
-        else:
-            f.write("\tCulverts Digitized: 0\n")
-
-        f.write("\tStream Threshold: " + str(streamThreshold) + "\n")
-
-        f.close
-        del f
-
+        AddMsgAndPrint(errorMsg('Create Stream Network'), 2, log_file_path)
     except:
-        print_exception()
-        exit()
+        AddMsgAndPrint(errorMsg('Create Stream Network'), 2)
 
-## ================================================================================================================
-# Import system modules
-import arcpy, sys, os, traceback
-from arcpy.sa import *
-
-if __name__ == '__main__':
-
-    try:
-
-        # Check out Spatial Analyst License
-        if arcpy.CheckExtension("spatial") == "Available":
-            arcpy.CheckOutExtension("spatial")
-        else:
-            arcpy.AddError("Spatial Analyst Extension not enabled. Please enable Spatial analyst from the Tools/Extensions menu\n",2)
-            exit()
-
-        # --------------------------------------------------------------------------------------------- Input Parameters
-        AOI = arcpy.GetParameterAsText(0)
-        burnCulverts = arcpy.GetParameterAsText(1)
-        streamThreshold = float(arcpy.GetParameterAsText(2))
-
-        # Uncomment the following  3 lines to run from pythonWin
-##        AOI = r'E:\NRCS_Engineering_Tools_ArcPro\Testing\Testing_EngTools.gdb\Layers\Testing_AOI'
-##        burnCulverts = ""
-##        streamThreshold = float(1)
-
-        # Set environmental variables
-        arcpy.env.parallelProcessingFactor = "75%"
-        arcpy.env.overwriteOutput = True
-
-        # --------------------------------------------------------------------------------------------- Define Variables
-        aoiDesc = arcpy.da.Describe(AOI)
-        aoiPath = aoiDesc['catalogPath']
-        aoiName = aoiDesc['name']
-        aoiExtent = aoiDesc['extent']
-
-        # exit if AOI doesn't follow file structure
-        if aoiPath.find('.gdb') == -1 or not aoiName.endswith('AOI'):
-            AddMsgAndPrint("\n\n" + aoiName + " is an invalid project_AOI Feature",2)
-            AddMsgAndPrint("Run Watershed Delineation Tool #1. Define Area of Interest\n\n",2)
-            exit()
-
-        watershedGDB_path = aoiPath[:aoiPath.find('.gdb')+4]
-        watershedGDB_name = os.path.basename(watershedGDB_path)
-        watershedGDB_FDpath = watershedGDB_path + os.sep + 'Layers'
-        userWorkspace = os.path.dirname(watershedGDB_path)
-        projectName = arcpy.ValidateTableName(os.path.basename(userWorkspace).replace(" ","_"))
-
-        # --------------------------------------------------------------- Datasets
-        # ------------------------------ Permanent Datasets
-        culverts = watershedGDB_FDpath + os.sep + projectName + "_Culverts"
-        streams = watershedGDB_FDpath + os.sep + projectName + "_Streams"
-        DEM_aoi = watershedGDB_path + os.sep + projectName + "_DEM"
-        hydroDEM = watershedGDB_path + os.sep + "hydroDEM"
-        FlowAccum = watershedGDB_path + os.sep + "flowAccumulation"
-        FlowDir = watershedGDB_path + os.sep + "flowDirection"
-
-        # check if culverts exist.  This is only needed b/c the script may be executed manually
-        arcpy.AddMessage("Burn culverts is: " + burnCulverts)
-        if burnCulverts:
-            numOfCulverts = int(arcpy.GetCount_management(burnCulverts).getOutput(0))
-            if len(burnCulverts) < 1 or not numOfCulverts:
-                culvertsExist = False
-            else:
-                culvertsExist = True
-        else:
-            culvertsExist = False
-
-        # Path of Log file
-        textFilePath = userWorkspace + os.sep + projectName + "_EngTools.txt"
-
-        # record basic user inputs and settings to log file for future purposes
-        logBasicSettings()
-
-        # ---------------------------------------------------------------------------------------------------------------------- Check Parameters
-        # Make sure the FGDB and DEM_aoi exists from Define Area of Interest tool.
-        if not arcpy.Exists(watershedGDB_path) or not arcpy.Exists(DEM_aoi):
-            AddMsgAndPrint("\nThe \"" + str(projectName) + "_DEM\" raster file or the File Geodatabase from Step 1 was not found",2)
-            AddMsgAndPrint("Run Watershed Delineation Tool #1: Define Area of Interest",2)
-            exit()
-
-        # --------------------------------------------------------------------------------------- Remove any project layers from aprx and workspace
-        datasetsToRemove = (streams,hydroDEM,FlowAccum,FlowDir)             # Full path of layers
-        datasetsBaseName = [os.path.basename(x) for x in datasetsToRemove]  # layer names as they would appear in .aprx
-
-        # Remove culverts from .aprx as well
-        if culvertsExist:
-            datasetsBaseName.append(os.path.basename(culverts))
-
-        # Remove layers from ArcGIS Pro Session
-        try:
-            aprx = arcpy.mp.ArcGISProject("CURRENT")
-
-            for maps in aprx.listMaps():
-                for lyr in maps.listLayers():
-                    if lyr.name in datasetsBaseName:
-                       maps.removeLayer(lyr)
-        except:
-            pass
-
-        x = 0
-        for dataset in datasetsToRemove:
-
-            if arcpy.Exists(dataset):
-
-                if x < 1:
-                    AddMsgAndPrint("\nRemoving old datasets from FGDB: " + watershedGDB_name,1)
-                    x += 1
-
-                try:
-                    arcpy.Delete_management(dataset)
-                    AddMsgAndPrint("\tDeleting....." + os.path.basename(dataset),1)
-                except:
-                    pass
-
-        # -------------------------------------------------------------------------------------------------------------------- Retrieve DEM Properties
-        demDesc = arcpy.da.Describe(DEM_aoi)
-        demName = demDesc['name']
-        demPath = demDesc['catalogPath']
-        demCellSize = demDesc['meanCellWidth']
-        demFormat = demDesc['format']
-        demSR = demDesc['spatialReference']
-        demCoordType = demSR.type
-        linearUnits = demSR.linearUnitName
-
-        arcpy.env.extent = "MINOF"
-        arcpy.env.cellSize = demCellSize
-        arcpy.env.snapRaster = demPath
-        arcpy.env.outputCoordinateSystem = demSR
-        arcpy.env.workspace = watershedGDB_path
-
-        ## ------------------------------------------------------------------------- Z-factor conversion Lookup table
-        # lookup dictionary to convert XY units to area.  Key = XY unit of DEM; Value = conversion factor to sq.meters
-        acreConversionDict = {'Meters':4046.8564224,'Meter':4046.8564224,'Foot':43560,'Foot_US':43560,'Feet':43560, 'Centimeter':40470000,'Inch':6273000}
-
-        # Assign Z-factor based on XY and Z units of DEM
-        # the following represents a matrix of possible z-Factors
-        # using different combination of xy and z units
-        # ----------------------------------------------------
-        #                      Z - Units
-        #                       Meter    Foot     Centimeter     Inch
-        #          Meter         1	    0.3048	    0.01	    0.0254
-        #  XY      Foot        3.28084	  1	      0.0328084	    0.083333
-        # Units    Centimeter   100	    30.48	     1	         2.54
-        #          Inch        39.3701	  12       0.393701	      1
-        # ---------------------------------------------------
-
-        unitLookUpDict = {'Meter':0,'Meters':0,'Foot':1,'Foot_US':1,'Feet':1,'Centimeter':2,'Centimeters':2,'Inch':3,'Inches':3}
-        zFactorList = [[1,0.3048,0.01,0.0254],
-                       [3.28084,1,0.0328084,0.083333],
-                       [100,30.48,1.0,2.54],
-                       [39.3701,12,0.393701,1.0]]
-
-        # ------------------------------------------------------------------------------------------------------------------------ Incorporate Culverts into DEM
-        reuseCulverts = False
-        # Culverts will be incorporated into the DEM_aoi if at least 1 culvert is provided.
-        if culvertsExist:
-
-            if numOfCulverts > 0:
-
-                # if paths are not the same then assume culverts were manually digitized
-                # or input is some from some other feature class/shapefile
-                if not arcpy.da.Describe(burnCulverts)['catalogPath'] == culverts:
-
-                    # delete the culverts feature class; new one will be created
-                    if arcpy.Exists(culverts):
-                        arcpy.Delete_management(culverts)
-                        arcpy.Clip_analysis(burnCulverts,aoiPath,culverts)
-                        AddMsgAndPrint("\nSuccessfully Recreated \"Culverts\" feature class.")
-
-                    else:
-                        arcpy.Clip_analysis(burnCulverts,aoiPath,culverts)
-                        AddMsgAndPrint("\nSuccessfully Created \"Culverts\" feature class")
-
-                # paths are the same therefore input was from within FGDB
-                else:
-                    AddMsgAndPrint("\nUsing Existing \"Culverts\" feature class:",1)
-                    reuseCulverts = True
-
-                # Number of culverts within AOI
-                numOfCulvertsWithinAOI = int(arcpy.GetCount_management(culverts).getOutput(0))
-
-##                for row in arcpy.da.SearchCursor(culverts,['SHAPE@']):
-##                    culvertExtent = row[0].extent
-##                    if aoiExtent.contains(culvertExtent):
-##                        numOfCulvertsWithinAOI+=1
-##                del row
-
-                # ------------------------------------------------------------------- Buffer Culverts
-                if numOfCulvertsWithinAOI:
-
-                    # determine linear units to set buffer value to the equivalent of 1 pixel
-                    if linearUnits in ('Meter','Meters'):
-                        bufferSize = str(demCellSize) + " Meters"
-                        AddMsgAndPrint("\nBuffer size applied on Culverts: " + str(demCellSize) + " Meter(s)")
-
-                    elif linearUnits in ('Foot','Foot_US','Feet'):
-                        bufferSize = str(demCellSize) + " Feet"
-                        AddMsgAndPrint("\nBuffer size applied on Culverts: " + bufferSize)
-
-                    else:
-                        bufferSize = str(demCellSize) + " Unknown"
-                        AddMsgAndPrint("\nBuffer size applied on Culverts: Equivalent of 1 pixel since linear units are unknown",0)
-
-                    # Buffer the culverts to 1 pixel
-                    culvertBuffered = arcpy.CreateScratchName("culvertBuffered",data_type="FeatureClass",workspace="in_memory")
-                    arcpy.Buffer_analysis(culverts, culvertBuffered, bufferSize, "FULL", "ROUND", "NONE", "")
-
-                    # Dummy field just to execute Zonal stats on each feature
-                    expression = "!" + arcpy.da.Describe(culvertBuffered)['OIDFieldName'] + "!"
-                    arcpy.AddField_management(culvertBuffered, "ZONE", "TEXT", "", "", "", "", "NULLABLE", "NON_REQUIRED")
-                    arcpy.CalculateField_management(culvertBuffered, "ZONE", expression, "PYTHON3")
-
-                    # Get the minimum elevation value for each culvert
-                    culvertRaster = watershedGDB_path + os.sep + "culvertRaster"
-                    culvertMinValue = ZonalStatistics(culvertBuffered, "ZONE", DEM_aoi, "MINIMUM", "NODATA")
-                    culvertMinValue.save(culvertRaster)
-                    AddMsgAndPrint("\nApplying the minimum Zonal DEM Value to the Culverts")
-
-                    # Elevation cells that overlap the culverts will get the minimum elevation value
-                    mosaicList = DEM_aoi + ";" + culvertRaster
-                    arcpy.MosaicToNewRaster_management(mosaicList, watershedGDB_path, "hydroDEM", "#", "32_BIT_FLOAT", demCellSize, "1", "LAST", "#")
-                    AddMsgAndPrint("\nFusing Culverts and " + demName + " to create " + os.path.basename(hydroDEM))
-
-                    Fill_hydroDEM = Fill(hydroDEM)
-
-                # No Culverts will be used due to no overlap or determining overlap error.
-                else:
-                    AddMsgAndPrint("\nThere were no culverts digitized within " + aoiName,1)
-                    Fill_hydroDEM = Fill(DEM_aoi)
-
-        else:
-            AddMsgAndPrint("\nNo Culverts detected!")
-            Fill_hydroDEM = Fill(DEM_aoi)
-
-        AddMsgAndPrint("\nSuccessfully filled sinks in Fill_hydroDEM to remove small imperfections")
-
-        # ---------------------------------------------------------------------------------------------- Create Stream Network
-        # Create Flow Direction Grid.
-        arcpy.SetProgressorLabel("Creating Flow Direction")
-        outFlowDirection = FlowDirection(Fill_hydroDEM, "NORMAL")
-        outFlowDirection.save(FlowDir)
-
-        # Create Flow Accumulation Grid...
-        arcpy.SetProgressorLabel("Creating Flow Accumulation")
-        outFlowAccumulation = FlowAccumulation(FlowDir, "", "INTEGER")
-        outFlowAccumulation.save(FlowAccum)
-
-        # Need to compute a histogram for the FlowAccumulation layer so that the full range of values are captured for subsequent stream generation
-        # This tries to fix a bug of the primary channel not generating for large watersheds with high values in flow accumulation grid
-        arcpy.CalculateStatistics_management(FlowAccum)
-        AddMsgAndPrint("\nSuccessfully created Flow Accumulation and Flow Direction")
-
-        # stream link will be created using pixels that have a flow accumulation greater than the
-        # user-specified acre threshold
-        if streamThreshold > 0:
-
-            acreConvFactor = acreConversionDict.get(linearUnits)
-            acreThresholdVal = round((streamThreshold * acreConvFactor)/(demCellSize**2))
-            conExpression = "Value >= " + str(acreThresholdVal)
-
-            # Select all cells that are greater than or equal to the acre stream threshold value
-            conFlowAccum = Con(FlowAccum, FlowAccum, "", conExpression)
-
-            # Create Stream Link Works
-            arcpy.SetProgressorLabel("Creating Stream Link")
-            outStreamLink = StreamLink(conFlowAccum,FlowDir)
-
-        # All values in flowAccum will be used to create stream link
-        else:
-            arcpy.SetProgressorLabel("Creating Stream Link")
-            acreThresholdVal = 0
-            outStreamLink = StreamLink(FlowAccum,FlowDir)
-
-        # Converts a raster representing a linear network to features representing the linear network.
-        # creates field grid_code
-        StreamToFeature(outStreamLink, FlowDir, streams, "SIMPLIFY")
-        AddMsgAndPrint("\nSuccessfully created stream linear network using a flow accumulation value >= " + str(acreThresholdVal))
-
-        # ------------------------------------------------------------------------------------------------ Delete unwanted datasets
-        arcpy.Delete_management(Fill_hydroDEM)
-        arcpy.Delete_management(outStreamLink)
-
-        # ------------------------------------------------------------------------------------------------ Compact FGDB
-        arcpy.Compact_management(watershedGDB_path)
-        AddMsgAndPrint("\nSuccessfully Compacted FGDB: " + os.path.basename(watershedGDB_path))
-
-        # ------------------------------------------------------------------------------------------------ Prepare to Add to Arcmap
-
-        arcpy.SetParameterAsText(3, streams)
-
-        if not reuseCulverts:
-            arcpy.SetParameterAsText(4, culverts)
-
-        AddMsgAndPrint("\nAdding Layers to ArcGIS Pro Session")
-        AddMsgAndPrint("")
-
-    except:
-        print_exception()
-
-
-
-
-
-
-
-
-
+finally:
+    emptyScratchGDB(scratch_gdb)
