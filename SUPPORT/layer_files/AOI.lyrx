@@ -3,20 +3,21 @@
   "version" : "3.3.0",
   "build" : 52636,
   "layers" : [
-    "CIMPATH=engineering/aoi_template.json"
+    "CIMPATH=engineering/engineering_test_aoi.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "AOI",
-      "uRI" : "CIMPATH=engineering/aoi_template.json",
+      "name" : "Engineering_Test_AOI",
+      "uRI" : "CIMPATH=engineering/engineering_test_aoi.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "aoi_template",
+      "description" : "Engineering_Test_AOI",
       "layerElevation" : {
-        "type" : "CIMLayerElevationSurface"
+        "type" : "CIMLayerElevationSurface",
+        "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
       },
       "expanded" : true,
       "layer3DProperties" : {
@@ -160,10 +161,11 @@
           }
         ],
         "dataConnection" : {
-          "type" : "CIMStandardDataConnection",
-          "workspaceConnectionString" : "DATABASE=..\\Support.gdb",
+          "type" : "CIMFeatureDatasetDataConnection",
+          "featureDataset" : "Layers",
+          "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\Engineering_Test\\Engineering_Test_EngPro.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "aoi_template",
+          "dataset" : "Engineering_Test_AOI",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
@@ -172,7 +174,7 @@
       "featureTemplates" : [
         {
           "type" : "CIMRowTemplate",
-          "name" : "AOI",
+          "name" : "Engineering_Test_AOI",
           "defaultValues" : {
             "type" : "PropertySet",
             "propertySetItems" : [
@@ -189,7 +191,7 @@
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
-          "expression" : "Text(Round($feature.acres_us,2), '#,###.00') + \" ac.\"",
+          "expression" : "Text(Round($feature.acres_intl,2), '#,###.00') + \" ac.\"",
           "expressionEngine" : "Arcade",
           "featuresToLabel" : "AllVisibleFeatures",
           "maplexLabelPlacementProperties" : {
@@ -454,5 +456,41 @@
     }
   ],
   "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
-  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2",
+  "elevationSurfaceLayerDefinitions" : [
+    {
+      "type" : "CIMElevationSurfaceLayer",
+      "name" : "Ground",
+      "uRI" : "CIMPATH=map/ground.json",
+      "sourceModifiedTime" : {
+        "type" : "TimeInstant"
+      },
+      "useSourceMetadata" : true,
+      "description" : "Ground",
+      "expanded" : true,
+      "layerType" : "Operational",
+      "showLegends" : false,
+      "visibility" : true,
+      "displayCacheType" : "Permanent",
+      "maxDisplayCacheAge" : 5,
+      "showPopups" : true,
+      "serviceLayerID" : -1,
+      "refreshRate" : -1,
+      "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
+      "elevationMode" : "BaseGlobeSurface",
+      "verticalExaggeration" : 1,
+      "color" : {
+        "type" : "CIMRGBColor",
+        "values" : [
+          255,
+          255,
+          255,
+          100
+        ]
+      },
+      "surfaceTINShadingMode" : "Smooth"
+    }
+  ]
 }
