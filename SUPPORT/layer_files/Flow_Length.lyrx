@@ -1,23 +1,23 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "2.6.0",
-  "build" : 24783,
+  "version" : "3.3.0",
+  "build" : 52636,
   "layers" : [
-    "CIMPATH=Map/08b69645da7546b6a3abed48266d92c5.xml"
+    "CIMPATH=engineering/newwatershed_flowpaths.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "Watershed_FlowPaths",
-      "uRI" : "CIMPATH=Map/08b69645da7546b6a3abed48266d92c5.xml",
+      "name" : "NewWatershed_FlowPaths",
+      "uRI" : "CIMPATH=engineering/newwatershed_flowpaths.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "Watershed_FlowPaths",
+      "description" : "NewWatershed_FlowPaths",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
-        "mapElevationID" : "{441DF9AC-D197-4E2F-A52F-EE7B5043093D}"
+        "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
       },
       "expanded" : true,
       "layerType" : "Operational",
@@ -29,10 +29,12 @@
       "serviceLayerID" : -1,
       "refreshRate" : -1,
       "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
       "autoGenerateFeatureTemplates" : true,
       "featureTable" : {
         "type" : "CIMFeatureTable",
-        "displayField" : "Subbasin",
+        "displayField" : "Type",
         "editable" : true,
         "timeFields" : {
           "type" : "CIMTimeTableDefinition"
@@ -49,9 +51,9 @@
         "dataConnection" : {
           "type" : "CIMFeatureDatasetDataConnection",
           "featureDataset" : "Layers",
-          "workspaceConnectionString" : "DATABASE=..\\..\\..\\Workspace\\Eng_Pro_Tests\\Eng_Pro_Tests_EngTools.gdb",
+          "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\EngTest\\EngTest_EngPro.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "Watershed_FlowPaths",
+          "dataset" : "NewWatershed_FlowPaths",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
@@ -59,16 +61,21 @@
       },
       "featureTemplates" : [
         {
-          "type" : "CIMFeatureTemplate",
-          "name" : "Watershed_FlowPaths",
-          "tags" : "Line",
-          "toolProgID" : "00000000-0000-0000-0000-000000000000"
+          "type" : "CIMRowTemplate",
+          "name" : "NewWatershed_FlowPaths",
+          "defaultValues" : {
+            "type" : "PropertySet",
+            "propertySetItems" : [
+            ]
+          }
         }
       ],
       "isFlattened" : true,
       "selectable" : true,
       "featureCacheType" : "Session",
       "displayFiltersType" : "ByScale",
+      "featureBlendingMode" : "Alpha",
+      "layerEffectsMode" : "Layer",
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
@@ -83,6 +90,7 @@
             "canPlaceLabelOutsidePolygon" : true,
             "canRemoveOverlappingLabel" : true,
             "canStackLabel" : true,
+            "centerLabelAnchorType" : "Symbol",
             "connectionType" : "Unambiguous",
             "constrainOffset" : "NoConstraint",
             "contourAlignmentType" : "Page",
@@ -103,12 +111,14 @@
               "stackAlignment" : "ChooseBest",
               "maximumNumberOfLines" : 3,
               "minimumNumberOfCharsPerLine" : 3,
-              "maximumNumberOfCharsPerLine" : 24
+              "maximumNumberOfCharsPerLine" : 24,
+              "trimStackingSeparators" : true
             },
             "lineFeatureType" : "General",
             "linePlacementMethod" : "CenteredHorizontalOnLine",
             "maximumLabelOverrun" : 36,
             "maximumLabelOverrunUnit" : "Point",
+            "measureFromClippedFeatureGeometry" : true,
             "minimumFeatureSizeUnit" : "Map",
             "multiPartOption" : "OneLabelPerPart",
             "offsetAlongLineProperties" : {
@@ -151,6 +161,7 @@
             "polygonPlacementMethod" : "CurvedInPolygon",
             "primaryOffset" : 1,
             "primaryOffsetUnit" : "Point",
+            "removeAmbiguousLabels" : "All",
             "removeExtraWhiteSpace" : true,
             "repetitionIntervalUnit" : "Map",
             "rotationProperties" : {
@@ -159,6 +170,7 @@
               "alignmentType" : "Straight"
             },
             "secondaryOffset" : 100,
+            "secondaryOffsetUnit" : "Percentage",
             "strategyPriorities" : {
               "type" : "CIMMaplexStrategyPriorities",
               "stacking" : 1,
@@ -167,10 +179,12 @@
               "fontReduction" : 4,
               "abbreviation" : 5
             },
+            "thinDuplicateLabels" : true,
             "thinningDistanceUnit" : "Map",
             "truncationMarkerCharacter" : ".",
             "truncationMinimumLength" : 1,
-            "truncationPreferredCharacters" : "aeiou"
+            "truncationPreferredCharacters" : "aeiou",
+            "polygonAnchorPointPerimeterInsetUnit" : "Point"
           },
           "name" : "Default",
           "priority" : -1,
@@ -245,7 +259,8 @@
                       ]
                     }
                   }
-                ]
+                ],
+                "angleAlignment" : "Map"
               },
               "height" : 12,
               "hinting" : "Default",
@@ -279,7 +294,8 @@
                       ]
                     }
                   }
-                ]
+                ],
+                "angleAlignment" : "Map"
               },
               "symbol3DProperties" : {
                 "type" : "CIM3DSymbolProperties",
@@ -304,6 +320,7 @@
       "labelVisibility" : true,
       "renderer" : {
         "type" : "CIMSimpleRenderer",
+        "sampleSize" : 10000,
         "patch" : "Default",
         "symbol" : {
           "type" : "CIMSymbolReference",
@@ -332,6 +349,8 @@
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
                 "width" : 1.5294117647058822,
+                "height3D" : 1,
+                "anchor3D" : "Center",
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -362,6 +381,8 @@
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
                 "width" : 2,
+                "height3D" : 1,
+                "anchor3D" : "Center",
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -380,6 +401,8 @@
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
                 "width" : 1.5294117647058822,
+                "height3D" : 1,
+                "anchor3D" : "Center",
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -399,6 +422,8 @@
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
                 "width" : 2,
+                "height3D" : 1,
+                "anchor3D" : "Center",
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -417,13 +442,32 @@
       "snappable" : true
     }
   ],
-  "elevationSurfaces" : [
+  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2",
+  "elevationSurfaceLayerDefinitions" : [
     {
-      "type" : "CIMMapElevationSurface",
-      "elevationMode" : "BaseGlobeSurface",
+      "type" : "CIMElevationSurfaceLayer",
       "name" : "Ground",
+      "uRI" : "CIMPATH=map/ground.json",
+      "sourceModifiedTime" : {
+        "type" : "TimeInstant"
+      },
+      "useSourceMetadata" : true,
+      "description" : "Ground",
+      "expanded" : true,
+      "layerType" : "Operational",
+      "showLegends" : false,
+      "visibility" : true,
+      "displayCacheType" : "Permanent",
+      "maxDisplayCacheAge" : 5,
+      "showPopups" : true,
+      "serviceLayerID" : -1,
+      "refreshRate" : -1,
+      "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
+      "elevationMode" : "BaseGlobeSurface",
       "verticalExaggeration" : 1,
-      "mapElevationID" : "{441DF9AC-D197-4E2F-A52F-EE7B5043093D}",
       "color" : {
         "type" : "CIMRGBColor",
         "values" : [
@@ -433,11 +477,7 @@
           100
         ]
       },
-      "surfaceTINShadingMode" : "Smooth",
-      "visibility" : true,
-      "expanded" : true
+      "surfaceTINShadingMode" : "Smooth"
     }
-  ],
-  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
-  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
+  ]
 }

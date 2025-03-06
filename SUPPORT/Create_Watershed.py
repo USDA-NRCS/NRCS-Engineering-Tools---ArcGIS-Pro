@@ -109,15 +109,16 @@ if Exists(watershed_path):
     AddMsgAndPrint(f"\nWatershed name: {watershed_name} already exists in project geodatabase and will be overwritten...", 1)
 
 ### ESRI Environment Settings ###
-project_dem_desc = Describe(project_dem_path)
-dem_cell_size = project_dem_desc.meanCellWidth
-dem_sr = project_dem_desc.spatialReference
+dem_desc = Describe(project_dem_path)
+dem_cell_size = dem_desc.meanCellWidth
 env.overwriteOutput = True
+env.resamplingMethod = 'BILINEAR'
+env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 env.parallelProcessingFactor = '75%'
 env.extent = 'MAXOF'
 env.cellSize = dem_cell_size
 env.snapRaster = project_dem_path
-env.outputCoordinateSystem = dem_sr
+env.outputCoordinateSystem = dem_desc.spatialReference
 env.workspace = project_gdb
 
 try:
@@ -173,7 +174,7 @@ try:
 
     # Add Acres Field in watershed and calculate them and notify the user
     AddField(watershed_path, 'Acres', 'DOUBLE')
-    CalculateField(watershed_path, 'Acres', '!shape.area@acres!', 'PYTHON3') #TODO: Use CalculateGeometry tool here
+    CalculateField(watershed_path, 'Acres', "!shape!.getArea('PLANAR', 'ACRES')", 'PYTHON3')
 
     ### Flow Length Analysis ###
     if create_flow_paths:
@@ -228,7 +229,7 @@ try:
             CalculateField(flow_length_path, 'Type', "'Natural Watercourse'", 'PYTHON3')
 
             AddField(flow_length_path, 'Length_ft', 'DOUBLE')
-            CalculateField(flow_length_path, 'Length_ft', '!Shape_Length! * 3.28084', 'PYTHON3') #TODO: Use CalculateGeometry tool here
+            CalculateField(flow_length_path, 'Length_ft', "!shape!.getLength('PLANAR', 'FEET')", 'PYTHON3')
 
             # Set up Domains
             domains = Describe(project_gdb).domains
