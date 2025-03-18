@@ -1,23 +1,23 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "2.4.0",
-  "build" : 19948,
+  "version" : "3.3.0",
+  "build" : 52636,
   "layers" : [
-    "CIMPATH=eng_tools/prowatershed_soils.xml"
+    "CIMPATH=engineering/hendricks236_watershed_soils.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "ProWatershed_Soils",
-      "uRI" : "CIMPATH=eng_tools/prowatershed_soils.xml",
+      "name" : "Hendricks236_Watershed_Soils",
+      "uRI" : "CIMPATH=engineering/hendricks236_watershed_soils.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "ProWatershed_Soils",
+      "description" : "Hendricks236_Watershed_Soils",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
-        "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}"
+        "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
       },
       "expanded" : true,
       "layerType" : "Operational",
@@ -29,18 +29,20 @@
       "serviceLayerID" : -1,
       "refreshRate" : -1,
       "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
       "autoGenerateFeatureTemplates" : true,
       "featureElevationExpression" : "0",
       "featureTable" : {
         "type" : "CIMFeatureTable",
-        "displayField" : "MUSYM",
+        "displayField" : "muname",
         "editable" : true,
         "dataConnection" : {
           "type" : "CIMFeatureDatasetDataConnection",
           "featureDataset" : "Layers",
-          "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\NRCS_Engineering_Tools_ArcPro\\Testing\\Testing_EngTools.gdb",
+          "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\Hendricks_236\\Hendricks_236_EngPro.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "ProWatershed_Soils",
+          "dataset" : "Hendricks236_Watershed_Soils",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
@@ -49,6 +51,9 @@
       "htmlPopupEnabled" : true,
       "selectable" : true,
       "featureCacheType" : "Session",
+      "displayFiltersType" : "ByScale",
+      "featureBlendingMode" : "Alpha",
+      "layerEffectsMode" : "Layer",
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
@@ -63,6 +68,7 @@
             "canPlaceLabelOutsidePolygon" : true,
             "canRemoveOverlappingLabel" : true,
             "canStackLabel" : true,
+            "centerLabelAnchorType" : "Symbol",
             "connectionType" : "Unambiguous",
             "constrainOffset" : "NoConstraint",
             "contourAlignmentType" : "Page",
@@ -97,7 +103,8 @@
                   "visible" : true,
                   "splitAfter" : true
                 }
-              ]
+              ],
+              "trimStackingSeparators" : true
             },
             "lineFeatureType" : "General",
             "linePlacementMethod" : "OffsetCurvedFromLine",
@@ -145,6 +152,7 @@
             "polygonPlacementMethod" : "HorizontalInPolygon",
             "primaryOffset" : 1,
             "primaryOffsetUnit" : "Point",
+            "removeAmbiguousLabels" : "All",
             "removeExtraWhiteSpace" : true,
             "repetitionIntervalUnit" : "Map",
             "rotationProperties" : {
@@ -153,6 +161,7 @@
               "alignmentType" : "Straight"
             },
             "secondaryOffset" : 100,
+            "secondaryOffsetUnit" : "Percentage",
             "strategyPriorities" : {
               "type" : "CIMMaplexStrategyPriorities",
               "stacking" : 1,
@@ -164,7 +173,8 @@
             "thinningDistanceUnit" : "Point",
             "truncationMarkerCharacter" : ".",
             "truncationMinimumLength" : 1,
-            "truncationPreferredCharacters" : "aeiou"
+            "truncationPreferredCharacters" : "aeiou",
+            "polygonAnchorPointPerimeterInsetUnit" : "Point"
           },
           "name" : "Class 1",
           "priority" : -1,
@@ -238,6 +248,8 @@
                     "lineStyle3D" : "Strip",
                     "miterLimit" : 10,
                     "width" : 0.5,
+                    "height3D" : 1,
+                    "anchor3D" : "Center",
                     "color" : {
                       "type" : "CIMRGBColor",
                       "values" : [
@@ -261,7 +273,8 @@
                       ]
                     }
                   }
-                ]
+                ],
+                "angleAlignment" : "Map"
               },
               "symbol3DProperties" : {
                 "type" : "CIM3DSymbolProperties",
@@ -286,6 +299,7 @@
       "labelVisibility" : true,
       "renderer" : {
         "type" : "CIMUniqueValueRenderer",
+        "sampleSize" : 10000,
         "colorRamp" : {
           "type" : "CIMRandomHSVColorRamp",
           "colorSpace" : {
@@ -314,6 +328,8 @@
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
                 "width" : 2,
+                "height3D" : 1,
+                "anchor3D" : "Center",
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -337,7 +353,8 @@
                   ]
                 }
               }
-            ]
+            ],
+            "angleAlignment" : "Map"
           }
         },
         "defaultSymbolPatch" : "Default",
@@ -365,6 +382,8 @@
                         "lineStyle3D" : "Strip",
                         "miterLimit" : 10,
                         "width" : 0.40000000000000002,
+                        "height3D" : 1,
+                        "anchor3D" : "Center",
                         "color" : {
                           "type" : "CIMRGBColor",
                           "values" : [
@@ -388,7 +407,8 @@
                           ]
                         }
                       }
-                    ]
+                    ],
+                    "angleAlignment" : "Map"
                   }
                 },
                 "values" : [
@@ -418,6 +438,8 @@
                         "lineStyle3D" : "Strip",
                         "miterLimit" : 10,
                         "width" : 0.40000000000000002,
+                        "height3D" : 1,
+                        "anchor3D" : "Center",
                         "color" : {
                           "type" : "CIMRGBColor",
                           "values" : [
@@ -441,7 +463,8 @@
                           ]
                         }
                       }
-                    ]
+                    ],
+                    "angleAlignment" : "Map"
                   }
                 },
                 "values" : [
@@ -471,6 +494,8 @@
                         "lineStyle3D" : "Strip",
                         "miterLimit" : 10,
                         "width" : 0.40000000000000002,
+                        "height3D" : 1,
+                        "anchor3D" : "Center",
                         "color" : {
                           "type" : "CIMRGBColor",
                           "values" : [
@@ -494,7 +519,8 @@
                           ]
                         }
                       }
-                    ]
+                    ],
+                    "angleAlignment" : "Map"
                   }
                 },
                 "values" : [
@@ -524,6 +550,8 @@
                         "lineStyle3D" : "Strip",
                         "miterLimit" : 10,
                         "width" : 0.40000000000000002,
+                        "height3D" : 1,
+                        "anchor3D" : "Center",
                         "color" : {
                           "type" : "CIMRGBColor",
                           "values" : [
@@ -547,7 +575,8 @@
                           ]
                         }
                       }
-                    ]
+                    ],
+                    "angleAlignment" : "Map"
                   }
                 },
                 "values" : [
@@ -574,13 +603,32 @@
       }
     }
   ],
-  "elevationSurfaces" : [
+  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2",
+  "elevationSurfaceLayerDefinitions" : [
     {
-      "type" : "CIMMapElevationSurface",
-      "elevationMode" : "BaseGlobeSurface",
+      "type" : "CIMElevationSurfaceLayer",
       "name" : "Ground",
+      "uRI" : "CIMPATH=map/ground.json",
+      "sourceModifiedTime" : {
+        "type" : "TimeInstant"
+      },
+      "useSourceMetadata" : true,
+      "description" : "Ground",
+      "expanded" : true,
+      "layerType" : "Operational",
+      "showLegends" : false,
+      "visibility" : true,
+      "displayCacheType" : "Permanent",
+      "maxDisplayCacheAge" : 5,
+      "showPopups" : true,
+      "serviceLayerID" : -1,
+      "refreshRate" : -1,
+      "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
+      "elevationMode" : "BaseGlobeSurface",
       "verticalExaggeration" : 1,
-      "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}",
       "color" : {
         "type" : "CIMRGBColor",
         "values" : [
@@ -590,9 +638,7 @@
           100
         ]
       },
-      "surfaceTINShadingMode" : "Smooth",
-      "visibility" : true,
-      "expanded" : true
+      "surfaceTINShadingMode" : "Smooth"
     }
   ]
 }
