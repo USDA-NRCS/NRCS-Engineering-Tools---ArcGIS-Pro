@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Intersect, Statistics
 from arcpy.da import SearchCursor, UpdateCursor
-from arcpy.management import AddField, AddJoin, AlterField, CalculateField, Compact, Delete, DeleteField, Dissolve, GetCount, \
+from arcpy.management import AddField, AddJoin, AlterField, CalculateField, Compact, DeleteField, Dissolve, GetCount, \
     MakeFeatureLayer, RemoveJoin, SelectLayerByAttribute
 from arcpy.mp import ArcGISProject
 
@@ -141,7 +141,7 @@ try:
     assumptions = 0
 
     # Check 1: Set CONDITION to NULL for the following LANDUSE types
-    expression = "LANDUSE IN ['Fallow Bare Soil', 'Farmstead'] OR LANDUSE LIKE 'Roads%' OR LANDUSE LIKE 'Paved%' OR LANDUSE LIKE '%Districts%' OR LANDUSE LIKE 'Newly Graded%' OR LANDUSE LIKE 'Surface Water%' OR LANDUSE LIKE 'Wetland%'"
+    expression = "LANDUSE IN ('Fallow Bare Soil', 'Farmstead') OR LANDUSE LIKE 'Roads%' OR LANDUSE LIKE 'Paved%' OR LANDUSE LIKE '%Districts%' OR LANDUSE LIKE 'Newly Graded%' OR LANDUSE LIKE 'Surface Water%' OR LANDUSE LIKE 'Wetland%'"
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'NEW_SELECTION', expression)
     if int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0)) > 0:
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', "''", 'PYTHON3')
@@ -149,12 +149,13 @@ try:
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
 
     # Check 2: Set CONDITION to 'Good' for all 'N/A' values
+    # TODO: remove this value from CONDITION domain? Then this check is not required
     expression = "CONDITION = 'N/A'"
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'NEW_SELECTION', expression)
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint(f"There were {str(count)} Land Use polygons with a CONDITION of 'N/A' that require a value of 'Poor', 'Fair', or 'Good'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', "'Good'", 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
@@ -165,7 +166,7 @@ try:
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint(f"There were {str(count)} 'Open Space Grass Cover Less Than 50 Percent' polygons with a CONDITION value other than 'Poor'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Poor' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Poor' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, "CONDITION", '"Poor"', 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
@@ -176,7 +177,7 @@ try:
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint(f"There were {str(count)} 'Open Space Grass Cover 50 to 75 Percent' polygons with a CONDITION value other than 'Fair'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Fair' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Fair' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', "'Fair'", 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
@@ -187,7 +188,7 @@ try:
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint(f"There were {str(count)} 'Open Space Grass Cover Greater Than 75 Percent' polygons with a CONDITION value other than 'Good'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', '"Good"', 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
@@ -198,7 +199,7 @@ try:
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint(f"There were {str(count)} 'Meadow or Continuous Grass Not Grazed Generally Hayed' polygons with a CONDITION value other than 'Good'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', "'Good'", 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
@@ -209,18 +210,18 @@ try:
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint(f"There were {str(count)} 'Woods Grazed Not Burned Some Forest Litter' polygons with a CONDITION value other than 'Fair'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Fair' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Fair' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', "'Fair'", 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
 
     # Check 8: Set CONDITION to 'Good' for the following LANDUSE type: 'Woods Not Grazed Adequate Litter and Brush'
-    expression = "LANDUSE = Woods Not Grazed Adequate Litter and Brush AND CONDITION <> 'Good'"
+    expression = "LANDUSE = 'Woods Not Grazed Adequate Litter and Brush' AND CONDITION <> 'Good'"
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'NEW_SELECTION', expression)
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint(f"There were {str(count)} 'Woods Not Grazed Adequate Litter and Brush' polygons with a CONDITION value other than 'Good'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', "'Good'", 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
@@ -231,7 +232,7 @@ try:
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
         AddMsgAndPrint(f"There were {str(count)} 'Woods Heavily Grazed or Burned' polygons with a CONDITION value other than 'Poor'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Poor' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Poor' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', "'Poor'", 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
@@ -241,29 +242,26 @@ try:
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'NEW_SELECTION', expression)
     count = int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0))
     if count > 0:
-        AddMsgAndPrint(f"There were {str(count)} Cropland related polygons with a 'Fair' CONDITION value. This Land Use assumes a condition of 'Good' or 'Poor'.", 1, log_file_path)
-        AddMsgAndPrint("These areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
+        AddMsgAndPrint(f"There were {str(count)} Cropland related polygons with a 'Fair' CONDITION value. This Land Use assumes 'Good' or 'Poor'.", 1, log_file_path)
+        AddMsgAndPrint("\tThese areas will be assigned a 'Good' CONDITION value.", 1, log_file_path)
         CalculateField(watershed_landuse_soils_temp_lyr, 'CONDITION', "'Good'", 'PYTHON3')
         assumptions += 1
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
 
-    # Report number of assumption corrections
     if assumptions == 0:
         AddMsgAndPrint('\nAll LANDUSE and CONDITION values populated correctly...', log_file_path=log_file_path)
-    else:
-        AddMsgAndPrint('\nSome LANDUSE and CONDITION values required updates...', log_file_path=log_file_path)
 
     ### LUDESC - Concatenate LANDUSE and CONDITION ###
     SetProgressorLabel('Populating LUDESC field...')
     AddMsgAndPrint('\nPopulating LUDESC field...', log_file_path=log_file_path)
-    
+
     expression = "CONDITION = ''"
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'NEW_SELECTION', expression)
     if int(GetCount(watershed_landuse_soils_temp_lyr).getOutput(0)) > 0:
         CalculateField(watershed_landuse_soils_temp_lyr, 'LUDESC', '!LANDUSE!', 'PYTHON3')
 
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'SWITCH_SELECTION')
-    CalculateField(watershed_landuse_soils_temp_lyr, 'LUDESC', '!LANDUSE! !CONDITION!', 'PYTHON3')
+    CalculateField(watershed_landuse_soils_temp_lyr, 'LUDESC', '!LANDUSE!' + '" "' + '!CONDITION!', 'PYTHON3')
     SelectLayerByAttribute(watershed_landuse_soils_temp_lyr, 'CLEAR_SELECTION')
 
     ### LU_CODE - Join to TR_55_RCN_Lookup Table ### 
@@ -277,8 +275,7 @@ try:
     RemoveJoin(watershed_landuse_soils_temp_lyr)
 
     ### HYD_CODE - Concatenate LU_CODE and HYDROL_ID ###
-    # exp = "''.join([str(int(!LU_CODE!)),str(int(!HYDROL_ID!))])"
-    CalculateField(watershed_landuse_soils_temp_lyr, 'HYD_CODE', '!LU_CODE!!HYDROL_ID!', 'PYTHON3')
+    CalculateField(watershed_landuse_soils_temp_lyr, 'HYD_CODE', "''.join([str(int(!LU_CODE!)),str(int(!HYDROL_ID!))])", 'PYTHON3')
 
     ### RCN - Join to TR_55_RCN_Lookup Table ###
     AddJoin(watershed_landuse_soils_temp_lyr, 'HYD_CODE', tr_55_rcn_lookup_table, 'HYD_CODE', 'KEEP_ALL')
@@ -296,11 +293,9 @@ try:
     with UpdateCursor(input_watershed, ['Subbasin','RCN']) as cursor:
         for row in cursor:
             subbasin_number = row[0]
-            # subbasin values should not be NULL
-            # TODO: should we throw an error here? 
             if subbasin_number is None or len(str(subbasin_number)) < 1:
-                AddMsgAndPrint("\n\tSubbasin record is NULL in " + watershed_name, 2)
-                continue
+                AddMsgAndPrint('\nOne or more Subbasins in the Watershed are missing an ID number. Exiting...', 2, log_file_path)
+                exit()
             expression = f"Subbasin = {subbasin_number}"
             rcn_value = [row[0] for row in SearchCursor(rcn_stats_temp, ['SUM_WGTRCN'], where_clause=expression)][0]
             row[1] = rcn_value
@@ -323,7 +318,7 @@ try:
     # Remove 'FIRST' from field names and aliases
     for field in ListFields(output_rcn_path):
         if field.name.startswith('FIRST'):
-            AlterField(output_rcn_path, field, field[6:], field[6:])
+            AlterField(output_rcn_path, field.name, field.name[6:], field.name[6:])
 
     # Update Acres
     CalculateField(output_rcn_path, 'Acres', "!shape!.getArea('PLANAR', 'ACRES')", 'PYTHON3')
@@ -332,6 +327,7 @@ try:
     DeleteField(output_rcn_path, ['IDENT','HYD_CODE'])
 
     ### Add Output to Map ###
+    # TODO: Check symbology and labeling, update lyrx file
     SetParameterAsText(1, output_rcn_path)
 
     ### Compact Project GDB ###
@@ -353,5 +349,5 @@ except:
     except:
         AddMsgAndPrint(errorMsg('Calculate Runoff Curve Number'), 2)
 
-finally:
-    emptyScratchGDB(scratch_gdb)
+# finally:
+#     emptyScratchGDB(scratch_gdb)
