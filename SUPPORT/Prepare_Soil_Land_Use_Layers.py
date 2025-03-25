@@ -62,7 +62,7 @@ output_soils_name = f"{watershed_name}_Soils"
 output_soils_path = path.join(project_fd, output_soils_name)
 output_landuse_name = f"{watershed_name}_Land_Use"
 output_landuse_path = path.join(project_fd, output_landuse_name)
-tr_55_table = path.join(support_gdb, 'TR_55_LU_Lookup')
+tr_55_land_use_table = path.join(support_gdb, 'TR_55_Land_Use_Updated')
 hydro_groups_table = path.join(support_gdb, 'HydroGroups')
 watershed_dissolve_temp = path.join(scratch_gdb, 'Watershed_Dissolve')
 clu_clip_temp = path.join(scratch_gdb, 'CLU_Clip')
@@ -71,8 +71,8 @@ clu_clip_temp = path.join(scratch_gdb, 'CLU_Clip')
 if not int(GetCount(watershed_path).getOutput(0)) > 0:
     AddMsgAndPrint('\nThe selected Watershed layer is empty. At least one feature is required. Exiting...', 2)
     exit()
-if not Exists(tr_55_table):
-    AddMsgAndPrint('\nTR_55_LU_Lookup table was not found in Support.gdb. Exiting...', 2)
+if not Exists(tr_55_land_use_table):
+    AddMsgAndPrint('\nTR_55_Land_Use table was not found in Support.gdb. Exiting...', 2)
     exit()
 if not Exists(hydro_groups_table):
     AddMsgAndPrint('\nHydro_Groups_Lookup table was not found in Support.gdb. Exiting...', 2)
@@ -97,12 +97,12 @@ try:
         AddMsgAndPrint('\nCreated Land Use layer from dissolved watershed...', log_file_path=log_file_path)
 
     ### Set Land Use Domains ###
-    SetProgressorLabel('Setting up LANDUSE and CONDITION domains...')
-    AddMsgAndPrint('\nSetting up LANDUSE and CONDITION domains...', log_file_path=log_file_path)
+    SetProgressorLabel('Setting up LANDUSE domain...')
+    AddMsgAndPrint('\nSetting up LANDUSE domain...', log_file_path=log_file_path)
 
     domains = Describe(project_gdb).domains
     if not 'LandUse_Domain' in domains:
-        TableToDomain(tr_55_table, 'LandUseDesc', 'LandUseDesc', project_gdb, 'LandUse_Domain', 'LandUse_Domain', 'REPLACE')
+        TableToDomain(tr_55_land_use_table, 'LANDUSE', 'LANDUSE', project_gdb, 'LandUse_Domain', 'LandUse_Domain', 'REPLACE')
 
     AddField(output_landuse_path, 'LANDUSE', 'TEXT', field_length='254', field_domain='LandUse_Domain')
     CalculateField(output_landuse_path, 'LANDUSE', "'- Select Land Use -'", 'PYTHON3')
