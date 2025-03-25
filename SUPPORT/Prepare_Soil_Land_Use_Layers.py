@@ -64,7 +64,6 @@ output_landuse_name = f"{watershed_name}_Land_Use"
 output_landuse_path = path.join(project_fd, output_landuse_name)
 tr_55_table = path.join(support_gdb, 'TR_55_LU_Lookup')
 hydro_groups_table = path.join(support_gdb, 'HydroGroups')
-condition_table = path.join(support_gdb, 'ConditionTable')
 watershed_dissolve_temp = path.join(scratch_gdb, 'Watershed_Dissolve')
 clu_clip_temp = path.join(scratch_gdb, 'CLU_Clip')
 
@@ -77,9 +76,6 @@ if not Exists(tr_55_table):
     exit()
 if not Exists(hydro_groups_table):
     AddMsgAndPrint('\nHydro_Groups_Lookup table was not found in Support.gdb. Exiting...', 2)
-    exit()
-if not Exists(condition_table):
-    AddMsgAndPrint('\nCondition_Lookup table was not found in Support.gdb. Exiting...', 2)
     exit()
 
 ### ESRI Environment Settings ###
@@ -107,14 +103,9 @@ try:
     domains = Describe(project_gdb).domains
     if not 'LandUse_Domain' in domains:
         TableToDomain(tr_55_table, 'LandUseDesc', 'LandUseDesc', project_gdb, 'LandUse_Domain', 'LandUse_Domain', 'REPLACE')
-    if not 'Condition_Domain' in domains:
-        TableToDomain(condition_table, 'CONDITION', 'CONDITION', project_gdb, 'Condition_Domain', 'Condition_Domain', 'REPLACE')
 
     AddField(output_landuse_path, 'LANDUSE', 'TEXT', field_length='254', field_domain='LandUse_Domain')
     CalculateField(output_landuse_path, 'LANDUSE', "'- Select Land Use -'", 'PYTHON3')
-
-    AddField(output_landuse_path, 'CONDITION', 'TEXT', field_length='25', field_domain='Condition_Domain')
-    CalculateField(output_landuse_path, 'CONDITION', "'- Select Condition -'", 'PYTHON3')
 
     ### Clip Soil Data with Land Use ###
     SetProgressorLabel('Clipping soils data...')
