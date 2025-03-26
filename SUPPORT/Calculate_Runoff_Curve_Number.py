@@ -55,8 +55,7 @@ land_use_path = path.join(project_fd, f"{watershed_name}_Land_Use")
 soils_path = path.join(project_fd, f"{watershed_name}_Soils")
 output_rcn_name = f"{watershed_name}_RCN"
 output_rcn_path = path.join(project_fd, output_rcn_name)
-hydro_groups_lookup_table = path.join(support_gdb, 'HYD_GRP_Lookup')
-tr_55_rcn_lookup_table = path.join(support_gdb, 'TR_55_RCN_Lookup_Updated')
+tr_55_rcn_lookup_table = path.join(support_gdb, 'TR_55_RCN_Lookup')
 watershed_landuse_soils_temp = path.join(scratch_gdb, 'watershed_landuse_soils')
 rcn_stats_temp = path.join(scratch_gdb, 'rcn_stats')
 
@@ -72,9 +71,6 @@ if not Exists(land_use_path):
     exit()
 if not Exists(soils_path):
     AddMsgAndPrint('\nSoils layer not found for input Watershed layer. Please run Prepare Soil and Land Use Layers tool before running this tool. Exiting...', 2)
-    exit()
-if not Exists(hydro_groups_lookup_table):
-    AddMsgAndPrint('\nHYD_GRP_Lookup table was not found in Support.gdb. Exiting...', 2)
     exit()
 if not Exists(tr_55_rcn_lookup_table):
     AddMsgAndPrint('\nTR_55_RCN_Lookup table was not found in Support.gdb. Exiting...', 2)
@@ -123,24 +119,8 @@ try:
 
     Intersect([input_watershed, land_use_path, soils_path], watershed_landuse_soils_temp, 'NO_FID')
 
-    # AddField(watershed_landuse_soils_temp, 'LU_CODE', 'DOUBLE')
-    # AddField(watershed_landuse_soils_temp, 'HYDROL_ID', 'DOUBLE')
-    # AddField(watershed_landuse_soils_temp, 'HYD_CODE', 'DOUBLE')
     AddField(watershed_landuse_soils_temp, 'RCN_ACRES', 'DOUBLE')
     AddField(watershed_landuse_soils_temp, 'WGTRCN', 'DOUBLE')
-
-    # ### LU_CODE - Join to TR_55_RCN_Lookup Table ### 
-    # AddJoin(watershed_landuse_soils_temp_lyr, 'LUDESC', tr_55_rcn_lookup_table, 'LandUseDes', 'KEEP_ALL')
-    # CalculateField(watershed_landuse_soils_temp_lyr, 'watershed_landuse_soils.LU_CODE', '!TR_55_RCN_Lookup.LU_CODE!', 'PYTHON3')
-    # RemoveJoin(watershed_landuse_soils_temp_lyr)
-
-    # ### HYDROL_ID - Join to HYD_GRP_Lookup Table ###
-    # AddJoin(watershed_landuse_soils_temp_lyr, 'HYDGROUP', hydro_groups_lookup_table, 'HYDGRP', 'KEEP_ALL')
-    # CalculateField(watershed_landuse_soils_temp_lyr, 'watershed_landuse_soils.HYDROL_ID', '!HYD_GRP_Lookup.HYDCODE!', 'PYTHON3')
-    # RemoveJoin(watershed_landuse_soils_temp_lyr)
-
-    # ### HYD_CODE - Concatenate LU_CODE and HYDROL_ID ###
-    # CalculateField(watershed_landuse_soils_temp_lyr, 'HYD_CODE', "''.join([str(int(!LU_CODE!)),str(int(!HYDROL_ID!))])", 'PYTHON3')
 
     ### RCN Lookup ###
     rcn_lookup = {}
@@ -179,11 +159,6 @@ try:
     SetProgressorLabel('Creating RCN Layer...')
     AddMsgAndPrint('\nCreating RCN Layer...', log_file_path=log_file_path)
 
-    # # Create new unique ID for each Subbasin
-    # # exp = "''.join([str(int(!HYD_CODE!)),str(int(!Subbasin!))])"
-    # CalculateField(watershed_landuse_soils_temp, 'IDENT', '!HYD_CODE!!Subbasin!', 'PYTHON3')
-    
-    # TODO: double check to ensure desired output here. Dissolve was using ['IDENT','FIRST']
     # Dissolve by Subbasin, LANDUSE, HYDGROUP to produce RCN layer
     stats_fields = [['LANDUSE','FIRST'], ['HYDGROUP','FIRST'], ['RCN','FIRST'], ['Acres','FIRST']]
     Dissolve(watershed_landuse_soils_temp, output_rcn_path, ['Subbasin', 'LANDUSE', 'HYDGROUP'], stats_fields, 'MULTI_PART', 'DISSOLVE_LINES')
@@ -197,11 +172,7 @@ try:
     # Update Acres
     CalculateField(output_rcn_path, 'Acres', "!shape!.getArea('PLANAR', 'ACRES')", 'PYTHON3')
 
-    # # Remove Unnecessary fields
-    # DeleteField(output_rcn_path, ['IDENT','HYD_CODE'])
-
     ### Add Output to Map ###
-    # TODO: Check symbology and labeling, update lyrx file
     SetParameterAsText(1, output_rcn_path)
 
     ### Compact Project GDB ###
@@ -223,5 +194,5 @@ except:
     except:
         AddMsgAndPrint(errorMsg('Calculate Runoff Curve Number'), 2)
 
-# finally:
-#     emptyScratchGDB(scratch_gdb)
+finally:
+    emptyScratchGDB(scratch_gdb)

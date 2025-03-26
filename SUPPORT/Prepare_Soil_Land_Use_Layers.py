@@ -62,20 +62,19 @@ output_soils_name = f"{watershed_name}_Soils"
 output_soils_path = path.join(project_fd, output_soils_name)
 output_landuse_name = f"{watershed_name}_Land_Use"
 output_landuse_path = path.join(project_fd, output_landuse_name)
-tr_55_land_use_table = path.join(support_gdb, 'TR_55_Land_Use_Updated')
-hydro_groups_table = path.join(support_gdb, 'HydroGroups')
+tr_55_land_use_table = path.join(support_gdb, 'TR_55_Land_Use_Domain')
+hydro_groups_table = path.join(support_gdb, 'Hydro_Groups_Domain')
 watershed_dissolve_temp = path.join(scratch_gdb, 'Watershed_Dissolve')
-clu_clip_temp = path.join(scratch_gdb, 'CLU_Clip')
 
 ### Validate Required Datasets Exist ###
 if not int(GetCount(watershed_path).getOutput(0)) > 0:
     AddMsgAndPrint('\nThe selected Watershed layer is empty. At least one feature is required. Exiting...', 2)
     exit()
 if not Exists(tr_55_land_use_table):
-    AddMsgAndPrint('\nTR_55_Land_Use table was not found in Support.gdb. Exiting...', 2)
+    AddMsgAndPrint('\nTR_55_Land_Use_Domain table was not found in Support.gdb. Exiting...', 2)
     exit()
 if not Exists(hydro_groups_table):
-    AddMsgAndPrint('\nHydro_Groups_Lookup table was not found in Support.gdb. Exiting...', 2)
+    AddMsgAndPrint('\nHydro_Groups_Domain table was not found in Support.gdb. Exiting...', 2)
     exit()
 
 ### ESRI Environment Settings ###
