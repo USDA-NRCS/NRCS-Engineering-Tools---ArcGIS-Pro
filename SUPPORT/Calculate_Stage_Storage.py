@@ -6,12 +6,13 @@ from time import ctime
 from arcpy import AlterAliasName, Describe, CheckExtension, CheckOutExtension, env, Exists, GetInstallInfo, GetParameterAsText, \
     GetParameter, ListFeatureClasses, SetParameterAsText, SetProgressorLabel
 from arcpy.conversion import RasterToPolygon
+from arcpy.da import SearchCursor
 from arcpy.ddd import SurfaceVolume
 from arcpy.management import AddField, CalculateField, Compact, CopyRows, Delete, Dissolve, GetCount, GetRasterProperties, Merge
-from arcpy.mp import ArcGISProject, Table
+from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask, Int, SetNull, Times
 
-from utils import AddMsgAndPrint, errorMsg, removeMapLayers
+from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
 def logBasicSettings(log_file_path, project_dem, input_pool, max_elevation, increment, create_pools_layer):
@@ -27,71 +28,6 @@ def logBasicSettings(log_file_path, project_dem, input_pool, max_elevation, incr
         f.write(f"\tMaximum Elevation: {max_elevation} Feet\n")
         f.write(f"\tAnalysis Increment: {increment} Feet\n")
         f.write(f"\tCreate Pool Polygons: {'Yes' if create_pools_layer else 'No'}\n")
-
-
-def createPool(elevationValue, storageTxtFile):
-    try:
-        global convToFeetFactor,acreConversion,ftConversion,convToAcreFootFactor
-
-        fcName =  ("Pool_" + str(round((elevationValue * convToFeetFactor),1))).replace(".","_")
-        poolExit = path.join(project_fd, fcName)
-
-        # Create new raster of only values below an elevation value by nullifying
-        # cells above the desired elevation value.
-        conStatement = "Value > " + str(elevationValue)
-        valuesAboveElev = SetNull(tempDEM, tempDEM, conStatement)
-
-        # Multiply every pixel by 0 and convert to integer for vectorizing
-        zeroValues = Times(valuesAboveElev, 0)
-        zeroInt = Int(zeroValues)
-
-        # Convert to polygon and dissolve
-        RasterToPolygon(zeroInt, temp_pool, 'NO_SIMPLIFY', 'VALUE')
-        Dissolve(temp_pool, poolExit)
-
-        AddField(poolExit, 'ELEV_FEET', 'DOUBLE')
-        AddField(poolExit, 'DEM_ELEV', 'DOUBLE')
-        AddField(poolExit, 'POOL_ACRES', 'DOUBLE')
-        AddField(poolExit, 'POOL_SQFT', 'DOUBLE')
-        AddField(poolExit, 'ACRE_FOOT', 'DOUBLE')
-        AddField(poolExit, 'CUBIC_FEET', 'DOUBLE')
-        AddField(poolExit, 'CUBIC_METERS', 'DOUBLE')
-
-        # open storageCSV file and read the last line which should represent the last pool
-        with open(storageTxtFile) as file:
-            lines = file.readlines()
-
-        area2D = float(lines[len(lines)-1].split(',')[4])
-        volume = float(lines[len(lines)-1].split(',')[6])
-
-        elevFeetCalc = round(elevationValue * convToFeetFactor,1)
-        poolAcresCalc = round(area2D / acreConversion,1)
-        poolSqftCalc = round(area2D / ftConversion,1)
-        acreFootCalc = round(volume / convToAcreFootFactor,1)
-        cubicMeterCalc = round(volume * convToCubicMeterFactor,1)
-        cubicFeetCalc = round(volume * convToCubicFeetFactor,1)
-
-        CalculateField(poolExit, 'ELEV_FEET', elevFeetCalc, 'PYTHON3')
-        CalculateField(poolExit, 'DEM_ELEV', elevationValue, 'PYTHON3')
-        CalculateField(poolExit, 'POOL_ACRES', poolAcresCalc, 'PYTHON3')
-        CalculateField(poolExit, 'POOL_SQFT', poolSqftCalc, 'PYTHON3')
-        CalculateField(poolExit, 'ACRE_FOOT', acreFootCalc, 'PYTHON3')
-        CalculateField(poolExit, 'CUBIC_METERS', cubicMeterCalc, 'PYTHON3')
-        CalculateField(poolExit, 'CUBIC_FEET', cubicFeetCalc, 'PYTHON3')
-
-        AddMsgAndPrint("\n\tCreated " + fcName + ":")
-        AddMsgAndPrint("\t\tElevation " + str(elevFeetCalc) + " Ft")
-        AddMsgAndPrint("\t\tArea:   " + str(poolSqftCalc) + " Sq.Feet")
-        AddMsgAndPrint("\t\tArea:   " + str(poolAcresCalc) + " Acres")
-        AddMsgAndPrint("\t\tVolume: " + str(acreFootCalc) + " Ac. Foot")
-        AddMsgAndPrint("\t\tVolume: " + str(cubicMeterCalc) + " Cubic Meters")
-        AddMsgAndPrint("\t\tVolume: " + str(cubicFeetCalc) + " Cubic Feet")
-
-        return True
-
-    except:
-        AddMsgAndPrint("\nFailed to Create Pool Polygon for elevation value: " + str(elevationValue),1)
-        return False
 
 
 ### Initial Tool Validation ###
@@ -117,7 +53,7 @@ else:
 project_dem = GetParameterAsText(0)
 input_pool = GetParameterAsText(1)
 max_elevation = float(GetParameterAsText(2))
-increment = float(GetParameterAsText(3))
+analysis_increment = float(GetParameterAsText(3))
 create_pools_layer = GetParameter(4)
 
 ### Locate Project GDB ###
@@ -141,13 +77,19 @@ project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
 input_pool_name = path.splitext(path.basename(input_pool))[0]
-output_pool_name = f"{input_pool_name}_All_Pools"
-output_pool_path = path.join(project_fd, output_pool_name)
-storage_table_path = path.join(project_gdb, f"{input_pool_name}_StorageTable")
-storage_table_csv = path.join(project_workspace, f"{input_pool_name}_Storage")
 storage_table_temp = path.join(project_workspace, f"{input_pool_name}_StorageCSV.txt")
-storage_table_view_name = 'Stage_Storage_Table'
 temp_pool = path.join(scratch_gdb, 'Temp_Pool')
+
+# Include Subbasin number in output names if input polygon is Watershed layer
+if '_Watershed' in input_pool_name:
+    subbasin_number = [row[0] for row in SearchCursor(input_pool, ['Subbasin'])][0]
+    output_pool_name = f"{input_pool_name}_{subbasin_number}_Pools"
+    storage_table_name = f"{input_pool_name}_{subbasin_number}_Stage_Storage"
+else:
+    output_pool_name = f"{input_pool_name}_Pools"
+    storage_table_name = f"{input_pool_name}_Stage_Storage"
+output_pool_path = path.join(project_fd, output_pool_name)
+storage_table_path = path.join(project_gdb, storage_table_name)
 
 ### ESRI Environment Settings ###
 dem_desc = Describe(project_dem_path)
@@ -161,122 +103,107 @@ env.parallelProcessingFactor = '75%'
 env.extent = 'MINOF'
 env.overwriteOutput = True
 
-#TODO: Add this validation as Range in parameters
-# # Exit if Elevation value is less than 1
-# if maxElev < 1:
-#     AddMsgAndPrint("\n\nMaximum Elevation Value must be greater than 0.....Exiting\n",2)
-#     exit()
-
-# # Exit if elevation increment is not greater than 0
-# if userIncrement < 0.5:
-#     AddMsgAndPrint("\n\nAnalysis Increment Value must be greater than or equal to 0.5.....Exiting\n",2)
-#     exit()
-
-# lookup dictionary to convert XY units to area.  Key = XY unit of DEM; Value = conversion factor to sq.meters
-acreConversionDict = {'Meters':4046.8564224,'Meter':4046.8564224,'Foot':43560,'Foot_US':43560,'Feet':43560, 'Centimeter':40470000,'Inch':6273000}
-ftConversionDict = {'Meters':0.092903,'Meter':0.092903,'Foot':1,'Foot_US':1,'Feet':1}
-conversionToAcreFootDict = {'Meters':1233.48184,'Meter':1233.48184,'Foot':43560,'Foot_US':43560,'Feet':43560}  # to acre Foot
-conversionToFtFactorDict = {'Meters':3.280839896,'Meter':3.280839896,'Foot':1,'Foot_US':1,'Feet':1, 'Centimeter':0.0328084, 'Centimeters':0.0328084, 'Inches':0.0833333, 'Inch':0.0833333}
-conversionToCubicMetersDict = {'Meters':1,'Meter':1,'Foot':0.0283168,'Foot_US':0.0283168,'Feet':0.0283168}
-conversionToCubicFeetDict = {'Meters':35.3147,'Meter':35.3147,'Foot':1,'Foot_US':1,'Feet':1}
-
-# Assign Z-factor based on XY and Z units of DEM
-# the following represents a matrix of possible z-Factors
-# using different combination of xy and z units
-# ----------------------------------------------------
-#                      Z - Units
-#                       Meter    Foot     Centimeter     Inch
-#          Meter         1	    0.3048	    0.01	    0.0254
-#  XY      Foot        3.28084	  1	      0.0328084	    0.083333
-# Units    Centimeter   100	    30.48	     1	         2.54
-#          Inch        39.3701	  12       0.393701	      1
-# ---------------------------------------------------
-
-unitLookUpDict = {'Meter':0,'Meters':0,'Foot':1,'Foot_US':1,'Feet':1,'Centimeter':2,'Centimeters':2,'Inch':3,'Inches':3}
-zFactorList = [[1,0.304800609601219,0.01,0.0254],
-                [3.28084,1,0.0328084,0.083333],
-                [100,30.4800609601219,1.0,2.54],
-                [39.3701,12,0.393701,1.0]]
-
-acreConversion = acreConversionDict.get(linearUnits)
-ftConversion = ftConversionDict.get(linearUnits)
-convToAcreFootFactor = conversionToAcreFootDict.get(linearUnits)
-convToCubicMeterFactor = conversionToCubicMetersDict.get(linearUnits)
-convToCubicFeetFactor = conversionToCubicFeetDict.get(linearUnits)
-
-# if zUnits were left blank than assume Z-values are the same as XY units.
-if not len(zUnits) > 0:
-    zUnits = linearUnits
-
-AddMsgAndPrint("\nGathering information about DEM: " + path.basename(inputDEM))
-
-
-# This will be used to convert elevation values to Feet.
-zFactor = zFactorList[unitLookUpDict.get(zUnits)][unitLookUpDict.get('Feet')]
-convToFeetFactor = conversionToFtFactorDict.get(zUnits)
-
-AddMsgAndPrint("\tProjection Name: " + demSR.name)
-AddMsgAndPrint("\tXY Linear Units: " + linearUnits)
-AddMsgAndPrint("\tElevation Values (Z): " + zUnits)
-AddMsgAndPrint("\tCell Size: " + str(demCellSize) + " x " + str(demCellSize) + " " + linearUnits)
-
+### Conversion Factors - Linear Units of DEM Meters ###
+to_acres = 4046.8564224
+to_feet = 0.092903
+to_acre_foot = 1233.48184
+to_cubic_meters = 1
+to_cubic_feet = 35.3147
 
 try:
-    removeMapLayers(map, [output_pool_name, storage_table_view_name])
-    logBasicSettings(log_file_path, project_dem, input_pool, max_elevation, increment, create_pools_layer)
+    removeMapLayers(map, [output_pool_name, storage_table_name])
+    logBasicSettings(log_file_path, project_dem, input_pool, max_elevation, analysis_increment, create_pools_layer)
 
-    # ClipDEM to User's Pool or Watershed
-    tempDEM = ExtractByMask(project_dem, input_pool)
-
-    # User specified max elevation value must be within min-max elevation range of clipped dem
-    demTempMaxElev = round(float(GetRasterProperties(tempDEM, "MAXIMUM").getOutput(0)))
-    demTempMinElev = round(float(GetRasterProperties(tempDEM, "MINIMUM").getOutput(0)))
-
-    # convert max elev value and increment(FT) to match the native Z-units of input DEM
-    maxElevConverted = max_elevation * zFactor
-    # increment = userIncrement * zFactor #NOTE: increment in feet, DEM elevation units feet
-
-    # if maxElevConverted is not within elevation range exit.
-    if not demTempMinElev < maxElevConverted <= demTempMaxElev:
-
-        AddMsgAndPrint("\nThe Max Elevation value specified is not within the elevation range of your watershed-pool area",2)
-        AddMsgAndPrint("Elevation Range of your watershed-pool polygon is:",2)
-        AddMsgAndPrint("\tMaximum Elevation: " + str(demTempMaxElev) + " " + zUnits + " ---- " + str(round(float(demTempMaxElev*convToFeetFactor),1)) + " Feet")
-        AddMsgAndPrint("\tMinimum Elevation: " + str(demTempMinElev) + " " + zUnits + " ---- " + str(round(float(demTempMinElev*convToFeetFactor),1)) + " Feet")
-        AddMsgAndPrint("Please enter an elevation value within this range.....Exiting!\n\n",2)
+    ### Clip DEM to Input Polygon and get Min/Max ###
+    SetProgressorLabel('Clipping DEM to input pool polygon...')
+    AddMsgAndPrint('\nClipping DEM to input pool polygon...', log_file_path=log_file_path)
+    temp_dem = ExtractByMask(project_dem, input_pool)
+    temp_dem_min = round(float(GetRasterProperties(temp_dem, 'MINIMUM').getOutput(0)))
+    temp_dem_max = round(float(GetRasterProperties(temp_dem, 'MAXIMUM').getOutput(0)))
+    if not temp_dem_min < max_elevation <= temp_dem_max:
+        AddMsgAndPrint(f"\nThe maximum elevation value specified is not within range of your watershed-pool area:\n\tMinimum Elevation: {temp_dem_min} Feet\n\tMaximum Elevation: {temp_dem_max} Feet", 2, log_file_path)
         exit()
 
-    else:
-        AddMsgAndPrint("\nSuccessfully clipped DEM to " + path.basename(inPool))
+    ### Calculate Volume and Surface Area Incrementally ###
+    SetProgressorLabel(f"Calulating volume and surface area every {analysis_increment} ft...")
+    AddMsgAndPrint(f"\nCalulating volume and surface area every {analysis_increment} ft between {temp_dem_min} and {round(max_elevation)} ft...", log_file_path=log_file_path)
+    AddMsgAndPrint(f"\n{round(((max_elevation-temp_dem_min)//analysis_increment)+1)} pools will be created...")
 
-    # Set Elevations to calculate volume and surface area
-    try:
-        i = 1
-        while maxElevConverted > demTempMinElev:
+    elevation_to_process = max_elevation
 
-            if i == 1:
-                AddMsgAndPrint("\nDeriving Surface Volume for elevation values between " + str(round(demTempMinElev * convToFeetFactor,1)) + " and " + str(maxElev) + " FT every " + str(userIncrement) + " FT")
-                numOfPoolsToCreate = str(int(round((maxElevConverted - demTempMinElev)/increment)))
-                AddMsgAndPrint(numOfPoolsToCreate + " Pool Feature Classes will be created")
-                i += 1
+    while elevation_to_process > temp_dem_min:
+        SetProgressorLabel(f"Processing elevation {elevation_to_process}...")
+        AddMsgAndPrint(f"\nProcessing elevation {elevation_to_process}...", log_file_path=log_file_path)
 
-            SurfaceVolume(tempDEM, storage_table_temp, "BELOW", maxElevConverted, "1")
+        SurfaceVolume(temp_dem, storage_table_temp, 'BELOW', elevation_to_process, '1')
 
-            if create_pools_layer:
-                if not createPool(maxElevConverted, storage_table_temp):
-                    AddMsgAndPrint("\nFailed To Create Pool at elevation: " + str(maxElevConverted),2)
-                    exit()
+        if create_pools_layer:
+            try:
+                increment_pool_name = f"Pool_{str(round(elevation_to_process,1)).replace('.','_')}"
+                increment_pool_path = path.join(scratch_gdb, increment_pool_name)
 
-            maxElevConverted = maxElevConverted - increment
+                # Create new raster of only values below an elevation value by nullifying cells above the desired elevation value
+                above_elevation = SetNull(temp_dem, temp_dem, f"Value > {elevation_to_process}")
 
-    except:
-        exit()
+                # Multiply every pixel by 0 and convert to integer for vectorizing
+                zeros = Times(above_elevation, 0)
+                zero_int = Int(zeros)
 
-    Delete(tempDEM)
+                # Convert to polygon and dissolve
+                RasterToPolygon(zero_int, temp_pool, 'NO_SIMPLIFY', 'VALUE')
+                Dissolve(temp_pool, increment_pool_path)
 
-    # Convert StorageCSV to FGDB Table and populate fields.
+                AddField(increment_pool_path, 'ELEV_FEET', 'DOUBLE')
+                AddField(increment_pool_path, 'DEM_ELEV', 'DOUBLE')
+                AddField(increment_pool_path, 'POOL_ACRES', 'DOUBLE')
+                AddField(increment_pool_path, 'POOL_SQFT', 'DOUBLE')
+                AddField(increment_pool_path, 'ACRE_FOOT', 'DOUBLE')
+                AddField(increment_pool_path, 'CUBIC_FEET', 'DOUBLE')
+                AddField(increment_pool_path, 'CUBIC_METERS', 'DOUBLE')
+
+                # Open surface volume text file - last line should represent the last pool
+                with open(storage_table_temp) as file:
+                    lines = file.readlines()
+
+                area2D = float(lines[len(lines)-1].split(',')[4])
+                volume = float(lines[len(lines)-1].split(',')[6])
+
+                elevation_feet = round(elevation_to_process, 1)
+                area_acres = round(area2D / to_acres, 1)
+                area_sqft = round(area2D / to_feet, 1)
+                volume_acre_foot = round(volume / to_acre_foot, 1)
+                volume_cubic_meters = round(volume * to_cubic_meters, 1)
+                volume_cubic_feet = round(volume * to_cubic_feet, 1)
+
+                CalculateField(increment_pool_path, 'ELEV_FEET', elevation_feet, 'PYTHON3')
+                CalculateField(increment_pool_path, 'DEM_ELEV', elevation_to_process, 'PYTHON3')
+                CalculateField(increment_pool_path, 'POOL_ACRES', area_acres, 'PYTHON3')
+                CalculateField(increment_pool_path, 'POOL_SQFT', area_sqft, 'PYTHON3')
+                CalculateField(increment_pool_path, 'ACRE_FOOT', volume_acre_foot, 'PYTHON3')
+                CalculateField(increment_pool_path, 'CUBIC_METERS', volume_cubic_meters, 'PYTHON3')
+                CalculateField(increment_pool_path, 'CUBIC_FEET', volume_cubic_feet, 'PYTHON3')
+
+                AddMsgAndPrint(f"\n\tCreated {increment_pool_name}:")
+                AddMsgAndPrint(f"\t\tElevation {elevation_feet} Feet")
+                AddMsgAndPrint(f"\t\tArea: {area_sqft} Square Feet")
+                AddMsgAndPrint(f"\t\tArea: {area_acres} Acres")
+                AddMsgAndPrint(f"\t\tVolume: {volume_acre_foot} Acre Feet")
+                AddMsgAndPrint(f"\t\tVolume: {volume_cubic_meters} Cubic Meters")
+                AddMsgAndPrint(f"\t\tVolume: {volume_cubic_feet} Cubic Feet")
+
+            except:
+                AddMsgAndPrint(f"\nFailed to create pool at elevation: {elevation_to_process}. Exiting...", 2, log_file_path)
+                AddMsgAndPrint(errorMsg('Calculate Stage Storage'), 2, log_file_path)
+                exit()
+
+        elevation_to_process = elevation_to_process - analysis_increment
+
+    ### Finalize Storage Table ###
+    SetProgressorLabel('Finalizing storage table...')
+    AddMsgAndPrint('\nFinalizing storage table...', log_file_path=log_file_path)
+
     CopyRows(storage_table_temp, storage_table_path)
-    AlterAliasName(storage_table_path, storage_table_view_name)
+    AlterAliasName(storage_table_path, storage_table_name)
 
     AddField(storage_table_path, 'ELEV_FEET', 'DOUBLE', '5', '1')
     AddField(storage_table_path, 'DEM_ELEV', 'DOUBLE')
@@ -286,42 +213,39 @@ try:
     AddField(storage_table_path, 'CUBIC_FEET', 'DOUBLE')
     AddField(storage_table_path, 'CUBIC_METERS', 'DOUBLE')
 
-    demElevCalc = 'round(!Plane_Height!)'
-    elevFeetCalc = 'round(!Plane_Height! *' + str(convToFeetFactor) + ',1)'
-    poolAcresCalc = 'round(!Area_2D! /' + str(acreConversion) + ',1)'
-    poolSqftCalc = 'round(!Area_2D! /' + str(ftConversion) + ',1)'
-    acreFootCalc = 'round(!Volume! /' + str(convToAcreFootFactor) + ',1)'
-    cubicMeterCalc = 'round(!Volume! *' + str(convToCubicMeterFactor) + ',1)'
-    cubicFeetCalc = 'round(!Volume! *' + str(convToCubicFeetFactor) + ',1)'
+    dem_elevation = 'round(!Plane_Height!)'
+    elevation_feet = 'round(!Plane_Height!,1)'
+    area_acres = 'round(!Area_2D! /' + str(to_acres) + ',1)'
+    area_sqft = 'round(!Area_2D! /' + str(to_feet) + ',1)'
+    volume_acre_foot = 'round(!Volume! /' + str(to_acre_foot) + ',1)'
+    volume_cubic_meters = 'round(!Volume! *' + str(to_cubic_meters) + ',1)'
+    volume_cubic_feet = 'round(!Volume! *' + str(to_cubic_feet) + ',1)'
 
-    CalculateField(storage_table_path, 'DEM_ELEV', demElevCalc,  'PYTHON3')
-    CalculateField(storage_table_path, 'ELEV_FEET', elevFeetCalc, 'PYTHON3')
-    CalculateField(storage_table_path, 'POOL_ACRES', poolAcresCalc, 'PYTHON3')
-    CalculateField(storage_table_path, 'POOL_SQFT', poolSqftCalc, 'PYTHON3')
-    CalculateField(storage_table_path, 'ACRE_FOOT', acreFootCalc, 'PYTHON3')
-    CalculateField(storage_table_path, 'CUBIC_METERS', cubicMeterCalc,  'PYTHON3')
-    CalculateField(storage_table_path, 'CUBIC_FEET', cubicFeetCalc,  'PYTHON3')
+    CalculateField(storage_table_path, 'DEM_ELEV', dem_elevation,  'PYTHON3')
+    CalculateField(storage_table_path, 'ELEV_FEET', elevation_feet, 'PYTHON3')
+    CalculateField(storage_table_path, 'POOL_ACRES', area_acres, 'PYTHON3')
+    CalculateField(storage_table_path, 'POOL_SQFT', area_sqft, 'PYTHON3')
+    CalculateField(storage_table_path, 'ACRE_FOOT', volume_acre_foot, 'PYTHON3')
+    CalculateField(storage_table_path, 'CUBIC_METERS', volume_cubic_meters,  'PYTHON3')
+    CalculateField(storage_table_path, 'CUBIC_FEET', volume_cubic_feet,  'PYTHON3')
 
-    AddMsgAndPrint('\nSuccessfully Created ' + path.basename(storage_table_path))
-
+    ### Clean Up Temp Datasets ###
     if Exists(storage_table_temp):
         Delete(storage_table_temp)
+    if Exists(temp_dem):
+        Delete(temp_dem)
 
-    # Merge all Pool Polygons together
+    ### Create Pools Feature Class ###
     if create_pools_layer:
+        SetProgressorLabel('Finalizing pools feature class...')
+        AddMsgAndPrint('\nFinalizing pools feature class...', log_file_path=log_file_path)
+        env.workspace = scratch_gdb
         poolFCs = ListFeatureClasses('Pool_*')
         Merge(poolFCs, output_pool_path)
-        AddMsgAndPrint('\nSuccessfully Merged Pools into ' + path.basename(output_pool_path))
-        SetParameterAsText(7, output_pool_path)
 
-    tab = Table(storage_table_path)
-    # TODO: use SetParameterAsText derived output instead?
-    # # Add Storage Table to ArcGIS Pro Map
-    # for maps in aprx.listMaps():
-    #     for lyr in maps.listLayers():
-    #         if lyr.name in (demName, Describe(input_pool).name):
-    #             maps.addTable(tab)
-    #             break
+    ### Add Outputs to Map ###
+    SetParameterAsText(5, storage_table_path)
+    if create_pools_layer: SetParameterAsText(6, output_pool_path)
 
     ### Compact Project GDB ###
     try:
@@ -331,7 +255,7 @@ try:
     except:
         pass
 
-    AddMsgAndPrint('\nCCalculate Stage Storage completed successfully', log_file_path=log_file_path)
+    AddMsgAndPrint('\nCalculate Stage Storage completed successfully', log_file_path=log_file_path)
 
 except SystemExit:
     pass
@@ -342,5 +266,5 @@ except:
     except:
         AddMsgAndPrint(errorMsg('Calculate Stage Storage'), 2)
 
-# finally:
-#     emptyScratchGDB(scratch_gdb)
+finally:
+    emptyScratchGDB(scratch_gdb)
