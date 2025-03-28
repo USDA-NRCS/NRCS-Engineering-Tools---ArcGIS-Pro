@@ -3,18 +3,19 @@
   "version" : "3.3.0",
   "build" : 52636,
   "layers" : [
-    "CIMPATH=engineering/hendricks236_watershed_soils.json"
+    "CIMPATH=engineering/hendricks236_watershed_2_soils.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "Hendricks236_Watershed_Soils",
-      "uRI" : "CIMPATH=engineering/hendricks236_watershed_soils.json",
+      "name" : "Hendricks236_Watershed_2_Soils",
+      "uRI" : "CIMPATH=engineering/hendricks236_watershed_2_soils.json",
       "sourceModifiedTime" : {
-        "type" : "TimeInstant"
+        "type" : "TimeInstant",
+        "start" : -62135596800000
       },
       "useSourceMetadata" : true,
-      "description" : "Hendricks236_Watershed_Soils",
+      "description" : "Hendricks236_Watershed_2_Soils",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
         "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
@@ -42,12 +43,58 @@
           "featureDataset" : "Layers",
           "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\Hendricks_236\\Hendricks_236_EngPro.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "Hendricks236_Watershed_Soils",
+          "dataset" : "Hendricks236_Watershed_2_Soils",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
         "searchOrder" : "esriSearchOrderSpatial"
       },
+      "featureTemplates" : [
+        {
+          "type" : "CIMRowTemplate",
+          "name" : "A",
+          "defaultValues" : {
+            "type" : "PropertySet",
+            "propertySetItems" : [
+              "HYDGROUP",
+              "A"
+            ]
+          }
+        },
+        {
+          "type" : "CIMRowTemplate",
+          "name" : "B",
+          "defaultValues" : {
+            "type" : "PropertySet",
+            "propertySetItems" : [
+              "HYDGROUP",
+              "B"
+            ]
+          }
+        },
+        {
+          "type" : "CIMRowTemplate",
+          "name" : "C",
+          "defaultValues" : {
+            "type" : "PropertySet",
+            "propertySetItems" : [
+              "HYDGROUP",
+              "C"
+            ]
+          }
+        },
+        {
+          "type" : "CIMRowTemplate",
+          "name" : "D",
+          "defaultValues" : {
+            "type" : "PropertySet",
+            "propertySetItems" : [
+              "HYDGROUP",
+              "D"
+            ]
+          }
+        }
+      ],
       "htmlPopupEnabled" : true,
       "selectable" : true,
       "featureCacheType" : "Session",
@@ -323,6 +370,7 @@
               {
                 "type" : "CIMSolidStroke",
                 "enable" : true,
+                "name" : "Group 1",
                 "capStyle" : "Round",
                 "joinStyle" : "Round",
                 "lineStyle3D" : "Strip",
@@ -343,6 +391,7 @@
               {
                 "type" : "CIMSolidFill",
                 "enable" : true,
+                "name" : "Group 2",
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
@@ -377,6 +426,7 @@
                       {
                         "type" : "CIMSolidStroke",
                         "enable" : true,
+                        "name" : "Group 3",
                         "capStyle" : "Round",
                         "joinStyle" : "Round",
                         "lineStyle3D" : "Strip",
@@ -397,6 +447,7 @@
                       {
                         "type" : "CIMSolidFill",
                         "enable" : true,
+                        "name" : "Group 4",
                         "color" : {
                           "type" : "CIMRGBColor",
                           "values" : [
@@ -433,6 +484,7 @@
                       {
                         "type" : "CIMSolidStroke",
                         "enable" : true,
+                        "name" : "Group 5",
                         "capStyle" : "Round",
                         "joinStyle" : "Round",
                         "lineStyle3D" : "Strip",
@@ -453,6 +505,7 @@
                       {
                         "type" : "CIMSolidFill",
                         "enable" : true,
+                        "name" : "Group 6",
                         "color" : {
                           "type" : "CIMRGBColor",
                           "values" : [
@@ -489,6 +542,7 @@
                       {
                         "type" : "CIMSolidStroke",
                         "enable" : true,
+                        "name" : "Group 7",
                         "capStyle" : "Round",
                         "joinStyle" : "Round",
                         "lineStyle3D" : "Strip",
@@ -509,6 +563,7 @@
                       {
                         "type" : "CIMSolidFill",
                         "enable" : true,
+                        "name" : "Group 8",
                         "color" : {
                           "type" : "CIMRGBColor",
                           "values" : [
@@ -545,6 +600,7 @@
                       {
                         "type" : "CIMSolidStroke",
                         "enable" : true,
+                        "name" : "Group 9",
                         "capStyle" : "Round",
                         "joinStyle" : "Round",
                         "lineStyle3D" : "Strip",
@@ -565,6 +621,7 @@
                       {
                         "type" : "CIMSolidFill",
                         "enable" : true,
+                        "name" : "Group 10",
                         "color" : {
                           "type" : "CIMRGBColor",
                           "values" : [
@@ -599,7 +656,50 @@
       "scaleSymbols" : true,
       "snappable" : true,
       "symbolLayerDrawing" : {
-        "type" : "CIMSymbolLayerDrawing"
+        "type" : "CIMSymbolLayerDrawing",
+        "symbolLayers" : [
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 1"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 2"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 3"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 4"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 5"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 6"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 7"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 8"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 9"
+          },
+          {
+            "type" : "CIMSymbolLayerIdentifier",
+            "symbolLayerName" : "Group 10"
+          }
+        ],
+        "useSymbolLayerDrawing" : true
       }
     }
   ],
