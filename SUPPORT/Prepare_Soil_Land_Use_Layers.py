@@ -4,9 +4,9 @@ from sys import argv, exit
 from time import ctime
 
 from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
-from arcpy.analysis import Clip, Intersect
+from arcpy.analysis import Clip, Union
 from arcpy.da import SearchCursor
-from arcpy.management import AddField, AssignDomainToField, CalculateField, Compact, DeleteField, Dissolve, GetCount, TableToDomain
+from arcpy.management import AddField, AssignDomainToField, CalculateField, Compact, DeleteField, Dissolve, GetCount, MultipartToSinglepart, TableToDomain
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
@@ -64,11 +64,16 @@ output_landuse_name = f"{watershed_name}_Land_Use"
 output_landuse_path = path.join(project_fd, output_landuse_name)
 tr_55_land_use_table = path.join(support_gdb, 'TR_55_Land_Use_Domain')
 hydro_groups_table = path.join(support_gdb, 'Hydro_Groups_Domain')
+boundaries_clip_temp = path.join(scratch_gdb, 'Boundaries_Clip_Temp')
+land_use_temp = path.join(scratch_gdb, 'Land_Use_Temp')
 watershed_dissolve_temp = path.join(scratch_gdb, 'Watershed_Dissolve')
 
 ### Validate Required Datasets Exist ###
-if not int(GetCount(watershed_path).getOutput(0)) > 0:
-    AddMsgAndPrint('\nThe selected Watershed layer is empty. At least one feature is required. Exiting...', 2)
+if '_Land_Use' in input_watershed or '_Soils' in input_watershed:
+    AddMsgAndPrint('\nInput layer appears to be either a Land Use or Soils layer, not the Watershed layer. Exiting...', 2)
+    exit()
+if not len(ListFields(input_watershed, 'Subbasin')) > 0:
+    AddMsgAndPrint('\nSubbasin field was not found in input Watershed layer. Please run Prepare Soil and Land Use Layers tool before running this tool. Exiting...', 2)
     exit()
 if not Exists(tr_55_land_use_table):
     AddMsgAndPrint('\nTR_55_Land_Use_Domain table was not found in Support.gdb. Exiting...', 2)
@@ -89,13 +94,15 @@ try:
     SetProgressorLabel('Creating Land Use layer...')
     if input_boundaries:
         Dissolve(watershed_path, watershed_dissolve_temp, '', '', 'MULTI_PART', 'DISSOLVE_LINES')
-        Intersect([input_boundaries, watershed_dissolve_temp], output_landuse_path, 'NO_FID')
+        Clip(input_boundaries, watershed_path, boundaries_clip_temp)
+        Union([boundaries_clip_temp, watershed_dissolve_temp], land_use_temp, 'NO_FID')
+        MultipartToSinglepart(land_use_temp, output_landuse_path)
         AddMsgAndPrint('\nCreated Land Use layer from dissolved watershed and input boundaries intersection...', log_file_path=log_file_path)
     else:
         Dissolve(watershed_path, output_landuse_path, '', '', 'MULTI_PART', 'DISSOLVE_LINES')
         AddMsgAndPrint('\nCreated Land Use layer from dissolved watershed...', log_file_path=log_file_path)
 
-    ### Set Land Use Domains ###
+    ### Set Land Use Domain and Delete Extra Fields ###
     SetProgressorLabel('Setting up LANDUSE domain...')
     AddMsgAndPrint('\nSetting up LANDUSE domain...', log_file_path=log_file_path)
 
@@ -104,7 +111,13 @@ try:
         TableToDomain(tr_55_land_use_table, 'LANDUSE', 'LANDUSE', project_gdb, 'LandUse_Domain', 'LandUse_Domain', 'REPLACE')
 
     AddField(output_landuse_path, 'LANDUSE', 'TEXT', field_length='254', field_domain='LandUse_Domain')
-    CalculateField(output_landuse_path, 'LANDUSE', "'- Select Land Use -'", 'PYTHON3')
+    CalculateField(output_landuse_path, 'LANDUSE', "'Landuse not assigned'", 'PYTHON3')
+
+    delete_fields = []
+    for field in ListFields(output_landuse_path):
+        if field.name != 'LANDUSE' and not field.required:
+            delete_fields.append(field.name)
+    DeleteField(output_landuse_path, delete_fields)
 
     ### Clip Soil Data with Land Use ###
     SetProgressorLabel('Clipping soils data...')
@@ -124,13 +137,13 @@ try:
         TableToDomain(hydro_groups_table, 'HydrolGRP', 'HydrolGRP', project_gdb, 'Hydro_Domain', 'Hydro_Domain', 'REPLACE')
 
     AssignDomainToField(output_soils_path, 'HYDGROUP', 'Hydro_Domain')
+    soils_hydro_field = 'HYDGROUP'
 
+    delete_fields = []
     for field in ListFields(output_soils_path):
-        if not field.name.upper() in ['MUNAME','MUKEY','HYDGROUP','MUSYM']:
-            try:
-                DeleteField(output_soils_path, field)
-            except:
-                continue
+        if not field.name.upper() in ['MUNAME','MUKEY','HYDGROUP','MUSYM'] and not field.required:
+            delete_fields.append(field.name)
+    DeleteField(output_soils_path, delete_fields)
 
     ### Validate Hydrologic Group Values ###
     soils_hyrdo_values = set([row[0] for row in SearchCursor(output_soils_path, soils_hydro_field)])
@@ -151,7 +164,7 @@ try:
     if len(hydro_values_to_convert):
         AddMsgAndPrint(f"\tThe following Hydrologic Values need to be converted: {str(hydro_values_to_convert)} to a single class (e.g. 'B/D' to 'B').", 1, log_file_path)
 
-    AddMsgAndPrint(f"\tNOTICE: Before calculating the Runoff Curve Number for the watershed, {output_landuse_name} layer requires attribution for LANDUSE and CONDITION fields, and any combined, invalid, or NULL Hydrologic Group values in {output_soils_name} must be addressed.", 1, log_file_path)
+    AddMsgAndPrint(f"\tNOTICE: Before calculating the Runoff Curve Number for the watershed, {output_landuse_name} layer requires attribution for LANDUSE fields, and any combined, invalid, or NULL Hydrologic Group values in {output_soils_name} must be addressed.", 1, log_file_path)
 
     ### Add Outputs to Map ###
     SetParameterAsText(4, output_landuse_path)
