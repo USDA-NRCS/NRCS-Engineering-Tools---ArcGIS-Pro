@@ -4,7 +4,6 @@ from sys import argv
 from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, SetProgressorLabel
-from arcpy.analysis import Buffer
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask, Fill, Times
@@ -70,7 +69,6 @@ project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_dem_name = f"{project_name}_DEM"
 project_dem_path = path.join(project_gdb, project_dem_name)
-buffer_aoi = path.join(project_gdb, 'Layers', 'Buffer_AOI')
 temp_aoi = path.join(scratch_gdb, 'temp_aoi')
 clipped_dem = path.join(scratch_gdb, 'clipped_dem')
 temp_dem = path.join(scratch_gdb, 'temp_dem')
@@ -113,20 +111,15 @@ try:
     removeMapLayers(map, [project_dem_name])
     logBasicSettings(log_file_path, project_workspace, dem_format, input_z_units, input_dem_sr, output_sr, cell_size)
 
-    ### Buffer Project AOI ###
-    SetProgressorLabel('Buffering selected extent...')
-    AddMsgAndPrint('\nBuffering selected extent...', log_file_path=log_file_path)
-    Buffer(project_aoi, buffer_aoi, '500 Feet', 'FULL', '', 'ALL', '')
-
     ### Image Service Extract ###
     if dem_format in ['NRCS Image Service', 'External Image Service']:
         if cell_size == '':
             AddMsgAndPrint('\nAn output DEM cell size was not specified. Exiting...', 2, log_file_path)
             exit()
         else:
-            SetProgressorLabel('Projecting buffered AOI to match input DEM...')
-            AddMsgAndPrint('\nProjecting buffered AOI to match input DEM...', log_file_path=log_file_path)
-            Project(buffer_aoi, temp_aoi, input_dem_sr)
+            SetProgressorLabel('Projecting project AOI to match input DEM...')
+            AddMsgAndPrint('\nProjecting project AOI to match input DEM...', log_file_path=log_file_path)
+            Project(project_aoi, temp_aoi, input_dem_sr)
 
             SetProgressorLabel('Downloading DEM data...')
             AddMsgAndPrint('\nDownloading DEM data...', log_file_path=log_file_path)
@@ -166,7 +159,7 @@ try:
                 exit()
             out_clip = f"{temp_dem}_{str(x)}"
             try:
-                extracted_dem = ExtractByMask(raster_path, buffer_aoi)
+                extracted_dem = ExtractByMask(raster_path, project_aoi)
                 extracted_dem.save(out_clip)
             except:
                 AddMsgAndPrint('\nOne or more input DEMs may have a problem. Please verify that the input DEMs cover the tract area and try to run again. Exiting...', 2, log_file_path)
