@@ -8,7 +8,7 @@ from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetI
 from arcpy.analysis import Buffer, Clip
 from arcpy.management import AddField, CalculateField, CalculateStatistics, Compact, GetCount, MosaicToNewRaster
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Con, Fill, FlowAccumulation, FlowDirection, StreamLink, StreamToFeature, ZonalStatistics
+from arcpy.sa import Con, Fill, FlowAccumulation, FlowDirection, FocalStatistics, StreamLink, StreamToFeature, ZonalStatistics
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
@@ -61,6 +61,7 @@ project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_dem_name = f"{project_name}_DEM"
 project_dem_path = path.join(project_gdb, project_dem_name)
+smoothed_dem_path = path.join(project_gdb, f"{project_name}_Smooth_3_3")
 culverts_buffer_temp = path.join(scratch_gdb, 'Culverts_Buffer')
 culverts_raster_temp = path.join(scratch_gdb, 'Culverts_Raster')
 hydro_dem_temp = path.join(scratch_gdb, 'Hydro_DEM')
@@ -94,6 +95,13 @@ try:
     removeMapLayers(map, [culverts_name, streams_name, flow_accum_name, flow_dir_name])
     logBasicSettings(log_file_path, project_aoi, input_culverts, stream_threshold)
 
+    ### Create Smoothed DEM if Needed ###
+    if not Exists(smoothed_dem_path):
+        SetProgressorLabel('Smoothing DEM with Focal Statistics...')
+        AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
+        output_focal_stats = FocalStatistics(project_dem_path, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
+        output_focal_stats.save(smoothed_dem_path)
+
     ### Process Input Culverts ###
     if input_culverts:
         SetProgressorLabel('Processing input culverts...')
@@ -122,17 +130,17 @@ try:
             # Get the minimum elevation value for each culvert
             SetProgressorLabel('Finding minimum elevation of culverts...')
             AddMsgAndPrint('\nFinding minimum elevation of culverts...', log_file_path=log_file_path)
-            culverts_min_value = ZonalStatistics(culverts_buffer_temp, 'ZONE', project_dem_path, 'MINIMUM', 'NODATA')
+            culverts_min_value = ZonalStatistics(culverts_buffer_temp, 'ZONE', smoothed_dem_path, 'MINIMUM', 'NODATA')
 
             # Elevation cells that overlap the culverts will get the minimum elevation value
-            mosaic_list = f"{project_dem_path};{culverts_min_value}"
+            mosaic_list = f"{smoothed_dem_path};{culverts_min_value}"
             MosaicToNewRaster(mosaic_list, scratch_gdb, 'Hydro_DEM', '#', '32_BIT_FLOAT', dem_cell_size, '1', 'LAST')
 
             hydro_dem_fill = Fill(hydro_dem_temp)
 
     else:
         AddMsgAndPrint('\nNo culverts within project AOI...', log_file_path=log_file_path)
-        hydro_dem_fill = Fill(project_dem_path)
+        hydro_dem_fill = Fill(smoothed_dem_path)
 
     ### Create Flow Direction Grid ###
     SetProgressorLabel('Creating Flow Direction...')
