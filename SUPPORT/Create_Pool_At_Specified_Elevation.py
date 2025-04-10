@@ -17,7 +17,7 @@ from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 def logBasicSettings(log_file_path, project_dem, input_pool, pool_elevation):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
-        f.write('Executing Tool: Calculate State Storage\n')
+        f.write('Executing Tool: Create Pool at Specified Elevation\n')
         f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
