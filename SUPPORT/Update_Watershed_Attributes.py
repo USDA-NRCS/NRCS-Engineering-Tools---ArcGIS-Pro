@@ -8,7 +8,7 @@ from arcpy import AddFieldDelimiters, CheckExtension, CheckOutExtension, Describ
 from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.management import AddField, CalculateField, Compact
 from arcpy.mp import ArcGISProject
-from arcpy.sa import FocalStatistics, Slope, ZonalStatisticsAsTable
+from arcpy.sa import Slope, ZonalStatisticsAsTable
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg
 
@@ -58,7 +58,6 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
 project_aoi_path = path.join(project_fd, f"{project_name}_AOI")
 project_dem_path = path.join(project_gdb, f"{project_name}_DEM")
-smoothed_dem_path = path.join(project_gdb, f"{project_name}_Smooth_3_3")
 watershed_name = path.basename(watershed_path)
 flow_length_path = path.join(project_fd, f"{watershed_name}_FlowPaths")
 slope_grid_temp = path.join(scratch_gdb, 'Slope_Grid')
@@ -86,13 +85,6 @@ env.mask = watershed
 try:
     logBasicSettings(log_file_path, watershed)
 
-    ### Create Smoothed DEM if Needed ###
-    if not Exists(smoothed_dem_path):
-        SetProgressorLabel('Smoothing DEM with Focal Statistics...')
-        AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
-        output_focal_stats = FocalStatistics(project_dem_path, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
-        output_focal_stats.save(smoothed_dem_path)
-
     ### Update Drainage Area(s) ###
     SetProgressorLabel('Updating drainage area(s)...')
     AddMsgAndPrint('\nUpdating drainage area(s)...', log_file_path=log_file_path)
@@ -111,7 +103,7 @@ try:
     ### Update Average Slope ###
     SetProgressorLabel('Updating average slope...')
     AddMsgAndPrint('\nUpdating average slope...')
-    slope_grid = Slope(smoothed_dem_path, 'PERCENT_RISE', 0.3048) # Z-factor Intl Feet to Meters
+    slope_grid = Slope(project_dem_path, 'PERCENT_RISE', 0.3048) # Z-factor Intl Feet to Meters
     ZonalStatisticsAsTable(watershed_path, 'Subbasin', slope_grid, slope_stats_temp, 'DATA')
 
     # Update Watershed FC with Average Slope

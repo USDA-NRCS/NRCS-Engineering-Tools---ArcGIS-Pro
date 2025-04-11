@@ -3,12 +3,12 @@ from os import path
 from sys import argv
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, \
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, \
     SetParameterAsText, SetProgressorLabel
 from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, DeleteField, MakeFeatureLayer, \
     SelectLayerByAttribute
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Contour, FocalStatistics
+from arcpy.sa import Contour
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
@@ -67,37 +67,26 @@ scratch_gdb = path.join(support_dir, 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-smoothed_dem_path = path.join(project_gdb, f"{project_name}_Smooth_3_3")
 temp_contour_path = path.join(scratch_gdb, 'temp_contour')
 contour_name = f"{project_name}_Contour_{contour_interval.replace('.','_dot_')}"
 contour_path = path.join(project_gdb, 'Layers', contour_name)
 
 try:
-    emptyScratchGDB(scratch_gdb)
     removeMapLayers(map, [contour_name])
     logBasicSettings(log_file_path, project_dem, contour_interval)
 
-    ### Create Smoothed DEM if Needed ###
-    if not Exists(smoothed_dem_path):
-        SetProgressorLabel('Smoothing DEM with Focal Statistics...')
-        AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
-        output_focal_stats = FocalStatistics(project_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
-        output_focal_stats.save(smoothed_dem_path)
-
     ### Create Contours ###
-    SetProgressorLabel('Creating temporary Contours layer...')
-    AddMsgAndPrint('\nCreating temporary Contours layer...', log_file_path=log_file_path)
-    Contour(smoothed_dem_path, temp_contour_path, contour_interval)
+    SetProgressorLabel('Creating temporary contours layer...')
+    AddMsgAndPrint('\nCreating temporary contours layer...', log_file_path=log_file_path)
+    Contour(project_dem, temp_contour_path, contour_interval)
 
     ### Add Index Field ###
-    SetProgressorLabel('Updating fields in temporary Contours layer...')
-    AddMsgAndPrint('\nUpdating fields in temporary Contours layer...', log_file_path=log_file_path)
     DeleteField(temp_contour_path, 'Id')
     AddField(temp_contour_path, 'Index', 'DOUBLE')
 
     ### Update Every 5th Index to 1 ###
-    SetProgressorLabel('Updating contour index field...')
-    AddMsgAndPrint('\nUpdating contour index field...', log_file_path=log_file_path)
+    SetProgressorLabel('Updating contour indexing...')
+    AddMsgAndPrint('\nUpdating contour indexing...', log_file_path=log_file_path)
     MakeFeatureLayer(temp_contour_path, 'contour_lyr')
     expression = "MOD( \"CONTOUR\"," + str(float(contour_interval) * 5) + ") = 0"
     SelectLayerByAttribute('contour_lyr', 'NEW_SELECTION', expression)
@@ -108,14 +97,14 @@ try:
     CalculateField('contour_lyr', 'Index', 0, 'PYTHON3')
 
     ### Copy Final Contour Output ###
-    SetProgressorLabel('Finalizing Contour output...')
-    AddMsgAndPrint('\nFinalizing Contour output...', log_file_path=log_file_path)
+    SetProgressorLabel('Finalizing contour layer...')
+    AddMsgAndPrint('\nFinalizing lontour layer...', log_file_path=log_file_path)
     SelectLayerByAttribute('contour_lyr', 'CLEAR_SELECTION')
     CopyFeatures('contour_lyr', contour_path)
 
     ### Add Output to Map ###
-    AddMsgAndPrint('\nAdding Contours to map...', log_file_path=log_file_path)
-    SetProgressorLabel('Adding Contours to map...')
+    AddMsgAndPrint('\nAdding to map...', log_file_path=log_file_path)
+    SetProgressorLabel('Adding to map...')
     SetParameterAsText(2, contour_path)
 
     ### Compact Project GDB ###

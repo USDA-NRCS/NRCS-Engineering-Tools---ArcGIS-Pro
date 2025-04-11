@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, SetProgressorLabel
 from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
-from arcpy.sa import ExtractByMask, Fill, Times
+from arcpy.sa import ExtractByMask, Fill, FocalStatistics, Times
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
@@ -67,6 +67,8 @@ scratch_gdb = path.join(support_dir, 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
+extracted_dem_name = f"{project_name}_DEM_extract"
+extracted_dem_path = path.join(project_gdb, extracted_dem_name)
 project_dem_name = f"{project_name}_DEM"
 project_dem_path = path.join(project_gdb, project_dem_name)
 temp_aoi = path.join(scratch_gdb, 'temp_aoi')
@@ -208,11 +210,17 @@ try:
         exit()
 
     ### Convert DEM Values to International Feet ###
+    SetProgressorLabel('Converting DEM elevation values to feet...')
+    AddMsgAndPrint('\nConverting DEM elevation values to feet...', log_file_path=log_file_path)
+    output_ft_dem = Times(temp_dem, z_factor)
+    output_ft_dem.save(extracted_dem_path)
+
+    ### Finalize DEM ###
     SetProgressorLabel('Finalizing DEM...')
     AddMsgAndPrint('\nFinalizing DEM...', log_file_path=log_file_path)
-    output_ft_dem = Times(temp_dem, z_factor)
-    output_dem = Fill(output_ft_dem, 0.25)
-    output_dem.save(project_dem_path)
+    output_fill_dem = Fill(extracted_dem_path, 0.25)
+    output_focal_stats = FocalStatistics(output_fill_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
+    output_focal_stats.save(project_dem_path)
 
     ### Add Output DEM to Map and Symbolize ###
     SetProgressorLabel('Adding DEM to map...')

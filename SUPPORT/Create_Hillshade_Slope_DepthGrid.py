@@ -7,7 +7,7 @@ from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallIn
     GetParameter, SetParameterAsText, SetProgressorLabel
 from arcpy.management import Compact
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Con, Fill, FocalStatistics, Hillshade, Minus, Slope
+from arcpy.sa import Con, Fill, Hillshade, Minus, Slope
 
 from utils import AddMsgAndPrint, errorMsg, removeMapLayers
 
@@ -64,8 +64,6 @@ support_dir = path.dirname(argv[0])
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-smoothed_dem_name = path.join(project_gdb, f"{project_name}_Smooth_3_3")
-smoothed_dem_path = path.join(project_gdb, smoothed_dem_name)
 hillshade_name = f"{project_name}_Hillshade"
 hillshade_path = path.join(project_gdb, hillshade_name)
 slope_name = f"{project_name}_Slope"
@@ -90,16 +88,10 @@ try:
         output_hillshade.save(hillshade_path)
 
     if create_slope:
-        ### Create Smoothed DEM (3x3) ###
-        SetProgressorLabel('Smoothing DEM with Focal Statistics...')
-        AddMsgAndPrint('\nSmoothing DEM with Focal Statistics...')
-        output_focal_stats = FocalStatistics(project_dem, 'RECTANGLE 3 3 CELL', 'MEAN', 'DATA')
-        output_focal_stats.save(smoothed_dem_path)
-
         ### Create Slope ###
         SetProgressorLabel('Creating Slope...')
         AddMsgAndPrint('\nCreating Slope...', log_file_path=log_file_path)
-        output_slope = Slope(smoothed_dem_path, 'PERCENT_RISE', z_factor)
+        output_slope = Slope(project_dem, 'PERCENT_RISE', z_factor)
         output_slope.save(slope_path)
 
     if create_depth_grid:
