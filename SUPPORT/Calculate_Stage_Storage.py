@@ -8,7 +8,7 @@ from arcpy import AlterAliasName, Describe, CheckExtension, CheckOutExtension, e
 from arcpy.conversion import RasterToPolygon
 from arcpy.da import SearchCursor
 from arcpy.ddd import SurfaceVolume
-from arcpy.management import AddField, CalculateField, Compact, CopyRows, Delete, Dissolve, GetCount, GetRasterProperties, Merge
+from arcpy.management import AddField, CalculateField, Compact, CopyRows, Delete, Dissolve, GetCount, GetRasterProperties, Merge, TruncateTable
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask, Int, SetNull, Times
 
@@ -105,7 +105,7 @@ env.overwriteOutput = True
 
 ### Conversion Factors - Linear Units of DEM Meters ###
 to_acres = 4046.8564224
-to_feet = 0.092903
+to_square_feet = 0.092903
 to_acre_foot = 1233.48184
 to_cubic_meters = 1
 to_cubic_feet = 35.3147
@@ -129,13 +129,17 @@ try:
     AddMsgAndPrint(f"\nCalulating volume and surface area every {analysis_increment} ft between {temp_dem_min} and {round(max_elevation)} ft...", log_file_path=log_file_path)
     AddMsgAndPrint(f"\n{round(((max_elevation-temp_dem_min)//analysis_increment)+1)} pools will be created...")
 
-    elevation_to_process = max_elevation
+    # Convert DEM elevation units to meters for processing
+    temp_dem_meters = Times(temp_dem, 0.3048)
+    temp_dem_meters_min = round(float(GetRasterProperties(temp_dem_meters, 'MINIMUM').getOutput(0)))
+    elevation_to_process = max_elevation * 0.3048
+    increment_meters = analysis_increment * 0.3048
 
-    while elevation_to_process > temp_dem_min:
+    while elevation_to_process > temp_dem_meters_min:
         SetProgressorLabel(f"Processing elevation {elevation_to_process}...")
         AddMsgAndPrint(f"\nProcessing elevation {elevation_to_process}...", log_file_path=log_file_path)
 
-        SurfaceVolume(temp_dem, storage_table_temp, 'BELOW', elevation_to_process, '1')
+        SurfaceVolume(temp_dem_meters, storage_table_temp, 'BELOW', elevation_to_process, '1')
 
         if create_pools_layer:
             try:
@@ -143,7 +147,7 @@ try:
                 increment_pool_path = path.join(scratch_gdb, increment_pool_name)
 
                 # Create new raster of only values below an elevation value by nullifying cells above the desired elevation value
-                above_elevation = SetNull(temp_dem, temp_dem, f"Value > {elevation_to_process}")
+                above_elevation = SetNull(temp_dem_meters, temp_dem_meters, f"Value > {elevation_to_process}")
 
                 # Multiply every pixel by 0 and convert to integer for vectorizing
                 zeros = Times(above_elevation, 0)
@@ -168,9 +172,9 @@ try:
                 area2D = float(lines[len(lines)-1].split(',')[4])
                 volume = float(lines[len(lines)-1].split(',')[6])
 
-                elevation_feet = round(elevation_to_process, 1)
+                elevation_feet = round(elevation_to_process*3.28084, 1)
                 area_acres = round(area2D / to_acres, 1)
-                area_sqft = round(area2D / to_feet, 1)
+                area_sqft = round(area2D / to_square_feet, 1)
                 volume_acre_foot = round(volume / to_acre_foot, 1)
                 volume_cubic_meters = round(volume * to_cubic_meters, 1)
                 volume_cubic_feet = round(volume * to_cubic_feet, 1)
@@ -184,7 +188,7 @@ try:
                 CalculateField(increment_pool_path, 'CUBIC_FEET', volume_cubic_feet, 'PYTHON3')
 
                 AddMsgAndPrint(f"\n\tCreated {increment_pool_name}:")
-                AddMsgAndPrint(f"\t\tElevation {elevation_feet} Feet")
+                AddMsgAndPrint(f"\t\tElevation {elevation_feet*3.28084} Feet")
                 AddMsgAndPrint(f"\t\tArea: {area_sqft} Square Feet")
                 AddMsgAndPrint(f"\t\tArea: {area_acres} Acres")
                 AddMsgAndPrint(f"\t\tVolume: {volume_acre_foot} Acre Feet")
@@ -196,11 +200,14 @@ try:
                 AddMsgAndPrint(errorMsg('Calculate Stage Storage'), 2, log_file_path)
                 exit()
 
-        elevation_to_process = elevation_to_process - analysis_increment
+        elevation_to_process = elevation_to_process - increment_meters
 
     ### Finalize Storage Table ###
     SetProgressorLabel('Finalizing storage table...')
     AddMsgAndPrint('\nFinalizing storage table...', log_file_path=log_file_path)
+
+    if Exists(storage_table_path):
+        TruncateTable(storage_table_path)
 
     CopyRows(storage_table_temp, storage_table_path)
     AlterAliasName(storage_table_path, storage_table_name)
@@ -214,9 +221,9 @@ try:
     AddField(storage_table_path, 'CUBIC_METERS', 'DOUBLE')
 
     dem_elevation = 'round(!Plane_Height!)'
-    elevation_feet = 'round(!Plane_Height!,1)'
+    elevation_feet = 'round(!Plane_Height!*3.28084,1)'
     area_acres = 'round(!Area_2D! /' + str(to_acres) + ',1)'
-    area_sqft = 'round(!Area_2D! /' + str(to_feet) + ',1)'
+    area_sqft = 'round(!Area_2D! /' + str(to_square_feet) + ',1)'
     volume_acre_foot = 'round(!Volume! /' + str(to_acre_foot) + ',1)'
     volume_cubic_meters = 'round(!Volume! *' + str(to_cubic_meters) + ',1)'
     volume_cubic_feet = 'round(!Volume! *' + str(to_cubic_feet) + ',1)'

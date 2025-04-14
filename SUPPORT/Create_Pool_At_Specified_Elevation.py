@@ -97,7 +97,7 @@ env.overwriteOutput = True
 
 ### Conversion Factors - Linear Units of DEM Meters ###
 to_acres = 4046.8564224
-to_feet = 0.092903
+to_square_feet = 0.092903
 to_acre_foot = 1233.48184
 to_cubic_meters = 1
 to_cubic_feet = 35.3147
@@ -116,14 +116,18 @@ try:
         AddMsgAndPrint(f"\nThe pool elevation value specified is not within range of your watershed-pool area:\n\tMinimum Elevation: {temp_dem_min} Feet\n\tMaximum Elevation: {temp_dem_max} Feet", 2, log_file_path)
         exit()
 
+    # Convert DEM elevation units to meters for processing
+    temp_dem_meters = Times(temp_dem, 0.3048)
+    pool_elevation_meters = pool_elevation * 0.3048
+
     ### Calculate Volume and Surface Area ###
     SetProgressorLabel(f"Processing elevation {pool_elevation}...")
     AddMsgAndPrint(f"\nProcessing elevation {pool_elevation}...", log_file_path=log_file_path)
-    SurfaceVolume(temp_dem, storage_table_temp, 'BELOW', pool_elevation, '1')
+    SurfaceVolume(temp_dem_meters, storage_table_temp, 'BELOW', pool_elevation_meters, '1')
 
     try:
         # Create new raster of only values below an elevation value by nullifying cells above the desired elevation value
-        above_elevation = SetNull(temp_dem, temp_dem, f"Value > {pool_elevation}")
+        above_elevation = SetNull(temp_dem_meters, temp_dem_meters, f"Value > {pool_elevation_meters}")
 
         # Multiply every pixel by 0 and convert to integer for vectorizing
         zeros = Times(above_elevation, 0)
@@ -148,15 +152,15 @@ try:
         area2D = float(lines[len(lines)-1].split(',')[4])
         volume = float(lines[len(lines)-1].split(',')[6])
 
-        elevation_feet = round(pool_elevation, 1)
+        elevation_feet = round(pool_elevation_meters*3.28084, 1)
         area_acres = round(area2D / to_acres, 1)
-        area_sqft = round(area2D / to_feet, 1)
+        area_sqft = round(area2D / to_square_feet, 1)
         volume_acre_foot = round(volume / to_acre_foot, 1)
         volume_cubic_meters = round(volume * to_cubic_meters, 1)
         volume_cubic_feet = round(volume * to_cubic_feet, 1)
 
         CalculateField(output_pool_path, 'ELEV_FEET', elevation_feet, 'PYTHON3')
-        CalculateField(output_pool_path, 'DEM_ELEV', pool_elevation, 'PYTHON3')
+        CalculateField(output_pool_path, 'DEM_ELEV', pool_elevation_meters, 'PYTHON3')
         CalculateField(output_pool_path, 'POOL_ACRES', area_acres, 'PYTHON3')
         CalculateField(output_pool_path, 'POOL_SQFT', area_sqft, 'PYTHON3')
         CalculateField(output_pool_path, 'ACRE_FOOT', volume_acre_foot, 'PYTHON3')
@@ -164,7 +168,7 @@ try:
         CalculateField(output_pool_path, 'CUBIC_FEET', volume_cubic_feet, 'PYTHON3')
 
         AddMsgAndPrint(f"\n\tCreated {output_pool_path}:")
-        AddMsgAndPrint(f"\t\tElevation {elevation_feet} Feet")
+        AddMsgAndPrint(f"\t\tElevation {elevation_feet*3.28084} Feet")
         AddMsgAndPrint(f"\t\tArea: {area_sqft} Square Feet")
         AddMsgAndPrint(f"\t\tArea: {area_acres} Acres")
         AddMsgAndPrint(f"\t\tVolume: {volume_acre_foot} Acre Feet")
