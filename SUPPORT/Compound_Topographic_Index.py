@@ -3,15 +3,15 @@ from os import path
 from sys import exit
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, SetParameterAsText, SetProgressorLabel
-from arcpy.management import Compact, GetCount
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, SetProgressorLabel
+from arcpy.management import Compact
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Con, Divide, ExtractByMask, Ln, Plus, Raster, Slope, Tan, Times
+from arcpy.sa import Con, Divide, Ln, Plus, Raster, Slope, Tan, Times
 
 from utils import AddMsgAndPrint, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_dem, input_pool):
+def logBasicSettings(log_file_path, project_dem):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Compound Topographic Index (CTI)\n')
@@ -20,7 +20,6 @@ def logBasicSettings(log_file_path, project_dem, input_pool):
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
         f.write(f"\tProject DEM: {project_dem}\n")
-        f.write(f"\tInput Pool Polygon: {input_pool if input_pool else 'None'}\n")
 
 
 ### Initial Tool Validation ###
@@ -39,7 +38,6 @@ else:
 
 ### Input Parameters ###
 project_dem = GetParameterAsText(0)
-input_pool = GetParameterAsText(1)
 
 ### Locate Project GDB ###
 project_dem_path = Describe(project_dem).CatalogPath
@@ -48,12 +46,6 @@ if 'EngPro.gdb' in project_dem_path and 'DEM' in project_dem_path:
 else:
     AddMsgAndPrint('\nThe selected DEM is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
     exit()
-
-### Validate Input Pool Count ###
-if input_pool:
-    if int(GetCount(input_pool).getOutput(0)) > 1:
-        AddMsgAndPrint('\nThe input pool must be a single polygon feature. If using the project Watershed layer, select a single Subbasin. If using a different layer, dissolve it to create a single polygon, or select a single polygon and try again. Exiting...', 2)
-        exit()
 
 ### Set Paths and Variables ###
 project_workspace = path.dirname(project_gdb)
@@ -65,7 +57,7 @@ output_cti_path = path.join(project_gdb, output_cti_name)
 
 ### Locate Flow Accumulation Raster ###
 if not Exists(project_flow_accum):
-    AddMsgAndPrint('Could not locate Flow Accumulation raster for specified project DEM. Run the "Create Stream Network" tool and try again. Exiting...', 2)
+    AddMsgAndPrint('\nCould not locate Flow Accumulation raster for specified project DEM. Run the "Create Stream Network" tool and try again. Exiting...', 2)
     exit()
 
 ### ESRI Environment Settings ###
@@ -82,20 +74,7 @@ env.outputCoordinateSystem = dem_desc.spatialReference
 
 try:
     removeMapLayers(map, [output_cti_name])
-    logBasicSettings(log_file_path, project_dem, input_pool)
-
-    if input_pool:
-        SetProgressorLabel('Clipping DEM to input pool polygon...')
-        AddMsgAndPrint('\nClipping DEM to input pool polygon...', log_file_path=log_file_path)
-        clipped_dem = ExtractByMask(project_dem, input_pool)
-
-        SetProgressorLabel('Clipping Flow Accumulation to input pool polygon...')
-        AddMsgAndPrint('\nClipping Flow Accumulation to input pool polygon...', log_file_path=log_file_path)
-        clipped_flow_accum = ExtractByMask(project_flow_accum, input_pool)
-
-        # Reset variables to DEM and Flow Accum
-        project_dem = clipped_dem
-        project_flow_accum = clipped_flow_accum
+    logBasicSettings(log_file_path, project_dem)
 
     ### Compute and Filter CTI ###
     # CTI is defined by the following equation: Ln [a/tan ß], where:
@@ -103,7 +82,7 @@ try:
     # ß refers to the slope, in degrees
     # Final equation is Ln (As / tan ß)
     SetProgressorLabel('Computing Compound Topographic Index...')
-    AddMsgAndPrint('Computing Compound Topographic Index...', log_file_path=log_file_path)
+    AddMsgAndPrint('\nComputing Compound Topographic Index...', log_file_path=log_file_path)
 
     # In the above equation, a needs to be converted to As so as to account for DEM resolution
     flow_accum_raster = Raster(project_flow_accum)
@@ -125,8 +104,17 @@ try:
     natural_log = Ln(Divide(As,slope_tangent))
     natural_log.save(output_cti_path)
 
-    ### Add Output to Map ###
-    SetParameterAsText(2, output_cti_path)
+    ### Add Output CTI to Map and Symbolize ###
+    SetProgressorLabel('Adding CTI layer to map...')
+    AddMsgAndPrint('\nAdding CTI layer to map...', log_file_path=log_file_path)
+    map.addDataFromPath(output_cti_path)
+    cti_layer = map.listLayers(output_cti_name)[0]
+    sym = cti_layer.symbology
+    sym.colorizer.resamplingType = 'Bilinear' #NOTE: Pro does not seem to honor this
+    sym.colorizer.stretchType = 'StandardDeviation'
+    sym.colorizer.standardDeviation = 2
+    sym.colorizer.colorRamp = aprx.listColorRamps('Yellow to Dark Red')[0]
+    cti_layer.symbology = sym
 
     ### Compact Project GDB ###
     try:
