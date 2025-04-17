@@ -12,8 +12,8 @@ from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.management import AddField, AssignDomainToField, CalculateField, Compact, CreateFeatureclass, Delete, DeleteField, \
     Dissolve, GetCount, TableToDomain
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Con, FlowLength, FocalStatistics, GreaterThan, Minus, Plus, Slope, StreamLink, StreamToFeature, Watershed, \
-    ZonalStatistics, ZonalStatisticsAsTable
+from arcpy.sa import Con, FlowLength, GreaterThan, Minus, Plus, Slope, StreamLink, StreamToFeature, Watershed, ZonalStatistics, \
+    ZonalStatisticsAsTable
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 

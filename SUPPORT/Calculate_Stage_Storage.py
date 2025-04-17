@@ -81,11 +81,11 @@ storage_table_temp = path.join(project_workspace, f"{input_pool_name}_StorageCSV
 temp_pool = path.join(scratch_gdb, 'Temp_Pool')
 
 # Include Subbasin number in output names if input polygon is Watershed layer
-if '_Watershed' in input_pool_name:
+try:
     subbasin_number = [row[0] for row in SearchCursor(input_pool, ['Subbasin'])][0]
     output_pool_name = f"{input_pool_name}_{subbasin_number}_Pools"
     storage_table_name = f"{input_pool_name}_{subbasin_number}_Stage_Storage"
-else:
+except:
     output_pool_name = f"{input_pool_name}_Pools"
     storage_table_name = f"{input_pool_name}_Stage_Storage"
 output_pool_path = path.join(project_fd, output_pool_name)
@@ -118,8 +118,8 @@ try:
     SetProgressorLabel('Clipping DEM to input pool polygon...')
     AddMsgAndPrint('\nClipping DEM to input pool polygon...', log_file_path=log_file_path)
     temp_dem = ExtractByMask(project_dem, input_pool)
-    temp_dem_min = round(float(GetRasterProperties(temp_dem, 'MINIMUM').getOutput(0)))
-    temp_dem_max = round(float(GetRasterProperties(temp_dem, 'MAXIMUM').getOutput(0)))
+    temp_dem_min = round(float(GetRasterProperties(temp_dem, 'MINIMUM').getOutput(0)),1)
+    temp_dem_max = round(float(GetRasterProperties(temp_dem, 'MAXIMUM').getOutput(0)),1)
     if not temp_dem_min < max_elevation <= temp_dem_max:
         AddMsgAndPrint(f"\nThe maximum elevation value specified is not within range of your watershed-pool area:\n\tMinimum Elevation: {temp_dem_min} Feet\n\tMaximum Elevation: {temp_dem_max} Feet", 2, log_file_path)
         exit()
@@ -134,6 +134,10 @@ try:
     temp_dem_meters_min = round(float(GetRasterProperties(temp_dem_meters, 'MINIMUM').getOutput(0)))
     elevation_to_process = max_elevation * 0.3048
     increment_meters = analysis_increment * 0.3048
+
+    # Delete text file from SurfaceVolume if exists to avoid duplicated/extra rows from multiple runs
+    if Exists(storage_table_temp):
+        Delete(storage_table_temp)
 
     while elevation_to_process > temp_dem_meters_min:
         SetProgressorLabel(f"Processing elevation {elevation_to_process}...")
