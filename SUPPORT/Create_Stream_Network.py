@@ -13,7 +13,7 @@ from arcpy.sa import Con, Fill, FlowAccumulation, FlowDirection, StreamLink, Str
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_aoi, input_culverts, stream_threshold):
+def logBasicSettings(log_file_path, project_dem, input_culverts, stream_threshold):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create Stream Network\n')
@@ -21,7 +21,7 @@ def logBasicSettings(log_file_path, project_aoi, input_culverts, stream_threshol
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\tProject AOI: {project_aoi}\n")
+        f.write(f"\tProject DEM: {project_dem}\n")
         f.write(f"\tInput Culverts: {input_culverts if input_culverts else 'None'}\n")
         f.write(f"\tStream Threshold (acres): {stream_threshold}\n")
 
@@ -41,16 +41,16 @@ else:
     exit()
 
 ### Input Parameters ###
-project_aoi = GetParameterAsText(0)
+project_dem = GetParameterAsText(0)
 input_culverts = GetParameterAsText(1)
 stream_threshold = float(GetParameterAsText(2))
 
 ### Locate Project GDB ###
-project_aoi_path = Describe(project_aoi).catalogPath
-if 'EngPro.gdb' in project_aoi_path and 'AOI' in project_aoi_path:
-    project_gdb = project_aoi_path[:project_aoi_path.find('.gdb')+4]
+project_dem_path = Describe(project_dem).CatalogPath
+if 'EngPro.gdb' in project_dem_path and 'DEM' in project_dem_path:
+    project_gdb = project_dem_path[:project_dem_path.find('.gdb')+4]
 else:
-    AddMsgAndPrint('\nThe selected AOI layer is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
+    AddMsgAndPrint('\nThe selected DEM is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
     exit()
 
 ### Set Paths and Variables ###
@@ -59,8 +59,7 @@ scratch_gdb = path.join(support_dir, 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-project_dem_name = f"{project_name}_DEM"
-project_dem_path = path.join(project_gdb, project_dem_name)
+project_aoi_path = path.join(project_gdb, f"{project_name}_AOI")
 culverts_buffer_temp = path.join(scratch_gdb, 'Culverts_Buffer')
 culverts_raster_temp = path.join(scratch_gdb, 'Culverts_Raster')
 hydro_dem_temp = path.join(scratch_gdb, 'Hydro_DEM')
@@ -73,9 +72,9 @@ flow_accum_path = path.join(project_gdb, flow_accum_name)
 flow_dir_name = 'Flow_Direction'
 flow_dir_path = path.join(project_gdb, flow_dir_name)
 
-### Ensure Project DEM Exists ###
+### Ensure Project AOI Exists ###
 if not Exists(project_dem_path):
-    AddMsgAndPrint('\nCould not locate the project DEM layer for specified AOI. Exiting...', 2)
+    AddMsgAndPrint('\nCould not locate the project AOI layer for specified DEM. Exiting...', 2)
     exit()
 
 ### ESRI Environment Settings ###
@@ -92,7 +91,7 @@ env.outputCoordinateSystem = dem_desc.spatialReference
 
 try:
     removeMapLayers(map, [culverts_name, streams_name, flow_accum_name, flow_dir_name])
-    logBasicSettings(log_file_path, project_aoi, input_culverts, stream_threshold)
+    logBasicSettings(log_file_path, project_dem, input_culverts, stream_threshold)
 
     ### Process Input Culverts ###
     if input_culverts:
@@ -103,7 +102,7 @@ try:
         if input_culverts_path != culverts_path:
             SetProgressorLabel('Clipping input culverts to project AOI layer...')
             AddMsgAndPrint('\nClipping input culverts to project AOI layer...', log_file_path=log_file_path)
-            Clip(input_culverts, project_aoi, culverts_path)
+            Clip(input_culverts, project_aoi_path, culverts_path)
         else:
             AddMsgAndPrint('\nExisting project culverts layer used as input...', log_file_path=log_file_path)
 
