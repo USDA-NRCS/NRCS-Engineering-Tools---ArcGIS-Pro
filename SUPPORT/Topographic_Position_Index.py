@@ -3,7 +3,7 @@ from os import path
 from sys import exit
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, SetProgressorLabel
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, SetProgressorLabel
 from arcpy.management import Compact
 from arcpy.mp import ArcGISProject
 from arcpy.sa import FocalStatistics, Minus
@@ -41,6 +41,10 @@ else:
 project_dem = GetParameterAsText(0)
 window_size = GetParameterAsText(1)
 
+if int(window_size) <= 0:
+    AddMsgAndPrint('Window size for FocalStatistics must be greater than zero. Exiting...', 2)
+    exit()
+
 ### Locate Project GDB ###
 project_dem_path = Describe(project_dem).CatalogPath
 if 'EngPro.gdb' in project_dem_path and 'DEM' in project_dem_path:
@@ -49,8 +53,6 @@ else:
     AddMsgAndPrint('\nThe selected DEM is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
     exit()
 
-# TODO: Validate window_size?
-
 ### Set Paths and Variables ###
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
@@ -58,6 +60,11 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 extracted_dem_path = path.join(project_gdb, f"{project_name}_DEM_extract") #TODO: validate this exists?
 output_tpi_name = f"{project_name}_TPI_{window_size}"
 output_tpi_path = path.join(project_gdb, output_tpi_name)
+
+### Locate Extracted (non-smoothed) DEM ###
+if not Exists(extracted_dem_path):
+    AddMsgAndPrint('\nCould not locate the non-smoothed extracted DEM. Run the "Create DEM" tool and try again. Exiting...', 2)
+    exit()
 
 ### ESRI Environment Settings ###
 dem_desc = Describe(project_dem_path)
