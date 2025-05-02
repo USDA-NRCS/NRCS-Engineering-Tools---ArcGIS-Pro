@@ -43,6 +43,10 @@ project_dem = GetParameterAsText(0)
 min_flow = GetParameterAsText(1)
 max_drainage = GetParameterAsText(2)
 
+if int(max_drainage) <= 0:
+    AddMsgAndPrint('In-channel contributing area threshold must be greater than zero. Exiting...', 2)
+    exit()
+
 ### Locate Project GDB ###
 project_dem_path = Describe(project_dem).CatalogPath
 if 'EngPro.gdb' in project_dem_path and 'DEM' in project_dem_path:
@@ -51,15 +55,13 @@ else:
     AddMsgAndPrint('\nThe selected DEM is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
     exit()
 
-# TODO: Validate min_flow, max_drainage?
-
 ### Set Paths and Variables ###
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_flow_accum = path.join(project_gdb, 'Flow_Accumulation')
 project_flow_direc = path.join(project_gdb, 'Flow_Direction')
-output_spi_name = f"{project_name}_SPI"
+output_spi_name = f"{project_name}_SPI_{min_flow}"
 output_spi_path = path.join(project_gdb, output_spi_name)
 
 ### Locate Flow Accumulation and Flow Direction Rasters ###
@@ -128,9 +130,10 @@ try:
     spi_layer = map.listLayers(output_spi_name)[0]
     sym = spi_layer.symbology
     sym.colorizer.resamplingType = 'Bilinear' #NOTE: Pro does not seem to honor this
-    sym.colorizer.stretchType = 'StandardDeviation'
-    sym.colorizer.standardDeviation = 2
-    sym.colorizer.colorRamp = aprx.listColorRamps('Condition Number')[0]
+    sym.colorizer.stretchType = 'PercentClip'
+    sym.colorizer.min = 0.5
+    sym.colorizer.max = 0.5
+    sym.colorizer.colorRamp = aprx.listColorRamps('Spectrum By Wavelength-Full Bright')[0]
     spi_layer.symbology = sym
 
     ### Compact Project GDB ###
