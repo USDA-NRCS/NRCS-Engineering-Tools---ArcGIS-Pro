@@ -1,23 +1,23 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "2.4.0",
-  "build" : 19948,
+  "version" : "3.3.0",
+  "build" : 52636,
   "layers" : [
-    "CIMPATH=eng_tools/testing_aoi.xml"
+    "CIMPATH=engineering/avg_slope_aoi.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "Testing_AOI",
-      "uRI" : "CIMPATH=eng_tools/testing_aoi.xml",
+      "name" : "Avg_Slope_AOI",
+      "uRI" : "CIMPATH=engineering/avg_slope_aoi.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "Testing_AOI",
+      "description" : "Avg_Slope_AOI",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
-        "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}"
+        "elevationSurfaceLayerURI" : "CIMPATH=73cf98754d3e4f6a90e39b43cce7f339.json"
       },
       "expanded" : true,
       "layerType" : "Operational",
@@ -29,18 +29,130 @@
       "serviceLayerID" : -1,
       "refreshRate" : -1,
       "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
       "autoGenerateFeatureTemplates" : true,
       "featureElevationExpression" : "0",
       "featureTable" : {
         "type" : "CIMFeatureTable",
-        "displayField" : "Subbasin",
+        "displayField" : "acres_intl",
         "editable" : true,
+        "fieldDescriptions" : [
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "OBJECTID",
+            "fieldName" : "OBJECTID",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 0
+            },
+            "readOnly" : true,
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "Shape",
+            "fieldName" : "Shape",
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "Acres Intl",
+            "fieldName" : "acres_intl",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 6
+            },
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "Shape_Length",
+            "fieldName" : "Shape_Length",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 6
+            },
+            "readOnly" : true,
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "Shape_Area",
+            "fieldName" : "Shape_Area",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 6
+            },
+            "readOnly" : true,
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "Acres",
+            "fieldName" : "Acres",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 6
+            },
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "Avg_Slope",
+            "fieldName" : "Avg_Slope",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 6
+            },
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "UID",
+            "fieldName" : "UID",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 0
+            },
+            "visible" : true,
+            "searchMode" : "Exact"
+          }
+        ],
         "dataConnection" : {
           "type" : "CIMFeatureDatasetDataConnection",
           "featureDataset" : "Layers",
-          "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\NRCS_Engineering_Tools_ArcPro\\Testing\\Testing_EngTools.gdb",
+          "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\HendricksTest\\HendricksTest_EngPro.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "Testing_AOI",
+          "dataset" : "Avg_Slope_AOI",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
@@ -49,10 +161,13 @@
       "htmlPopupEnabled" : true,
       "selectable" : true,
       "featureCacheType" : "Session",
+      "displayFiltersType" : "ByScale",
+      "featureBlendingMode" : "Alpha",
+      "layerEffectsMode" : "Layer",
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
-          "expression" : "Round([Acres],1) & \" ac.\" & vbNewLine & ROUND([Avg_Slope],2) & \"°\"",
+          "expression" : "Round([Acres],2) & \" ac.\" & vbNewLine & ROUND([Avg_Slope],1) & \"%\"",
           "expressionEngine" : "VBScript",
           "featuresToLabel" : "AllVisibleFeatures",
           "maplexLabelPlacementProperties" : {
@@ -63,6 +178,7 @@
             "canPlaceLabelOutsidePolygon" : true,
             "canRemoveOverlappingLabel" : true,
             "canStackLabel" : true,
+            "centerLabelAnchorType" : "Symbol",
             "connectionType" : "Unambiguous",
             "constrainOffset" : "NoConstraint",
             "contourAlignmentType" : "Page",
@@ -97,7 +213,8 @@
                   "visible" : true,
                   "splitAfter" : true
                 }
-              ]
+              ],
+              "trimStackingSeparators" : true
             },
             "lineFeatureType" : "General",
             "linePlacementMethod" : "OffsetCurvedFromLine",
@@ -145,6 +262,7 @@
             "polygonPlacementMethod" : "HorizontalInPolygon",
             "primaryOffset" : 1,
             "primaryOffsetUnit" : "Point",
+            "removeAmbiguousLabels" : "All",
             "removeExtraWhiteSpace" : true,
             "repetitionIntervalUnit" : "Map",
             "rotationProperties" : {
@@ -153,6 +271,7 @@
               "alignmentType" : "Straight"
             },
             "secondaryOffset" : 100,
+            "secondaryOffsetUnit" : "Percentage",
             "strategyPriorities" : {
               "type" : "CIMMaplexStrategyPriorities",
               "stacking" : 1,
@@ -164,14 +283,15 @@
             "thinningDistanceUnit" : "Point",
             "truncationMarkerCharacter" : ".",
             "truncationMinimumLength" : 1,
-            "truncationPreferredCharacters" : "aeiou"
+            "truncationPreferredCharacters" : "aeiou",
+            "polygonAnchorPointPerimeterInsetUnit" : "Point"
           },
           "name" : "Class 1",
           "priority" : -1,
           "standardLabelPlacementProperties" : {
             "type" : "CIMStandardLabelPlacementProperties",
             "featureType" : "Line",
-            "featureWeight" : "Low",
+            "featureWeight" : "None",
             "labelWeight" : "High",
             "numLabelsOption" : "OneLabelPerName",
             "lineLabelPosition" : {
@@ -229,14 +349,15 @@
                     "color" : {
                       "type" : "CIMRGBColor",
                       "values" : [
-                        255,
-                        255,
-                        255,
+                        0,
+                        0,
+                        0,
                         100
                       ]
                     }
                   }
-                ]
+                ],
+                "angleAlignment" : "Map"
               },
               "height" : 10,
               "hinting" : "Default",
@@ -254,14 +375,15 @@
                     "color" : {
                       "type" : "CIMRGBColor",
                       "values" : [
-                        0,
-                        0,
-                        0,
+                        209,
+                        255,
+                        115,
                         100
                       ]
                     }
                   }
-                ]
+                ],
+                "angleAlignment" : "Map"
               },
               "symbol3DProperties" : {
                 "type" : "CIM3DSymbolProperties",
@@ -286,6 +408,7 @@
       "labelVisibility" : true,
       "renderer" : {
         "type" : "CIMSimpleRenderer",
+        "sampleSize" : 10000,
         "patch" : "Default",
         "symbol" : {
           "type" : "CIMSymbolReference",
@@ -299,13 +422,15 @@
                 "joinStyle" : "Round",
                 "lineStyle3D" : "Strip",
                 "miterLimit" : 10,
-                "width" : 1.4999999999999998,
+                "width" : 1.5,
+                "height3D" : 1,
+                "anchor3D" : "Center",
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
+                    209,
                     255,
-                    0,
-                    0,
+                    115,
                     100
                   ]
                 }
@@ -316,14 +441,15 @@
                 "color" : {
                   "type" : "CIMRGBColor",
                   "values" : [
-                    252.44999999999999,
-                    191.86000000000001,
-                    211.05000000000001,
+                    130,
+                    130,
+                    130,
                     0
                   ]
                 }
               }
-            ]
+            ],
+            "angleAlignment" : "Map"
           }
         }
       },
@@ -331,25 +457,6 @@
       "snappable" : true
     }
   ],
-  "elevationSurfaces" : [
-    {
-      "type" : "CIMMapElevationSurface",
-      "elevationMode" : "BaseGlobeSurface",
-      "name" : "Ground",
-      "verticalExaggeration" : 1,
-      "mapElevationID" : "{1023E81A-5031-4EE6-AA02-FAC59255DC72}",
-      "color" : {
-        "type" : "CIMRGBColor",
-        "values" : [
-          255,
-          255,
-          255,
-          100
-        ]
-      },
-      "surfaceTINShadingMode" : "Smooth",
-      "visibility" : true,
-      "expanded" : true
-    }
-  ]
+  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
 }
