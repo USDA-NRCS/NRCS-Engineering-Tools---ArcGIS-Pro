@@ -73,7 +73,7 @@ if '_Land_Use' in input_watershed or '_Soils' in input_watershed:
     AddMsgAndPrint('\nInput layer appears to be either a Land Use or Soils layer, not the Watershed layer. Exiting...', 2)
     exit()
 if not len(ListFields(input_watershed, 'Subbasin')) > 0:
-    AddMsgAndPrint('\nSubbasin field was not found in input Watershed layer. Please run Prepare Soil and Land Use Layers tool before running this tool. Exiting...', 2)
+    AddMsgAndPrint('\nSubbasin field was not found in input Watershed layer. Exiting...', 2)
     exit()
 if not Exists(tr_55_land_use_table):
     AddMsgAndPrint('\nTR_55_Land_Use_Domain table was not found in Support.gdb. Exiting...', 2)
