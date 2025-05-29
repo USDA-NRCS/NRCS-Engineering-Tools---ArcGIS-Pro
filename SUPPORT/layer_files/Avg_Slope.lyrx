@@ -3,21 +3,21 @@
   "version" : "3.3.0",
   "build" : 52636,
   "layers" : [
-    "CIMPATH=engineering/avg_slope_aoi.json"
+    "CIMPATH=engineering/hendrickswatershed_slope.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMFeatureLayer",
-      "name" : "Avg_Slope_AOI",
-      "uRI" : "CIMPATH=engineering/avg_slope_aoi.json",
+      "name" : "HendricksWatershed_Slope",
+      "uRI" : "CIMPATH=engineering/hendrickswatershed_slope.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "description" : "Avg_Slope_AOI",
+      "description" : "HendricksWatershed_Slope",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
-        "elevationSurfaceLayerURI" : "CIMPATH=73cf98754d3e4f6a90e39b43cce7f339.json"
+        "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
       },
       "expanded" : true,
       "layerType" : "Operational",
@@ -35,7 +35,7 @@
       "featureElevationExpression" : "0",
       "featureTable" : {
         "type" : "CIMFeatureTable",
-        "displayField" : "acres_intl",
+        "displayField" : "Subbasin",
         "editable" : true,
         "fieldDescriptions" : [
           {
@@ -62,8 +62,36 @@
           },
           {
             "type" : "CIMFieldDescription",
-            "alias" : "Acres Intl",
-            "fieldName" : "acres_intl",
+            "alias" : "Subbasin",
+            "fieldName" : "Subbasin",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 0
+            },
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "Acres",
+            "fieldName" : "Acres",
+            "numberFormat" : {
+              "type" : "CIMNumericFormat",
+              "alignmentOption" : "esriAlignRight",
+              "alignmentWidth" : 0,
+              "roundingOption" : "esriRoundNumberOfDecimals",
+              "roundingValue" : 6
+            },
+            "visible" : true,
+            "searchMode" : "Exact"
+          },
+          {
+            "type" : "CIMFieldDescription",
+            "alias" : "Avg_Slope",
+            "fieldName" : "Avg_Slope",
             "numberFormat" : {
               "type" : "CIMNumericFormat",
               "alignmentOption" : "esriAlignRight",
@@ -106,34 +134,6 @@
           },
           {
             "type" : "CIMFieldDescription",
-            "alias" : "Acres",
-            "fieldName" : "Acres",
-            "numberFormat" : {
-              "type" : "CIMNumericFormat",
-              "alignmentOption" : "esriAlignRight",
-              "alignmentWidth" : 0,
-              "roundingOption" : "esriRoundNumberOfDecimals",
-              "roundingValue" : 6
-            },
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
-            "alias" : "Avg_Slope",
-            "fieldName" : "Avg_Slope",
-            "numberFormat" : {
-              "type" : "CIMNumericFormat",
-              "alignmentOption" : "esriAlignRight",
-              "alignmentWidth" : 0,
-              "roundingOption" : "esriRoundNumberOfDecimals",
-              "roundingValue" : 6
-            },
-            "visible" : true,
-            "searchMode" : "Exact"
-          },
-          {
-            "type" : "CIMFieldDescription",
             "alias" : "UID",
             "fieldName" : "UID",
             "numberFormat" : {
@@ -152,7 +152,7 @@
           "featureDataset" : "Layers",
           "workspaceConnectionString" : "DATABASE=..\\..\\..\\..\\..\\..\\..\\NRCS_Engineering\\HendricksTest\\HendricksTest_EngPro.gdb",
           "workspaceFactory" : "FileGDB",
-          "dataset" : "Avg_Slope_AOI",
+          "dataset" : "HendricksWatershed_Slope",
           "datasetType" : "esriDTFeatureClass"
         },
         "studyAreaSpatialRel" : "esriSpatialRelUndefined",
@@ -167,8 +167,9 @@
       "labelClasses" : [
         {
           "type" : "CIMLabelClass",
-          "expression" : "Round([Acres],2) & \" ac.\" & vbNewLine & ROUND([Avg_Slope],1) & \"%\"",
-          "expressionEngine" : "VBScript",
+          "expressionTitle" : "Custom",
+          "expression" : "text($feature.Acres, '#.00') + \" ac\" + textFormatting.NewLine + \"Avg Slope: \" + Round($feature.Avg_Slope, 1) + \"%\"",
+          "expressionEngine" : "Arcade",
           "featuresToLabel" : "AllVisibleFeatures",
           "maplexLabelPlacementProperties" : {
             "type" : "CIMMaplexLabelPlacementProperties",
@@ -458,5 +459,41 @@
     }
   ],
   "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
-  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2",
+  "elevationSurfaceLayerDefinitions" : [
+    {
+      "type" : "CIMElevationSurfaceLayer",
+      "name" : "Ground",
+      "uRI" : "CIMPATH=map/ground.json",
+      "sourceModifiedTime" : {
+        "type" : "TimeInstant"
+      },
+      "useSourceMetadata" : true,
+      "description" : "Ground",
+      "expanded" : true,
+      "layerType" : "Operational",
+      "showLegends" : false,
+      "visibility" : true,
+      "displayCacheType" : "Permanent",
+      "maxDisplayCacheAge" : 5,
+      "showPopups" : true,
+      "serviceLayerID" : -1,
+      "refreshRate" : -1,
+      "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
+      "elevationMode" : "BaseGlobeSurface",
+      "verticalExaggeration" : 1,
+      "color" : {
+        "type" : "CIMRGBColor",
+        "values" : [
+          255,
+          255,
+          255,
+          100
+        ]
+      },
+      "surfaceTINShadingMode" : "Smooth"
+    }
+  ]
 }
