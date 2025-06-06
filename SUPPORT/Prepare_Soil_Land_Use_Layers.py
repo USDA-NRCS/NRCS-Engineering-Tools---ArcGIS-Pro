@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Clip, Union
 from arcpy.da import SearchCursor
-from arcpy.management import AddField, AssignDomainToField, CalculateField, Compact, DeleteField, Dissolve, GetCount, MultipartToSinglepart, TableToDomain
+from arcpy.management import AddField, AssignDomainToField, CalculateField, Compact, DeleteField, Dissolve, MultipartToSinglepart, TableToDomain
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
@@ -115,9 +115,9 @@ try:
 
     delete_fields = []
     for field in ListFields(output_landuse_path):
-        if field.name != 'LANDUSE' and not field.required:
+        if field.name.upper() != 'LANDUSE' and not field.required:
             delete_fields.append(field.name)
-    DeleteField(output_landuse_path, delete_fields)
+    if delete_fields: DeleteField(output_landuse_path, delete_fields)
 
     ### Clip Soil Data with Land Use ###
     SetProgressorLabel('Clipping soils data...')
@@ -143,7 +143,7 @@ try:
     for field in ListFields(output_soils_path):
         if not field.name.upper() in ['MUNAME','MUKEY','HYDGROUP','MUSYM'] and not field.required:
             delete_fields.append(field.name)
-    DeleteField(output_soils_path, delete_fields)
+    if delete_fields: DeleteField(output_soils_path, delete_fields)
 
     ### Validate Hydrologic Group Values ###
     soils_hyrdo_values = set([row[0] for row in SearchCursor(output_soils_path, soils_hydro_field)])
