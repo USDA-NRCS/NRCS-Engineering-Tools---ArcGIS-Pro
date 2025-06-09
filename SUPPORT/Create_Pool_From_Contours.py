@@ -4,12 +4,12 @@ from sys import argv, exit
 from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, \
-    SetParameterAsText, SetProgressorLabel
+    ListFields, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Buffer, Clip, Erase
 from arcpy.conversion import RasterToPolygon
 from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.ddd import SurfaceVolume
-from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, Delete, Dissolve, GetCount, \
+from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, Delete, DeleteField, Dissolve, GetCount, \
     FeatureToPolygon, MakeFeatureLayer, SelectLayerByAttribute, SelectLayerByLocation
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask, Int, SetNull, Times, ZonalStatisticsAsTable
@@ -20,7 +20,7 @@ from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 def logBasicSettings(log_file_path, project_contours):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
-        f.write('Executing Tool: Calculate State Storage\n')
+        f.write('Executing Tool: Create Pool from Contours\n')
         f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
@@ -33,7 +33,7 @@ try:
     aprx = ArcGISProject('CURRENT')
     map = aprx.listMaps('Engineering')[0]
 except:
-    AddMsgAndPrint('\nThis tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting!', 2)
+    AddMsgAndPrint('\nThis tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting...', 2)
     exit()
 
 if CheckExtension('Spatial') == 'Available':
@@ -50,6 +50,7 @@ else:
 ### Input Parameters ###
 project_contours = GetParameterAsText(0)
 input_dam = GetParameterAsText(1)
+output_pool_name = GetParameterAsText(2).replace(' ','_')
 
 ### Locate Project GDB and Validate Input Dam ###
 project_contours_path = Describe(project_contours).CatalogPath
@@ -117,7 +118,10 @@ to_cubic_feet = 35.3147
 try:
     logBasicSettings(log_file_path, project_contours)
 
-    # Copy User input to temp dam layer and add fields...
+    SetProgressorLabel('Selecting contours by dam...')
+    AddMsgAndPrint('\nSelecting contours by dam...', log_file_path=log_file_path)
+
+    # Copy User input to temp dam layer and add fields
     CopyFeatures(input_dam, dams_temp)
     AddField(dams_temp, 'ID', 'LONG')
     AddField(dams_temp, 'MaxElev', 'DOUBLE')
@@ -146,6 +150,9 @@ try:
     Erase(buffer3, buffer1, buffer4)
     Erase(buffer4, buffer2, buffer5)
 
+    SetProgressorLabel('Determining highest closed contour...')
+    AddMsgAndPrint('\nDetermining highest closed contour...', log_file_path=log_file_path)
+
     # Convert intersected contours to polygon mask
     FeatureToPolygon(f"{contour_erase};{buffer2}", extent_mask)
 
@@ -169,10 +176,11 @@ try:
         for row in cursor:
             if row[0] > hi_contour: hi_contour = row[0]
 
-    AddMsgAndPrint(f"\nHighest closed contour is {hi_contour} ft...")
+    AddMsgAndPrint(f"\nHighest closed contour is {hi_contour} ft...", log_file_path=log_file_path)
 
     # Output Datasets
-    output_pool_name = f"{project_name}_Pool_{str(hi_contour).replace('.','_dot_')}"
+    if not output_pool_name:
+        output_pool_name = f"{project_name}_Pool_{str(hi_contour).replace('.','_dot_')}"
     output_pool_path = path.join(project_fd, output_pool_name)
     output_dams_name = f"{output_pool_name}_Dam"
     output_dams_path = path.join(project_fd, output_dams_name)
@@ -182,6 +190,9 @@ try:
 
     CopyFeatures(dams_temp, output_dams_path)
     MakeFeatureLayer(output_dams_path, dams_lyr)
+
+    SetProgressorLabel('Calculating pool volume...')
+    AddMsgAndPrint('\nCalculating pool volume...', log_file_path=log_file_path)
 
     # Dissolve and populate with plane elevation for raster processing
     Dissolve(extent_mask, pool_mask)
@@ -253,6 +264,8 @@ try:
         Delete(temp_dem)
 
     # Retrieve attributes for dam and populate fields
+    SetProgressorLabel('Calculating dam info...')
+    AddMsgAndPrint('\nCalculating dam info...', log_file_path=log_file_path)
     Buffer(output_dams_path, buffer7, '3 Meters', 'RIGHT', 'ROUND', 'LIST', 'ID')
     ZonalStatisticsAsTable(buffer7, 'ID', project_dem, dams_stats, 'NODATA', 'ALL')
 
@@ -265,13 +278,13 @@ try:
             minFt = round(float(minElev),1)
             meanFt = round(float(meanElev),1)
 
-            AddMsgAndPrint('\n\tCalculating properties of embankment ' + str(id))
-            AddMsgAndPrint('\n\t\tMax Elevation: ' + str(maxFt) + ' Feet')
-            AddMsgAndPrint('\t\tMin Elevation: ' + str(minFt) + ' Feet')
-            AddMsgAndPrint('\t\tMean Elevation: ' + str(meanFt) + ' Feet')
+            AddMsgAndPrint(f"\n\tCalculating properties of embankment {id}")
+            AddMsgAndPrint(f"\n\t\tMax Elevation: {maxFt} Feet")
+            AddMsgAndPrint(f"\t\tMin Elevation: {minFt} Feet")
+            AddMsgAndPrint(f"\t\tMean Elevation: {meanFt} Feet")
 
             damHeight = int(maxFt-minFt)
-            AddMsgAndPrint('\t\tMax Height: ' + str(damHeight) + ' Feet')
+            AddMsgAndPrint(f"\t\tMax Height: {damHeight} Feet")
 
             with UpdateCursor(output_dams_path, ['LengthFt','MaxElev','MinElev','MeanElev','TopWidth','BotWidth']) as u_cursor:
                 for u_row in u_cursor:
@@ -281,10 +294,10 @@ try:
                     u_row[2] = minFt
                     u_row[3] = meanFt
 
-                    AddMsgAndPrint('\t\tTotal Length: ' + str(u_row[0]) + ' Feet')
+                    AddMsgAndPrint(f"\t\tTotal Length: {u_row[0]} Feet")
 
                     # Assign Top and Bottom width from practice standards
-                    AddMsgAndPrint('\nCalculating suggested top / bottom widths (Based on 3:1 Slope)')
+                    AddMsgAndPrint('\nCalculating suggested top / bottom widths (Based on 3:1 Slope)...', log_file_path=log_file_path)
 
                     if damHeight < 10:
                         topWidth = 6
@@ -304,13 +317,20 @@ try:
                     u_row[4] = topWidth
                     u_row[5] = bottomWidth
 
-                    AddMsgAndPrint('\n\t\tSuggested Top Width: ' + str(u_row[4]) + ' Feet')
-                    AddMsgAndPrint('\t\tSuggested Bottom Width: ' + str(u_row[5]) + ' Feet')
+                    AddMsgAndPrint(f"\n\t\tSuggested Top Width: {u_row[4]} Feet")
+                    AddMsgAndPrint(f"\t\tSuggested Bottom Width: {u_row[5]} Feet")
                     u_cursor.updateRow(u_row)
 
-    # ### Add Output to Map ###
-    SetParameterAsText(2, output_pool_path)
-    SetParameterAsText(3, output_dams_path)
+    ### Delete Fields Added if Digitized ###
+    delete_fields = []
+    for field in ListFields(output_dams_path):
+        if field.name in ['Name','Text','IntegerValue','DoubleValue','DateTime']:
+            delete_fields.append(field.name)
+    if delete_fields: DeleteField(output_dams_path, delete_fields)
+
+    ### Add Output to Map ###
+    SetParameterAsText(3, output_pool_path)
+    SetParameterAsText(4, output_dams_path)
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
