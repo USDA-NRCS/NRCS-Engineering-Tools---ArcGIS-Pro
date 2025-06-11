@@ -15,7 +15,7 @@ from arcpy.mp import ArcGISProject
 from arcpy.sa import Con, FlowLength, GreaterThan, Minus, Plus, Slope, StreamLink, StreamToFeature, Watershed, ZonalStatistics, \
     ZonalStatisticsAsTable
 
-from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
+from utils import AddMsgAndPrint, deleteESRIAddedFields, emptyScratchGDB, errorMsg, removeMapLayers
 
 
 def logBasicSettings(log_file_path, streams, outlets, watershed_name, create_flow_paths):
@@ -269,6 +269,9 @@ try:
             AddMsgAndPrint(f"\t\tAcres: {str(round(row[2], 2))}", log_file_path=log_file_path)
             AddMsgAndPrint(f"\t\tArea: {str(round(row[3], 2))} Sq. Meters", log_file_path=log_file_path)
             AddMsgAndPrint(f"\t\tAvg. Slope: {str(round(avg_slope, 2))}", log_file_path=log_file_path)
+
+    ### Delete Fields Added if Digitized ###
+    deleteESRIAddedFields(outlets_path)
 
     ### Add Outputs to Map ###
     SetProgressorLabel('Adding output layers to map...')

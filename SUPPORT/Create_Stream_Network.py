@@ -10,7 +10,7 @@ from arcpy.management import AddField, CalculateField, CalculateStatistics, Comp
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Con, Fill, FlowAccumulation, FlowDirection, StreamLink, StreamToFeature, ZonalStatistics
 
-from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
+from utils import AddMsgAndPrint, deleteESRIAddedFields, emptyScratchGDB, errorMsg, removeMapLayers
 
 
 def logBasicSettings(log_file_path, project_dem, input_culverts, stream_threshold):
@@ -171,6 +171,9 @@ try:
     SetProgressorLabel('Creating Stream Network...')
     AddMsgAndPrint('\nCreating Stream Network...', log_file_path=log_file_path)
     StreamToFeature(stream_link, flow_dir_path, streams_path, 'SIMPLIFY')
+
+    ### Delete Fields Added if Digitized ###
+    deleteESRIAddedFields(culverts_path)
 
     ### Add Outputs to Map ###
     SetParameterAsText(3, streams_path)

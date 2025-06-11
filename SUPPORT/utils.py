@@ -2,10 +2,9 @@ from os import path
 from sys import exc_info
 from traceback import format_exception
 
-from arcpy import AddError, AddMessage, AddWarning, Exists, GetActivePortalURL, GetSigninToken, ListPortalURLs
+from arcpy import AddError, AddMessage, AddWarning, GetActivePortalURL, GetSigninToken, ListFields, ListPortalURLs
 from arcpy.da import Walk
-from arcpy.management import CalculateGeometryAttributes, Delete
-from arcpy.metadata import Metadata
+from arcpy.management import Delete, DeleteField
 
 
 def addLyrxByConnectionProperties(map, lyr_name_list, lyrx_layer, gdb_path, visible=True):
@@ -116,3 +115,12 @@ def emptyScratchGDB(gdb_path):
             gdb_contents.append(path.join(dirpath, filename))
     for fc in gdb_contents:
         Delete(fc)
+
+
+def deleteESRIAddedFields(feature_path):
+    ''' Delete fields added by ESRI to digitized Feature Set (tool parameter type)'''
+    delete_fields = []
+    for field in ListFields(feature_path):
+        if field.name in ['Name','Text','IntegerValue','DoubleValue','DateTime']:
+            delete_fields.append(field.name)
+    if delete_fields: DeleteField(feature_path, delete_fields)

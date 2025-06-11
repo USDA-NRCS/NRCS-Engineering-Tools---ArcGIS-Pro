@@ -4,17 +4,17 @@ from sys import argv, exit
 from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, \
-    ListFields, SetParameterAsText, SetProgressorLabel
+    SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Buffer, Clip, Erase
 from arcpy.conversion import RasterToPolygon
 from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.ddd import SurfaceVolume
-from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, Delete, DeleteField, Dissolve, GetCount, \
-    FeatureToPolygon, MakeFeatureLayer, SelectLayerByAttribute, SelectLayerByLocation
+from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, Delete, Dissolve, GetCount, FeatureToPolygon, \
+    MakeFeatureLayer, SelectLayerByAttribute, SelectLayerByLocation
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask, Int, SetNull, Times, ZonalStatisticsAsTable
 
-from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
+from utils import AddMsgAndPrint, deleteESRIAddedFields, emptyScratchGDB, errorMsg, removeMapLayers
 
 
 def logBasicSettings(log_file_path, project_contours):
@@ -322,11 +322,7 @@ try:
                     u_cursor.updateRow(u_row)
 
     ### Delete Fields Added if Digitized ###
-    delete_fields = []
-    for field in ListFields(output_dams_path):
-        if field.name in ['Name','Text','IntegerValue','DoubleValue','DateTime']:
-            delete_fields.append(field.name)
-    if delete_fields: DeleteField(output_dams_path, delete_fields)
+    deleteESRIAddedFields(output_dams_path)
 
     ### Add Output to Map ###
     SetParameterAsText(3, output_pool_path)
