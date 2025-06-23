@@ -236,9 +236,7 @@ try:
     AddField(events_temp, 'STATIONID', 'TEXT', field_length='25')
     CalculateField(events_temp, 'STATIONID', "str(!STATION!) + '_' + str(!ID!)", 'PYTHON3')
 
-    #TODO: Exiting question
-    # Should this next sort actually be done with STATIONID, instead of STATION?
-    Sort(events_temp, station_temp, [['STATION', 'ASCENDING']])
+    Sort(events_temp, station_temp, [['STATIONID', 'ASCENDING']])
 
     AddXY(station_temp)
     AddField(station_temp, 'POINT_Z', 'DOUBLE')
