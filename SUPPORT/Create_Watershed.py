@@ -147,10 +147,10 @@ try:
     AddField(outlets_path, 'IDENT', 'DOUBLE')
     CalculateField(outlets_path, 'IDENT', f"!{Describe(outlets_path).OIDFieldName}!", 'PYTHON3')
 
-    # Buffer outlet features by  raster cell size
+    # Buffer outlet features by raster cell size
     Buffer(outlets_path, outlet_buffer_temp, f"{str(dem_cell_size)} Meters", 'FULL', 'ROUND', 'LIST', 'IDENT')
 
-    # Convert bufferd outlet to raster
+    # Convert buffered outlet to raster
     PolygonToRaster(outlet_buffer_temp, 'IDENT', pour_point_temp, 'MAXIMUM_AREA', 'NONE', dem_cell_size)
 
     # Delete intermediate data
