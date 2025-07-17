@@ -173,7 +173,8 @@ try:
     StreamToFeature(stream_link, flow_dir_path, streams_path, 'SIMPLIFY')
 
     ### Delete Fields Added if Digitized ###
-    deleteESRIAddedFields(culverts_path)
+    if Exists(culverts_path):
+        deleteESRIAddedFields(culverts_path)
 
     ### Add Outputs to Map ###
     SetParameterAsText(3, streams_path)

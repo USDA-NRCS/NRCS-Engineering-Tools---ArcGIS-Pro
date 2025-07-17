@@ -119,8 +119,11 @@ def emptyScratchGDB(gdb_path):
 
 def deleteESRIAddedFields(feature_path):
     ''' Delete fields added by ESRI to digitized Feature Set (tool parameter type)'''
-    delete_fields = []
-    for field in ListFields(feature_path):
-        if field.name in ['Name','Text','IntegerValue','DoubleValue','DateTime']:
-            delete_fields.append(field.name)
-    if delete_fields: DeleteField(feature_path, delete_fields)
+    try:
+        delete_fields = []
+        for field in ListFields(feature_path):
+            if field.name in ['Name','Text','IntegerValue','DoubleValue','DateTime']:
+                delete_fields.append(field.name)
+        if delete_fields: DeleteField(feature_path, delete_fields)
+    except:
+        pass
