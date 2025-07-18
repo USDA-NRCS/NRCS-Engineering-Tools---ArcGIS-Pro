@@ -153,10 +153,6 @@ try:
     if relative_survey:
         SetProgressorLabel('Creating relative contours...')
         AddMsgAndPrint(f"\nCreating relative contours with a {contour_interval} ft interval...", log_file_path=log_file_path)
-        # # Run Focal Statistics on the Project DEM to generate smooth contours
-        # outFocal = FocalStatistics(projectDEM,"RECTANGLE 3 3 CELL","MEAN","DATA")
-        # outFocal.save(DEMsmooth)
-        # Create Contours from DEMsmooth
         # Z factor to use here is 1 because vertical values of the input DEM have been forced to be feet.
         Contour(wascob_dem_path, temp_contours_path, contour_interval, '0', 1)
 
@@ -182,7 +178,6 @@ try:
         SelectLayerByAttribute('contour_lyr', 'CLEAR_SELECTION')
         CopyFeatures('contour_lyr', contours_path)
 
-    ### Add Output to Map ###
     ### Add Output DEM to Map and Symbolize ###
     SetProgressorLabel('Adding DEM to map...')
     AddMsgAndPrint('\nAdding DEM to map...', log_file_path=log_file_path)
@@ -194,7 +189,8 @@ try:
     sym.colorizer.standardDeviation = 2.5
     sym.colorizer.colorRamp = aprx.listColorRamps('Elevation #1')[0]
     dem_layer.symbology = sym
-    # SetParameterAsText(4, wascob_dem_path)
+
+    ### Add Outputs to Map ###
     SetParameterAsText(5, contours_path)
 
     ### Update Layer Order in TOC ###
