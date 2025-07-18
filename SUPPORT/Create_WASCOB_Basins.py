@@ -167,7 +167,7 @@ try:
     # Get Reference Line Elevation Properties (Uses WASCOB DEM which is vertical feet by 1/10ths)
     ZonalStatisticsAsTable(embankment_buffer_temp, 'Subbasin', wascob_dem_path, embankment_stats_temp, 'DATA')
 
-    # Update the outlet FC with the zonal stats
+    # Update the embankment with subbasin and elevation values
     with UpdateCursor(embankments_path, ['Subbasin','MinElev','MaxElev','MeanElev']) as cursor:
         for row in cursor:
             subbasin_number = row[0]
@@ -178,7 +178,7 @@ try:
             row[3] = stats[2] # Mean Elev
             cursor.updateRow(row)
 
-    # Convert bufferd outlet to raster
+    # Convert bufferd embankment to raster
     SetProgressorLabel("Converting Buffered Reference Line to Raster")
     PolygonToRaster(embankment_buffer_temp, 'Subbasin', pour_point_temp, 'MAXIMUM_AREA', 'NONE', dem_cell_size)
 
