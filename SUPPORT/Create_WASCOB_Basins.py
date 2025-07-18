@@ -15,7 +15,7 @@ from arcpy.sa import Slope, Watershed, ZonalStatisticsAsTable
 from utils import AddMsgAndPrint, deleteESRIAddedFields, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, streams, outlets, basins_name):
+def logBasicSettings(log_file_path, streams, embankments, basins_name):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create WASCOB Basins\n')
@@ -24,7 +24,7 @@ def logBasicSettings(log_file_path, streams, outlets, basins_name):
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
         f.write(f"\tStreams Layer: {streams}\n")
-        f.write(f"\tOutlets Layer: {outlets}\n")
+        f.write(f"\tEmbankments Layer: {embankments}\n")
         f.write(f"\tWatershed Name: {basins_name}\n")
 
 
@@ -44,7 +44,7 @@ else:
 
 ### Input Parameters ###
 streams = GetParameterAsText(0)
-outlets = GetParameterAsText(1)
+embankments = GetParameterAsText(1)
 basins_name = GetParameterAsText(2).replace(' ','_')
 
 ### Locate Project GDB ###
@@ -70,12 +70,12 @@ wascob_gdb_path = path.join(project_workspace, f"{project_name}_WASCOB.gdb")
 wascob_fd_path = path.join(wascob_gdb_path, 'Layers')
 wascob_dem_path = path.join(wascob_gdb_path, f"{project_name}_DEM_WASCOB")
 basins_path = path.join(project_fd, basins_name)
-outlets_name = f"{basins_name}_Outlets"
-outlets_path = path.join(wascob_fd_path, outlets_name)
-outlet_buffer_temp = path.join(scratch_gdb, 'Outlet_Buffer')
+embankments_name = f"{basins_name}_Embankments"
+embankments_path = path.join(wascob_fd_path, embankments_name)
+embankment_buffer_temp = path.join(scratch_gdb, 'Embankment_Buffer')
 pour_point_temp = path.join(scratch_gdb, 'Pour_Point')
 watershed_temp = path.join(scratch_gdb, 'Watershed_Temp')
-outlet_stats_temp = path.join(scratch_gdb, 'Outlet_Stats')
+embankment_stats_temp = path.join(scratch_gdb, 'Embankment_Stats')
 slope_stats_temp = path.join(scratch_gdb, 'Slope_Stats')
 
 ### Validate Required Datasets Exist ###
@@ -91,12 +91,11 @@ if not Exists(flow_dir_path):
 if not Exists(streams_path):
     AddMsgAndPrint('\nThe selected Streams feature class was not found. Exiting...', 2)
     exit()
-if not int(GetCount(outlets).getOutput(0)) > 0:
-    AddMsgAndPrint('\nAt least one Pour Point must be used. Exiting...', 2)
+if not int(GetCount(embankments).getOutput(0)) > 0:
+    AddMsgAndPrint('\nAt least one Embankment must be used. Exiting...', 2)
     exit()
-#TODO: Naming consistency? we call this Embankments, Pour Points, and Outlets?
-if Describe(outlets).shapeType != 'Polyline':
-    AddMsgAndPrint('\nThe Pour Point layer must be Polyline geometry. Exiting...', 2)
+if Describe(embankments).shapeType != 'Polyline':
+    AddMsgAndPrint('\nThe Embankment layer must be Polyline geometry. Exiting...', 2)
     exit()
 if Exists(basins_path):
     AddMsgAndPrint(f"\nBasins name: {basins_name} already exists in project's WASCOB geodatabase and will be overwritten...", 1)
@@ -127,54 +126,53 @@ else:
     exit()
 
 try:
-    removeMapLayers(map, [outlets_name, basins_name])
-    logBasicSettings(log_file_path, streams, outlets, basins_name)
+    removeMapLayers(map, [embankments_name, basins_name])
+    logBasicSettings(log_file_path, streams, embankments, basins_name)
 
-    ### Clip Outlets to AOI ###
-    if Describe(outlets).catalogPath != outlets_path:
-        SetProgressorLabel('Clipping outlets to project AOI layer...')
-        AddMsgAndPrint('\nClipping outlets to project AOI layer...', log_file_path=log_file_path)
-        Clip(outlets, project_aoi_path, outlets_path)
+    ### Clip Embankments to AOI ###
+    if Describe(embankments).catalogPath != embankments_path:
+        SetProgressorLabel('Clipping embankments to project AOI layer...')
+        AddMsgAndPrint('\nClipping embankments to project AOI layer...', log_file_path=log_file_path)
+        Clip(embankments, project_aoi_path, embankments_path)
     else:
-        AddMsgAndPrint('\nExisting WASCOB project outlets layer used as input...', log_file_path=log_file_path)
+        AddMsgAndPrint('\nExisting WASCOB project embankments layer used as input...', log_file_path=log_file_path)
 
-    # Validate AOI contains at least one outlet after clip
-    if int(GetCount(outlets_path).getOutput(0)) < 1:
-        AddMsgAndPrint('\nThere were no outlets digitized within the project AOI. Exiting...', 2, log_file_path)
-        Delete(outlets_path)
+    # Validate AOI contains at least one embankment after clip
+    if int(GetCount(embankments_path).getOutput(0)) < 1:
+        AddMsgAndPrint('\nThere were no embankments digitized within the project AOI. Exiting...', 2, log_file_path)
+        Delete(embankments_path)
         exit()
 
-    ### Add Fields to Outlets Layer ###
-    fields = ListFields(outlets_path)
+    ### Add Fields to Embankment Layer ###
+    fields = ListFields(embankments_path)
     if 'Subbasin' not in fields:
-        AddField(outlets_path, 'Subbasin', 'LONG')
+        AddField(embankments_path, 'Subbasin', 'LONG')
     if 'MaxElev' not in fields:
-        AddField(outlets_path, 'MaxElev', 'DOUBLE')
+        AddField(embankments_path, 'MaxElev', 'DOUBLE')
     if 'MinElev' not in fields:
-        AddField(outlets_path, 'MinElev', 'DOUBLE')
+        AddField(embankments_path, 'MinElev', 'DOUBLE')
     if 'MeanElev' not in fields:
-        AddField(outlets_path, 'MeanElev', 'DOUBLE')
+        AddField(embankments_path, 'MeanElev', 'DOUBLE')
     if 'LengthFt' not in fields:
-        AddField(outlets_path, 'LengthFt', 'DOUBLE')
+        AddField(embankments_path, 'LengthFt', 'DOUBLE')
 
     ### Calculate Subbasin and Length Fields ###
-    CalculateField(outlets_path, 'Subbasin', f"!{Describe(outlets_path).OIDFieldName}!", 'PYTHON3')
-    CalculateField(outlets_path, 'LengthFt', "!shape!.getLength('PLANAR', 'FEET')", 'PYTHON3')
+    CalculateField(embankments_path, 'Subbasin', f"!{Describe(embankments_path).OIDFieldName}!", 'PYTHON3')
+    CalculateField(embankments_path, 'LengthFt', "!shape!.getLength('PLANAR', 'FEET')", 'PYTHON3')
 
-    #TODO: Original Create Watershed does not multiple by 2 here
-    # Buffer outlet features by raster cell size
+    # Buffer embankment features by raster cell size
     buffer_dist = f"{(dem_cell_size * 2)} {linear_units}"
-    Buffer(outlets_path, outlet_buffer_temp, buffer_dist, 'FULL', 'ROUND', 'LIST', 'Subbasin')
+    Buffer(embankments_path, embankment_buffer_temp, buffer_dist, 'FULL', 'ROUND', 'LIST', 'Subbasin')
 
     # Get Reference Line Elevation Properties (Uses WASCOB DEM which is vertical feet by 1/10ths)
-    ZonalStatisticsAsTable(outlet_buffer_temp, 'Subbasin', wascob_dem_path, outlet_stats_temp, 'DATA')
+    ZonalStatisticsAsTable(embankment_buffer_temp, 'Subbasin', wascob_dem_path, embankment_stats_temp, 'DATA')
 
     # Update the outlet FC with the zonal stats
-    with UpdateCursor(outlets_path, ['Subbasin','MinElev','MaxElev','MeanElev']) as cursor:
+    with UpdateCursor(embankments_path, ['Subbasin','MinElev','MaxElev','MeanElev']) as cursor:
         for row in cursor:
-            subBasinNumber = row[0]
-            expression = (u'{} = ' + str(subBasinNumber)).format(AddFieldDelimiters(outlet_stats_temp, 'Subbasin'))
-            stats = [(row[0],row[1],row[2]) for row in SearchCursor(outlet_stats_temp,['MIN','MAX','MEAN'], where_clause=expression)][0]
+            subbasin_number = row[0]
+            expression = (u'{} = ' + str(subbasin_number)).format(AddFieldDelimiters(embankment_stats_temp, 'Subbasin'))
+            stats = [(row[0],row[1],row[2]) for row in SearchCursor(embankment_stats_temp,['MIN','MAX','MEAN'], where_clause=expression)][0]
             row[1] = stats[0] # Min Elev
             row[2] = stats[1] # Max Elev
             row[3] = stats[2] # Mean Elev
@@ -182,7 +180,7 @@ try:
 
     # Convert bufferd outlet to raster
     SetProgressorLabel("Converting Buffered Reference Line to Raster")
-    PolygonToRaster(outlet_buffer_temp, 'Subbasin', pour_point_temp, 'MAXIMUM_AREA', 'NONE', dem_cell_size)
+    PolygonToRaster(embankment_buffer_temp, 'Subbasin', pour_point_temp, 'MAXIMUM_AREA', 'NONE', dem_cell_size)
 
     # Create Watershed Raster using the raster pour point
     watershed_grid = Watershed(flow_dir_path, pour_point_temp, 'VALUE')
@@ -192,7 +190,7 @@ try:
 
     # Dissolve watershedTemp by GRIDCODE or grid_code
     Dissolve(watershed_temp, basins_path, 'GRIDCODE', '', 'MULTI_PART', 'DISSOLVE_LINES')
-    AddMsgAndPrint(f"\nCreated {str(int(GetCount(basins_path).getOutput(0)))} Watershed(s) from {outlets_name}...", log_file_path=log_file_path)
+    AddMsgAndPrint(f"\nCreated {str(int(GetCount(basins_path).getOutput(0)))} Watershed(s) from {embankments_name}...", log_file_path=log_file_path)
     env.mask = basins_path
 
     # Add Subbasin Field in watershed and calculate it to be the same as GRIDCODE
@@ -203,12 +201,6 @@ try:
     # Add Acres Field in watershed and calculate them and notify the user
     AddField(basins_path, 'Acres', 'DOUBLE')
     CalculateField(basins_path, 'Acres', "!shape!.getArea('PLANAR', 'ACRES')", 'PYTHON3')
-
-    #NOTE: Create DEM tool already does this, project_dem is "smoothed"
-    # Run Focal Statistics on the DEM_aoi to remove exteraneous values
-    # SetProgressorLabel("Recreating " + projectName  + "_DEMsmooth")
-    # outFocalStats = FocalStatistics(ProjectDEM, "RECTANGLE 3 3 CELL","MEAN","DATA")
-    # outFocalStats.save(DEMsmooth)
 
     ### Calculate Average Slope ###
     SetProgressorLabel('Calculating average slope...')
@@ -235,12 +227,12 @@ try:
                 AddMsgAndPrint('\t\tConsider re-delineating to split basins or move upstream.', 1)
 
     ### Delete Fields Added if Digitized ###
-    deleteESRIAddedFields(outlets_path)
+    deleteESRIAddedFields(embankments_path)
 
     ### Add Outputs to Map ###
     SetProgressorLabel('Adding output layers to map...')
     AddMsgAndPrint('\nAdding output layers to map...', log_file_path=log_file_path)
-    SetParameterAsText(3, outlets_path)
+    SetParameterAsText(3, embankments_path)
     SetParameterAsText(4, basins_path)
 
     ### Remove Digitized Layer (if present) ###
