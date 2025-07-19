@@ -73,7 +73,7 @@ flow_dir_name = 'Flow_Direction'
 flow_dir_path = path.join(project_gdb, flow_dir_name)
 
 ### Ensure Project AOI Exists ###
-if not Exists(project_dem_path):
+if not Exists(project_aoi_path):
     AddMsgAndPrint('\nCould not locate the project AOI layer for specified DEM. Exiting...', 2)
     exit()
 
