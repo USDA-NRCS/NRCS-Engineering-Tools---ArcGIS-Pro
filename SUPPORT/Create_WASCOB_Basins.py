@@ -15,7 +15,7 @@ from arcpy.sa import Slope, Watershed, ZonalStatisticsAsTable
 from utils import AddMsgAndPrint, deleteESRIAddedFields, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, streams, embankments, basins_name):
+def logBasicSettings(log_file_path, wascob_streams, embankments, basins_name):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create WASCOB Basins\n')
@@ -23,9 +23,9 @@ def logBasicSettings(log_file_path, streams, embankments, basins_name):
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\tStreams Layer: {streams}\n")
+        f.write(f"\tWASCOB Streams Layer: {wascob_streams}\n")
         f.write(f"\tEmbankments Layer: {embankments}\n")
-        f.write(f"\tWatershed Name: {basins_name}\n")
+        f.write(f"\tBasins Name: {basins_name}\n")
 
 
 ### Initial Tool Validation ###
@@ -43,14 +43,14 @@ else:
     exit()
 
 ### Input Parameters ###
-streams = GetParameterAsText(0)
+wascob_streams = GetParameterAsText(0)
 embankments = GetParameterAsText(1)
 basins_name = GetParameterAsText(2).replace(' ','_')
 
 ### Locate Project GDB ###
-streams_path = Describe(streams).catalogPath
-if 'EngPro.gdb' in streams_path and 'Streams' in streams_path:
-    project_gdb = streams_path[:streams_path.find('.gdb')+4]
+streams_path = Describe(wascob_streams).catalogPath
+if '_WASCOB.gdb' in streams_path and 'Streams' in streams_path:
+    wascob_gdb = streams_path[:streams_path.find('.gdb')+4]
 else:
     AddMsgAndPrint('\nThe selected Streams layer is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
     exit()
@@ -59,19 +59,17 @@ else:
 support_dir = path.dirname(argv[0])
 support_gdb = path.join(support_dir, 'Support.gdb')
 scratch_gdb = path.join(support_dir, 'Scratch.gdb')
-project_workspace = path.dirname(project_gdb)
+project_workspace = path.dirname(wascob_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-project_fd = path.join(project_gdb, 'Layers')
-project_aoi_path = path.join(project_fd, f"{project_name}_AOI")
-flow_accum_path = path.join(project_gdb, 'Flow_Accumulation')
-flow_dir_path = path.join(project_gdb, 'Flow_Direction')
-wascob_gdb_path = path.join(project_workspace, f"{project_name}_WASCOB.gdb")
-wascob_fd_path = path.join(wascob_gdb_path, 'Layers')
-wascob_dem_path = path.join(wascob_gdb_path, f"{project_name}_DEM_WASCOB")
-basins_path = path.join(project_fd, basins_name)
+project_aoi_path = path.join(f"{project_name}_EngPro.gdb", 'Layers', f"{project_name}_AOI")
+wascob_fd = path.join(wascob_gdb, 'Layers')
+wascob_dem_path = path.join(wascob_gdb, f"{project_name}_DEM_WASCOB")
+flow_accum_path = path.join(wascob_gdb, 'Flow_Accumulation_WASCOB')
+flow_dir_path = path.join(wascob_gdb, 'Flow_Direction_WASCOB')
+basins_path = path.join(wascob_fd, basins_name)
 embankments_name = f"{basins_name}_Embankments"
-embankments_path = path.join(wascob_fd_path, embankments_name)
+embankments_path = path.join(wascob_fd, embankments_name)
 embankment_buffer_temp = path.join(scratch_gdb, 'Embankment_Buffer')
 pour_point_temp = path.join(scratch_gdb, 'Pour_Point')
 watershed_temp = path.join(scratch_gdb, 'Watershed_Temp')
@@ -79,17 +77,20 @@ embankment_stats_temp = path.join(scratch_gdb, 'Embankment_Stats')
 slope_stats_temp = path.join(scratch_gdb, 'Slope_Stats')
 
 ### Validate Required Datasets Exist ###
+if not Exists(project_aoi_path):
+    AddMsgAndPrint('\nThe project AOI was not found. Exiting...', 2)
+    exit()
 if not Exists(wascob_dem_path):
     AddMsgAndPrint('\nThe WASCOB project DEM was not found. Exiting...', 2)
     exit()
 if not Exists(flow_accum_path):
-    AddMsgAndPrint('\nThe project Flow Accumulation Grid was not found. Exiting...', 2)
+    AddMsgAndPrint('\nThe WASCOB Flow Accumulation Grid was not found. Exiting...', 2)
     exit()
 if not Exists(flow_dir_path):
-    AddMsgAndPrint('\nThe project Flow Direction Grid was not found. Exiting...', 2)
+    AddMsgAndPrint('\nThe WASCOB Flow Direction Grid was not found. Exiting...', 2)
     exit()
 if not Exists(streams_path):
-    AddMsgAndPrint('\nThe selected Streams feature class was not found. Exiting...', 2)
+    AddMsgAndPrint('\nThe WASCOB Streams feature class was not found. Exiting...', 2)
     exit()
 if not int(GetCount(embankments).getOutput(0)) > 0:
     AddMsgAndPrint('\nAt least one Embankment must be used. Exiting...', 2)
@@ -127,7 +128,7 @@ else:
 
 try:
     removeMapLayers(map, [embankments_name, basins_name])
-    logBasicSettings(log_file_path, streams, embankments, basins_name)
+    logBasicSettings(log_file_path, wascob_streams, embankments, basins_name)
 
     ### Clip Embankments to AOI ###
     if Describe(embankments).catalogPath != embankments_path:
@@ -144,7 +145,9 @@ try:
         exit()
 
     ### Add Fields to Embankment Layer ###
-    fields = ListFields(embankments_path)
+    SetProgressorLabel('Calculating embankment attributes...')
+    AddMsgAndPrint('\nCalculating embankment attributes...', log_file_path=log_file_path)
+    fields = [f.name for f in ListFields(embankments_path)]
     if 'Subbasin' not in fields:
         AddField(embankments_path, 'Subbasin', 'LONG')
     if 'MaxElev' not in fields:
@@ -178,8 +181,10 @@ try:
             row[3] = stats[2] # Mean Elev
             cursor.updateRow(row)
 
+    SetProgressorLabel('Creating basins...')
+    AddMsgAndPrint('\nCreating basins...', log_file_path=log_file_path)
+
     # Convert bufferd embankment to raster
-    SetProgressorLabel("Converting Buffered Reference Line to Raster")
     PolygonToRaster(embankment_buffer_temp, 'Subbasin', pour_point_temp, 'MAXIMUM_AREA', 'NONE', dem_cell_size)
 
     # Create Watershed Raster using the raster pour point
@@ -190,7 +195,7 @@ try:
 
     # Dissolve watershedTemp by GRIDCODE or grid_code
     Dissolve(watershed_temp, basins_path, 'GRIDCODE', '', 'MULTI_PART', 'DISSOLVE_LINES')
-    AddMsgAndPrint(f"\nCreated {str(int(GetCount(basins_path).getOutput(0)))} Watershed(s) from {embankments_name}...", log_file_path=log_file_path)
+    AddMsgAndPrint(f"\nCreated {str(int(GetCount(basins_path).getOutput(0)))} Basin(s) from {embankments_name}...", log_file_path=log_file_path)
     env.mask = basins_path
 
     # Add Subbasin Field in watershed and calculate it to be the same as GRIDCODE
@@ -237,14 +242,14 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if '02. Create WASCOB Basins' in lyr.name:
+        if '03. Create WASCOB Basins' in lyr.name:
             map.removeLayer(lyr)
 
     ### Compact Project GDB ###
     try:
         SetProgressorLabel('Compacting project geodatabase...')
         AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
-        Compact(wascob_gdb_path)
+        Compact(wascob_gdb)
     except:
         pass
 

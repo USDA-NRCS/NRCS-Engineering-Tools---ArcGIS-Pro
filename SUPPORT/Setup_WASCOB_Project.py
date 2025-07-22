@@ -15,7 +15,7 @@ from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 def logBasicSettings(log_file_path, project_dem, input_z_units, relative_survey, contour_interval):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
-        f.write('Executing Tool: WASCOB Create AOI\n')
+        f.write('Executing Tool: Setup WASCOB Project\n')
         f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
