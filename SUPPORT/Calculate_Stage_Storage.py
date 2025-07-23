@@ -224,21 +224,21 @@ try:
     AddField(storage_table_path, 'CUBIC_FEET', 'DOUBLE')
     AddField(storage_table_path, 'CUBIC_METERS', 'DOUBLE')
 
-    dem_elevation = 'round(!Plane_Height!)'
     elevation_feet = 'round(!Plane_Height!*3.28084,1)'
+    dem_elevation = 'round(!Plane_Height!)'
     area_acres = 'round(!Area_2D! /' + str(to_acres) + ',1)'
     area_sqft = 'round(!Area_2D! /' + str(to_square_feet) + ',1)'
     volume_acre_foot = 'round(!Volume! /' + str(to_acre_foot) + ',1)'
-    volume_cubic_meters = 'round(!Volume! *' + str(to_cubic_meters) + ',1)'
     volume_cubic_feet = 'round(!Volume! *' + str(to_cubic_feet) + ',1)'
+    volume_cubic_meters = 'round(!Volume! *' + str(to_cubic_meters) + ',1)'
 
-    CalculateField(storage_table_path, 'DEM_ELEV', dem_elevation,  'PYTHON3')
     CalculateField(storage_table_path, 'ELEV_FEET', elevation_feet, 'PYTHON3')
+    CalculateField(storage_table_path, 'DEM_ELEV', dem_elevation,  'PYTHON3')
     CalculateField(storage_table_path, 'POOL_ACRES', area_acres, 'PYTHON3')
     CalculateField(storage_table_path, 'POOL_SQFT', area_sqft, 'PYTHON3')
     CalculateField(storage_table_path, 'ACRE_FOOT', volume_acre_foot, 'PYTHON3')
-    CalculateField(storage_table_path, 'CUBIC_METERS', volume_cubic_meters,  'PYTHON3')
-    CalculateField(storage_table_path, 'CUBIC_FEET', volume_cubic_feet,  'PYTHON3')
+    CalculateField(storage_table_path, 'CUBIC_FEET', volume_cubic_feet, 'PYTHON3')
+    CalculateField(storage_table_path, 'CUBIC_METERS', volume_cubic_meters, 'PYTHON3')
 
     ### Clean Up Temp Datasets ###
     if Exists(storage_table_temp):
