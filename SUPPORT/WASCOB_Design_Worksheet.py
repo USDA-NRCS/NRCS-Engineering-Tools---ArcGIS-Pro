@@ -7,21 +7,21 @@ from time import ctime
 from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
 from arcpy.conversion import TableToTable
 from arcpy.da import SearchCursor
-from arcpy.management import AddField, Compact, CreateFeatureclass, CreateFolder
+from arcpy.management import AddField, Compact, CreateFeatureclass
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, input_watershed):
+def logBasicSettings(log_file_path, input_basins):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
-        f.write('Executing Tool: Design Worksheet\n')
+        f.write('Executing Tool: WASCOB Design Worksheet\n')
         f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\tInput Watershed: {input_watershed}\n")
+        f.write(f"\tWASCOB Basins Layer: {input_basins}\n")
 
 
 ### Initial Tool Validation ###
@@ -33,43 +33,43 @@ except:
     exit()
 
 ### Input Parameters ###
-input_watershed = GetParameterAsText(0)
+input_basins = GetParameterAsText(0)
 
 ### Locate Project GDB ###
-watershed_path = Describe(input_watershed).catalogPath
-if 'EngPro.gdb' in watershed_path:
-    project_gdb = watershed_path[:watershed_path.find('.gdb')+4]
+basins_path = Describe(input_basins).catalogPath
+if '_WASCOB.gdb' in basins_path:
+    wascob_gdb = basins_path[:basins_path.find('.gdb')+4]
 else:
-    AddMsgAndPrint('\nThe selected Watershed layer is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
+    AddMsgAndPrint('\nThe selected WASCOB Basins layer is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
     exit()
 
 ### Set Paths and Variables ###
 support_dir = path.dirname(argv[0])
-project_workspace = path.dirname(project_gdb)
+project_workspace = path.dirname(wascob_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-project_fd = path.join(project_gdb, 'Layers')
-watershed_name = path.basename(watershed_path)
-rcn_path = path.join(project_fd, f"{watershed_name}_RCN")
+wascob_fd = path.join(wascob_gdb, 'Layers')
+basins_name = path.basename(basins_path)
+rcn_path = path.join(wascob_fd, f"{basins_name}_RCN_WASCOB")
 output_points_name = 'Stakeout_Points'
-output_points_path = path.join(project_fd, output_points_name)
+output_points_path = path.join(wascob_fd, output_points_name)
 template_worksheet = path.join(support_dir, 'LiDAR_WASCOB.xlsm')
 documents_dir = path.join(project_workspace, 'Documents')
 output_dir = path.join(project_workspace, 'GIS_Output')
 tables_dir = path.join(output_dir, 'Tables')
 
 ### Validate Required Datasets Exist ###
-if '_Land_Use' in input_watershed or '_Soils' in input_watershed or '_RCN' in input_watershed:
-    AddMsgAndPrint('\nInput layer appears to be either a Land Use, Soils, or RCN layer, not the Watershed layer. Exiting...', 2)
+if '_Land_Use' in input_basins or '_Soils' in input_basins or '_RCN' in input_basins:
+    AddMsgAndPrint('\nInput layer appears to be either a Land Use, Soils, or RCN layer, not the WASCOB Basins layer. Exiting...', 2)
     exit()
-if 'Subbasin' not in [field.name for field in ListFields(input_watershed)]:
+if 'Subbasin' not in [field.name for field in ListFields(input_basins)]:
     AddMsgAndPrint()
     exit()
 if not Exists(rcn_path):
-    AddMsgAndPrint('\nCould not locate the RCN layer for the specified Watershed. Please run tool B.02.02 Calculate Runoff Curve Number and try this tool again. Exiting...', 2)
+    AddMsgAndPrint('\nCould not locate the RCN layer for the specified Basins. Please run tool Calculate Runoff Curve Number (WASCOB) and try this tool again. Exiting...', 2)
     exit()
 if 'RCN' not in [field.name for field in ListFields(rcn_path)]:
-    AddMsgAndPrint('\nRCN field not found in input Watershed layer. Please run tool B.02.02 Calculate Runoff Curve Number and try this tool again. Exiting...', 2)
+    AddMsgAndPrint('\nRCN field not found in input Basins layer. Please run tool Calculate Runoff Curve Number (WASCOB) and try this tool again. Exiting...', 2)
     exit()
 if not Exists(template_worksheet):
     AddMsgAndPrint('\nLiDAR_WASCOB.xlsm Worksheet template not found in SUPPORT folder. Exiting...', 2)
@@ -83,33 +83,19 @@ env.overwriteOutput = True
 
 try:
     removeMapLayers(map, [output_points_name])
-    logBasicSettings(log_file_path, input_watershed)
+    logBasicSettings(log_file_path, input_basins)
 
     ### Validate RCN Field ###
     null_values = [row[0] for row in SearchCursor(rcn_path, ['RCN'], 'RCN IS NULL')]
     if len(null_values) > 0:
-        AddMsgAndPrint('\nRCN field in input Watershed contains NULL values. Please run tool B.02.02 Calculate Runoff Curve Number or manually correct RCN values. Exiting...', 2, log_file_path)
+        AddMsgAndPrint('\nRCN field in input Basins contains NULL values. Please run tool Calculate Runoff Curve Number (WASCOB) or manually correct RCN values. Exiting...', 2, log_file_path)
         exit()
 
-    ### Create Output Folders ###
-    if not Exists(output_dir):
-        SetProgressorLabel('Creating GIS_Output folder...')
-        AddMsgAndPrint('\nCreating GIS_Output folder...', log_file_path=log_file_path)
-        CreateFolder(project_workspace, 'GIS_Output')
-    if not Exists(tables_dir):
-        SetProgressorLabel('Creating Tables folder...')
-        AddMsgAndPrint('\nCreating Tables folder...', log_file_path=log_file_path)
-        CreateFolder(output_dir, 'Tables')
-    if not Exists(documents_dir):
-        SetProgressorLabel('Creating Documents folder...')
-        AddMsgAndPrint('\nCreating Documents folder...', log_file_path=log_file_path)
-        CreateFolder(project_workspace, 'Documents')
-
-    ### Create Tables from Input Watershed and RCN ###
-    SetProgressorLabel('\nCreating Watershed and RCN tables...')
-    AddMsgAndPrint('\nCreating Watershed and RCN tables...', log_file_path=log_file_path)
-    TableToTable(input_watershed, tables_dir, 'Watershed.dbf')
-    TableToTable(rcn_path, tables_dir, 'RCNsummary.dbf')
+    ### Create Tables from Input Basins and RCN ###
+    SetProgressorLabel('\nCreating Basins and RCN tables...')
+    AddMsgAndPrint('\nCreating Basins and RCN tables...', log_file_path=log_file_path)
+    TableToTable(input_basins, tables_dir, 'WASCOB_Basins.dbf')
+    TableToTable(rcn_path, tables_dir, 'RCN_Summary.dbf')
 
     ### Create WASCOB Worksheet ###
     #TODO: Does naming here need to be unique?
@@ -130,7 +116,7 @@ try:
     if not Exists(output_points_path):
         SetProgressorLabel('Creating Stakeout points feature class...')
         AddMsgAndPrint('\nCreating Stakeout points feature class...', log_file_path=log_file_path)
-        CreateFeatureclass(project_fd, output_points_name, 'POINT', '', 'DISABLED', 'DISABLED', '', '', '0', '0', '0')
+        CreateFeatureclass(wascob_fd, output_points_name, 'POINT', '', 'DISABLED', 'DISABLED', '', '', '0', '0', '0')
         AddField(output_points_path, 'ID', 'LONG')
         AddField(output_points_path, 'Subbasin', 'LONG')
         AddField(output_points_path, 'Elev', 'DOUBLE')
@@ -152,17 +138,17 @@ try:
     try:
         SetProgressorLabel('Compacting project geodatabase...')
         AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
-        Compact(project_gdb)
+        Compact(wascob_gdb)
     except:
         pass
 
-    AddMsgAndPrint('\nDesign Worksheet completed successfully', log_file_path=log_file_path)
+    AddMsgAndPrint('\nWASCOB Design Worksheet completed successfully', log_file_path=log_file_path)
 
 except SystemExit:
     pass
 
 except:
     try:
-        AddMsgAndPrint(errorMsg('Design Worksheet'), 2, log_file_path)
+        AddMsgAndPrint(errorMsg('WASCOB Design Worksheet'), 2, log_file_path)
     except:
-        AddMsgAndPrint(errorMsg('Design Worksheet'), 2)
+        AddMsgAndPrint(errorMsg('WASCOB Design Worksheet'), 2)
