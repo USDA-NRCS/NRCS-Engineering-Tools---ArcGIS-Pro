@@ -5,7 +5,7 @@ from sys import argv, exit
 from time import ctime
 
 from arcpy import AddFieldDelimiters, CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, \
-    GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
+    GetParameterAsText, ListFields, SetProgressorLabel
 from arcpy.analysis import Buffer
 from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.ddd import SurfaceVolume
@@ -76,8 +76,8 @@ subbasin_mask_temp = path.join(scratch_gdb, 'Subbasin_Mask')
 storage_table_temp = path.join(scratch_gdb, 'Storage')
 storage_dbf_template = path.join(support_dir, 'storage.dbf')
 tables_dir = path.join(project_workspace, 'GIS_Output', 'Tables')
-storage_dbf = path.join(tables_dir, 'storage.dbf')
-embankments_dbf = path.join(tables_dir, 'embankments.dbf')
+storage_dbf = path.join(tables_dir, 'Storage.dbf')
+embankments_dbf = path.join(tables_dir, 'Embankments.dbf')
 
 ### Validate Required Datasets Exist ###
 if not Exists(wascob_dem_path):
@@ -186,8 +186,6 @@ try:
             row[2] = stats[1] # Max Elev
             row[3] = stats[2] # Mean Elev
 
-            # SelectLayerByAttribute(wascob_basins, 'NEW_SELECTION', f"Subbasin = {subbasin_number}")
-            # CopyFeatures(wascob_basins, subMask)
             MakeFeatureLayer(input_basins, 'subbasin_mask_lyr', f"Subbasin = {subbasin_number}")
             subbasin_raster = ExtractByMask(wascob_dem_path, 'subbasin_mask_lyr')
 
@@ -255,10 +253,6 @@ try:
         Delete(storage_table_temp)
     if Exists(subbasin_raster):
         Delete(subbasin_raster)
-
-    ### Add Outputs to Map ###
-    SetParameterAsText(1, embankments_dbf)
-    SetParameterAsText(2, storage_dbf)
 
     ### Compact Project GDB ###
     try:

@@ -4,13 +4,12 @@ from shutil import copyfile
 from sys import argv, exit
 from time import ctime
 
-from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
+from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetProgressorLabel
 from arcpy.conversion import TableToTable
 from arcpy.da import SearchCursor
-from arcpy.management import AddField, Compact, CreateFeatureclass
 from arcpy.mp import ArcGISProject
 
-from utils import AddMsgAndPrint, errorMsg, removeMapLayers
+from utils import AddMsgAndPrint, errorMsg
 
 
 def logBasicSettings(log_file_path, input_basins):
@@ -51,8 +50,6 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 wascob_fd = path.join(wascob_gdb, 'Layers')
 basins_name = path.basename(basins_path)
 rcn_path = path.join(wascob_fd, f"{basins_name}_RCN_WASCOB")
-output_points_name = 'Stakeout_Points'
-output_points_path = path.join(wascob_fd, output_points_name)
 template_worksheet = path.join(support_dir, 'LiDAR_WASCOB.xlsm')
 documents_dir = path.join(project_workspace, 'Documents')
 output_dir = path.join(project_workspace, 'GIS_Output')
@@ -76,13 +73,9 @@ if not Exists(template_worksheet):
     exit()
 
 ### ESRI Environment Settings ###
-env.resamplingMethod = 'BILINEAR'
-env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
-env.parallelProcessingFactor = '75%'
 env.overwriteOutput = True
 
 try:
-    removeMapLayers(map, [output_points_name])
     logBasicSettings(log_file_path, input_basins)
 
     ### Validate RCN Field ###
@@ -98,7 +91,6 @@ try:
     TableToTable(rcn_path, tables_dir, 'RCN_Summary.dbf')
 
     ### Create WASCOB Worksheet ###
-    #TODO: Does naming here need to be unique?
     SetProgressorLabel('Creating WASCOB Worksheet...')
     AddMsgAndPrint('\nCreating WASCOB Worksheet...', log_file_path=log_file_path)
     output_worksheet = path.join(documents_dir, f"{project_name}_WASCOB.xlsm")
@@ -111,17 +103,6 @@ try:
             x = 0
     copyfile(template_worksheet, output_worksheet)
 
-    ### Create Stakeout Points Feature Class ###
-    #TODO: Should this check for existence or always create new/overwrite?
-    if not Exists(output_points_path):
-        SetProgressorLabel('Creating Stakeout points feature class...')
-        AddMsgAndPrint('\nCreating Stakeout points feature class...', log_file_path=log_file_path)
-        CreateFeatureclass(wascob_fd, output_points_name, 'POINT', '', 'DISABLED', 'DISABLED', '', '', '0', '0', '0')
-        AddField(output_points_path, 'ID', 'LONG')
-        AddField(output_points_path, 'Subbasin', 'LONG')
-        AddField(output_points_path, 'Elev', 'DOUBLE')
-        AddField(output_points_path, 'Notes', 'TEXT', field_length='50')
-
     ### Launch WASCOB Worksheet ###
     AddMsgAndPrint(f"\nThe LiDAR_WASCOB worksheet was saved to {documents_dir}. If Excel does not open automatically, navigate to it and open manually. \
                    Once Excel is open, enable macros (if not already enabled), and set the path to your project folder to import your gis data. \
@@ -130,17 +111,6 @@ try:
         startfile(output_worksheet)
     except:
         AddMsgAndPrint('\nExcel failed to open. Please try opening the worksheet manually.', 1, log_file_path)
-
-    ### Add Output to Map ###
-    SetParameterAsText(1, output_points_path)
-
-    ### Compact Project GDB ###
-    try:
-        SetProgressorLabel('Compacting project geodatabase...')
-        AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
-        Compact(wascob_gdb)
-    except:
-        pass
 
     AddMsgAndPrint('\nWASCOB Design Worksheet completed successfully', log_file_path=log_file_path)
 
