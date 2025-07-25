@@ -12,18 +12,21 @@ from arcpy.management import AddField, AddXY, Append, CalculateField, CreateFeat
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask, Int, SetNull, Times
 
-from utils import AddMsgAndPrint, errorMsg
+from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path):
+def logBasicSettings(log_file_path, input_basins, subbasin_number, design_elevation, intake_elevation):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
-        f.write('Executing Tool: \n')
+        f.write('Executing Tool: Design Height and Intake Location\n')
         f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
-        f.write(f"\t: {}\n")
+        f.write(f"\tWASCOB Basins Layer: {input_basins}\n")
+        f.write(f"\tSubbasin Number: {subbasin_number}\n")
+        f.write(f"\tDesign Elevation: {design_elevation}\n")
+        f.write(f"\tIntake Elevation: {intake_elevation}\n")
 
 
 ### Initial Tool Validation ###
@@ -40,151 +43,183 @@ else:
     AddMsgAndPrint('\nSpatial Analyst Extension not enabled. Please enable Spatial Analyst from Project, Licensing, Configure licensing options. Exiting...', 2)
     exit()
 
+### Input Parameters ###
+input_basins = GetParameterAsText(0)
+subbasin_number = GetParameterAsText(1)
+design_elevation = GetParameterAsText(2)
+intake_elevation = GetParameterAsText(3)
+intake_location = GetParameterAsText(4)
+
+### Locate Project GDB ###
+basins_path = Describe(input_basins).catalogPath
+basins_name = path.basename(basins_path)
+if '_WASCOB.gdb' in basins_path:
+    wascob_gdb = basins_path[:basins_path.find('.gdb')+4]
+else:
+    AddMsgAndPrint('\nThe selected WASCOB Basins layer is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
+    exit()
+
+### Set Paths and Variables ###
+support_dir = path.dirname(argv[0])
+scratch_gdb = path.join(support_dir, 'Scratch.gdb')
+project_workspace = path.dirname(wascob_gdb)
+project_name = path.basename(project_workspace)
+log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
+wascob_dem_path = path.join(wascob_gdb, f"{project_name}_DEM_WASCOB")
+wascob_fd = path.join(wascob_gdb, 'Layers')
+embankments_name = f"{basins_name}_Embankments"
+embankments_path = path.join(wascob_fd, embankments_name)
+embankments_lyr = f"{embankments_name}_Lyr"
+stakeout_points_name = 'Stakeout_Points'
+stakeout_points_path = path.join(wascob_fd, stakeout_points_name)
+stakeout_points_lyr = f"{stakeout_points_name}_Lyr"
+intake_point_temp = path.join(scratch_gdb, 'intake_temp')
+dem_polygon_temp = path.join(scratch_gdb, 'dem_poly_temp')
+embankment_points_temp = path.join(scratch_gdb, 'embankment_points_temp')
+
+### Validate Required Datasets Exist ###
+if not Exists(wascob_dem_path):
+    AddMsgAndPrint('\nThe WASCOB project DEM was not found. Exiting...', 2)
+    exit()
+if not Exists(embankments_path):
+    AddMsgAndPrint('\nThe WASCOB Embankments layer was not found. Exiting...', 2)
+    exit()
+
+### Validate Number of Intake Locations ###
+intake_count = int(GetCount(intake_location).getOutput(0))
+if intake_count == 0:
+    AddMsgAndPrint('\nOne intake location point is required to run this tool. Exiting...', 2)
+    exit()
+if intake_count > 1:
+    AddMsgAndPrint('\nMore than one intake location found. This tool must be run with one intake location per subbasin. Exiting...', 2)
+    exit()
+
+### ESRI Environment Settings ###
+env.resamplingMethod = 'BILINEAR'
+env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
+env.parallelProcessingFactor = '75%'
+env.overwriteOutput = True
+
 try:
-    inWatershed = GetParameterAsText(0)
-    Subbasin = GetParameterAsText(1)
-    DesignElev = GetParameterAsText(2)
-    IntakeElev = GetParameterAsText(3)
-    IntakeLocation = GetParameterAsText(4)
+    removeMapLayers(map, [stakeout_points_name])
+    logBasicSettings(log_file_path, input_basins, subbasin_number, design_elevation, intake_elevation)
 
-    env.overwriteOutput = True
-    env.parallelProcessingFactor = "75%"
-    env.geographicTransformations = "WGS_1984_(ITRF00)_To_NAD_1983"
-    env.resamplingMethod = "BILINEAR"
-    env.pyramid = "PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP"
+    ### Create Stakeout Points Feature Class ###
+    if not Exists(stakeout_points_path):
+        SetProgressorLabel('Creating Stakeout Points feature class...')
+        AddMsgAndPrint('\nCreating Stakeout Points feature class...', log_file_path=log_file_path)
+        CreateFeatureclass(wascob_fd, stakeout_points_path, 'POINT', '', 'DISABLED', 'DISABLED', '', '', '0', '0', '0')
+        AddField(stakeout_points_path, 'ID', 'LONG')
+        AddField(stakeout_points_path, 'Subbasin', 'LONG')
+        AddField(stakeout_points_path, 'Elev', 'DOUBLE')
+        AddField(stakeout_points_path, 'Notes', 'TEXT', field_length='50')
 
-    watershed_path = Describe(inWatershed).CatalogPath
-    watershedGDB_path = watershed_path[:watershed_path .find(".gdb")+4]
-    watershedGDB_name = path.basename(watershedGDB_path)
-    watershedFD_path = watershedGDB_path + sep + "Layers"
-    userWorkspace = path.dirname(watershedGDB_path)
-    wsName = path.basename(inWatershed)
-    stakeoutPoints = watershedFD_path + sep + "stakeoutPoints"
-    ProjectDEM = watershedGDB_path + sep + path.basename(userWorkspace).replace(" ","_") + "_Project_DEM"
-    stakeoutPoints = "stakeoutPoints"
-    ReferenceLine = "ReferenceLine"
-    RefLineLyr = "ReferenceLineLyr"
-    stakeoutPointsLyr ="stakeoutPointsLyr"
-    pointsSelection = "pointsSelection"
-    refLineSelection = "refLineSelection"
-    textFilePath = userWorkspace + sep + path.basename(userWorkspace).replace(" ","_") + "_EngTools.txt"
-    logBasicSettings()
-
-    AddMsgAndPrint("\nChecking inputs and workspace...")
-    if not Exists(ProjectDEM):
-        AddMsgAndPrint("\tMissing Project_DEM from FGDB. Can not perform raster analysis.",2)
-        AddMsgAndPrint("\tProject_DEM must be in the same geodatabase as your input watershed.",2)
-        AddMsgAndPrint("\tCheck your the source of your provided watershed. Exiting...",2)
+    ### Validate Embankment Exists for Subbasin ###
+    where_clause = f"Subbasin = {subbasin_number}"
+    MakeFeatureLayer(embankments_path, embankments_lyr, where_clause)
+    if not int(GetCount(embankments_lyr).getOutput(0)) > 0:
+        AddMsgAndPrint(f"\nNo embankment found for subbasin {subbasin_number}. Exiting...", 2, log_file_path)
         exit()
 
-    if not Exists(ReferenceLine):
-        AddMsgAndPrint("\tReference Line not found in table of contents or in the workspace of your input watershed",2)
-        AddMsgAndPrint("\tDouble check your inputs and workspace. Exiting...",2)
-        exit()
+    #TODO: Not sure this is necessary
+    # refTemp = CreateScratchName("refTemp",data_type="FeatureClass",workspace="in_memory")
+    # CopyFeatures(refLineSelection, refTemp)
+    # SelectLayerByAttribute(embankments_lyr, "CLEAR_SELECTION", "")
 
-    if int(GetCount(IntakeLocation).getOutput(0)) > 1:
-        AddMsgAndPrint("\tYou provided more than one inlet location",2)
-        AddMsgAndPrint("\tEach subbasin must be completed individually,",2)
-        AddMsgAndPrint("\twith one intake provided each time you run this tool.",2)
-        AddMsgAndPrint("\tTry again with only one intake loacation. Exiting...",2)
-        exit()
+    ### Delete Stakeout Points Record for Subbain if Exists ###
+    MakeFeatureLayer(stakeout_points_path, stakeout_points_lyr, where_clause)
+    # SelectLayerByAttribute(stakeout_points_lyr, "NEW_SELECTION", exp)
+    # MakeFeatureLayer(stakeout_points_lyr, pointsSelection)
+    if int(GetCount(stakeout_points_lyr).getOutput(0)) > 0:
+        DeleteFeatures(stakeout_points_lyr)
+    SelectLayerByAttribute(stakeout_points_lyr, 'CLEAR_SELECTION')
 
-    if int(GetCount(IntakeLocation).getOutput(0)) < 1:
-        AddMsgAndPrint("\tYou did not provide a point for your intake loaction",2)
-        AddMsgAndPrint("\tYou must create a point at the proposed inlet location by using",2)
-        AddMsgAndPrint("\tthe Add Features tool in the Design Height tool dialog box. Exiting...",2)
-        exit()
+    ### Create Temp Intake Point and Append to Stakeout Points ###
+    SetProgressorLabel('Updating Intake Location fields...')
+    AddMsgAndPrint('\nUpdating Intake Location fields...', log_file_path=log_file_path)
 
-    if not Exists(stakeoutPoints):
-        CreateFeatureclass(watershedFD_path, "stakeoutPoints", "POINT", "", "DISABLED", "DISABLED", "", "", "0", "0", "0")
-        AddField(stakeoutPoints, "ID", "LONG")
-        AddField(stakeoutPoints, "Subbasin", "LONG")
-        AddField(stakeoutPoints, "Elev", "DOUBLE")
-        AddField(stakeoutPoints, "Notes", "TEXT", field_length=50)
+    CopyFeatures(intake_location, intake_point_temp)
+    AddField(intake_point_temp, 'ID', 'LONG')
+    AddField(intake_point_temp, 'Subbasin', 'LONG')
+    AddField(intake_point_temp, 'Elev', 'DOUBLE')
+    AddField(intake_point_temp, 'Notes', 'TEXT', field_length='50')
 
-    # Select reference line for specified Subbasin
-    MakeFeatureLayer(ReferenceLine, RefLineLyr)
-    exp = "\"Subbasin\" = " + str(Subbasin) + ""
-    SelectLayerByAttribute(RefLineLyr, "NEW_SELECTION", exp)
-    MakeFeatureLayer(RefLineLyr, refLineSelection)
+    CalculateField(intake_point_temp, 'ID', subbasin_number, 'PYTHON3')
+    CalculateField(intake_point_temp, 'Subbasin', subbasin_number, 'PYTHON3')
+    CalculateField(intake_point_temp, 'Elev', intake_elevation, 'PYTHON3')
+    CalculateField(intake_point_temp, 'Notes', "'Intake'", 'PYTHON3')
 
-    if not int(GetCount(refLineSelection).getOutput(0)) > 0:
-        # Exit if no corresponding subbasin id found in reference line
-        AddMsgAndPrint("\tNo reference line features were found for subbasin " + str(Subbasin),2)
-        AddMsgAndPrint("\tDouble check your inputs and specify a different subbasin ID. Exiting...",2)
-        exit()
+    SetProgressorLabel('Apending Intake Location to Stakeout Points...')
+    AddMsgAndPrint('\nApending Intake Location to Stakeout Points...', log_file_path=log_file_path)
+    Append(intake_point_temp, stakeout_points_path, 'NO_TEST')
 
-    refTemp = CreateScratchName("refTemp",data_type="FeatureClass",workspace="in_memory")
-    CopyFeatures(refLineSelection, refTemp)
-    SelectLayerByAttribute(RefLineLyr, "CLEAR_SELECTION", "")
-
-    # Select any existing Reference points for specified basin and delete
-    MakeFeatureLayer(stakeoutPoints, stakeoutPointsLyr)
-    SelectLayerByAttribute(stakeoutPointsLyr, "NEW_SELECTION", exp)
-    MakeFeatureLayer(stakeoutPointsLyr, pointsSelection)
-    if int(GetCount(pointsSelection).getOutput(0)) > 0:
-        DeleteFeatures(pointsSelection)
-    SelectLayerByAttribute(stakeoutPointsLyr, "CLEAR_SELECTION")
-
-    # Create Intake from user input and append to Stakeout Points
-    AddMsgAndPrint("\nCreating Intake Reference Point")
-    intake = CreateScratchName("intake",data_type="FeatureClass",workspace="in_memory")
-    CopyFeatures(IntakeLocation, intake)
-    AddField(intake, "ID", "LONG")
-    AddField(intake, "Subbasin", "LONG")
-    AddField(intake, "Elev", "DOUBLE")
-    AddField(intake, "Notes", "TEXT", field_length=50)
-
-    CalculateField(intake, "Id", "" + str(Subbasin)+ "", "PYTHON3")
-    CalculateField(intake, "Subbasin", "" + str(Subbasin)+ "", "PYTHON3")
-    CalculateField(intake, "Elev", "" + str(IntakeElev)+ "", "PYTHON3")
-    CalculateField(intake, "Notes", "\"Intake\"", "PYTHON3")
-    AddMsgAndPrint("\tSuccessfully created intake for subbasin " + str(Subbasin) + " at " + str(IntakeElev) + " feet")
-
-    AddMsgAndPrint("\tAppending results to Stakeout Points...")
-    Append(intake, stakeoutPoints, "NO_TEST", "", "")
-
+    #TODO: what is this for??
     # Use DEM to determine intersection of Reference Line and Plane @ Design Elevation
-    AddMsgAndPrint("\nCalculating Pool Extent")
-    SelectLayerByAttribute(inWatershed, "NEW_SELECTION", exp)
-    WSmask = CreateScratchName("WSmask",data_type="FeatureClass",workspace="in_memory")
-    CopyFeatures(inWatershed, WSmask)
-    SelectLayerByAttribute(inWatershed, "CLEAR_SELECTION")
+    # AddMsgAndPrint("\nCalculating Pool Extent")
+    # SelectLayerByAttribute(input_basins, 'NEW_SELECTION', where_clause)
+    # WSmask = CreateScratchName("WSmask",data_type="FeatureClass",workspace="in_memory")
+    # CopyFeatures(input_basins, WSmask)
+    # SelectLayerByAttribute(input_basins, "CLEAR_SELECTION")
+    MakeFeatureLayer(input_basins, 'subbasin_lyr', where_clause)
 
-    DA_Dem = ExtractByMask(ProjectDEM, WSmask)
-    DA_sn = SetNull(DA_Dem, DA_Dem, "VALUE > " + str(DesignElev))
-    DAx0 = Times(DA_sn, 0)
-    DAint = Int(DAx0)
+    subbasin_dem = ExtractByMask(wascob_dem_path, 'subbasin_lyr')
+    dem_setnull = SetNull(subbasin_dem, subbasin_dem, f"VALUE > {design_elevation}")
+    dem_times_0 = Times(dem_setnull, 0)
+    dem_int = Int(dem_times_0)
 
-    DA_snPoly = CreateScratchName("DA_snPoly",data_type="FeatureClass",workspace="in_memory")
-    RasterToPolygon(DAint, DA_snPoly, "NO_SIMPLIFY", "VALUE")
+    RasterToPolygon(dem_int, dem_polygon_temp, 'NO_SIMPLIFY', 'VALUE')
 
-    AddMsgAndPrint("\nCreating Embankment Reference Points")
-    refTempClip = CreateScratchName("refTempClip",data_type="FeatureClass",workspace="in_memory")
-    Clip(refTemp, DA_snPoly, refTempClip)
+    ### Create Points for Embankment Vertices ###
+    SetProgressorLabel('Creating points along Embankment...')
+    AddMsgAndPrint('\nCreating points along Embankment...', log_file_path=log_file_path)
+    # refTempClip = CreateScratchName("refTempClip",data_type="FeatureClass",workspace="in_memory")
+    # Clip(embankments_lyr, dem_polygon_temp, refTempClip)
 
-    refPoints = CreateScratchName("refPoints",data_type="FeatureClass",workspace="in_memory")
-    FeatureVerticesToPoints(refTempClip, refPoints, "BOTH_ENDS")
-    AddMsgAndPrint("\tSuccessfully created " + str(int(GetCount(refPoints).getOutput(0))) + " reference points at " + str(DesignElev) + " feet")
+    # refPoints = CreateScratchName("refPoints",data_type="FeatureClass",workspace="in_memory")
+    FeatureVerticesToPoints(embankments_lyr, embankment_points_temp, 'BOTH_ENDS')
 
-    AddField(refPoints, "Id", "LONG")
-    CalculateField(refPoints, "Id", "" + str(Subbasin)+ "", "PYTHON3")
+    AddField(embankment_points_temp, 'ID', 'LONG')
+    AddField(embankment_points_temp, 'Elev', 'DOUBLE')
+    AddField(embankment_points_temp, 'Notes', 'TEXT', field_length=50)
 
-    AddField(refPoints, "Elev", "DOUBLE")
-    CalculateField(refPoints, "Elev", "" + str(DesignElev)+ "", "PYTHON3")
+    CalculateField(embankment_points_temp, 'ID', subbasin_number, 'PYTHON3')
+    CalculateField(embankment_points_temp, 'Elev', design_elevation, 'PYTHON3')
+    CalculateField(embankment_points_temp, 'Notes', "'Embankment'", 'PYTHON3')
 
-    AddField(refPoints, "Notes", "TEXT", field_length=50)
-    CalculateField(refPoints, "Notes", "\"Embankment\"", "PYTHON3")
+    SetProgressorLabel('Appending Embankment Points to Stakeout Points...')
+    AddMsgAndPrint('\nAppending Embankment Points to Stakeout Points...', log_file_path=log_file_path)
+    Append(embankment_points_temp, stakeout_points_path, 'NO_TEST')
 
-    AddMsgAndPrint("\tAppending Results to Stakeout Points...")
-    Append(refPoints, stakeoutPoints, "NO_TEST")
+    SetProgressorLabel('Adding XY Coordinates to Stakeout Points...')
+    AddMsgAndPrint('\nAdding XY Coordinates to Stakeout Points...', log_file_path=log_file_path)
+    AddXY(stakeout_points_path)
 
-    AddMsgAndPrint("\nAdding XY Coordinates to Stakeout Points")
-    AddXY(stakeoutPoints)
+    ### Remove Digitized Layer (if present) ###
+    for lyr in map.listLayers():
+        if '08. Design Height' in lyr.name:
+            map.removeLayer(lyr)
 
-    Compact(watershedGDB_path)
+    ### Add Output to Map ###
+    SetParameterAsText(5, stakeout_points_path)
 
-    SetParameterAsText(5, stakeoutPoints)
+    ### Compact Project GDB ###
+    try:
+        SetProgressorLabel('Compacting project geodatabase...')
+        AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
+        Compact(wascob_gdb)
+    except:
+        pass
+
+    AddMsgAndPrint('\nDesign Height and Intake Location completed successfully', log_file_path=log_file_path)
+
+except SystemExit:
+    pass
 
 except:
-    errorMsg()
+    try:
+        AddMsgAndPrint(errorMsg('Design Height and Intake Location'), 2, log_file_path)
+    except:
+        AddMsgAndPrint(errorMsg('Design Height and Intake Location'), 2)
+
+finally:
+    emptyScratchGDB(scratch_gdb)
