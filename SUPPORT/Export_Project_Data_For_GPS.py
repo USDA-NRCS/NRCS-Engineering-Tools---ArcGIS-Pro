@@ -1,209 +1,141 @@
-## wascob_exportData.py
-##
-## Created by Peter Mead, USDA NRCS, 2013
-## Updated by Chris Morse, USDA NRCS, 2020
-##
-## Exports WASCOB related data to shapefiles in PCS native to the project.
+from getpass import getuser
+from os import path
+from sys import exit
+from time import ctime
 
-# ==========================================================================================
-# Updated  7/7/2020 - Adolfo Diaz
-#
-# - The output coordinate system paramater from this tool was removed due to the
-#   variability of transformations that can be applied from one coord system to another.
-#   Instead, the output data will be exported using the coordinate system of the project.
-# - Updated and Tested for ArcGIS Pro 2.4.2 and python 3.6
-# - Combined all cursors into one.
-# - All describe functions use the arcpy.da.Describe functionality.
-# - All field calculation expressions are in PYTHON3 format.
-# - All cursors were updated to arcpy.da
-# - Updated AddMsgAndPrint to remove ArcGIS 10 boolean and gp function
-# - Updated print_exception function.  Traceback functions slightly changed for Python 3.6.
-# - Added parallel processing factor environment
-# - swithced from exit() to exit()
-# - wrapped the code that writes to text files in a try-except clause b/c if there is an
-#   an error prior to establishing the log file than the error never gets reported.
-# - All gp functions were translated to arcpy
-# - Every function including main is in a try/except clause
-# - Main code is wrapped in if __name__ == '__main__': even though script will never be
-#   used as independent library.
-# - Normal messages are no longer Warnings unnecessarily.
+from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, SetProgressorLabel
+from arcpy.management import CopyFeatures, SelectLayerByAttribute
+from arcpy.mp import ArcGISProject
 
-## ===============================================================================================================
-def print_exception():
+from utils import AddMsgAndPrint, errorMsg
 
+
+def logBasicSettings(log_file_path, input_basins):
+    with open (log_file_path, 'a+') as f:
+        f.write('\n######################################################################\n')
+        f.write('Executing Tool: Export Project Data for GPS\n')
+        f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
+        f.write(f"User Name: {getuser()}\n")
+        f.write(f"Date Executed: {ctime()}\n")
+        f.write('User Parameters:\n')
+        f.write(f"\tInput Basins: {input_basins}\n")
+
+
+### Initial Tool Validation ###
+try:
+    aprx = ArcGISProject('CURRENT')
+    map = aprx.listMaps('Engineering')[0]
+except:
+    AddMsgAndPrint('\nThis tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting...', 2)
+    exit()
+
+### Input Parameter ###
+input_basins = GetParameterAsText(0)
+
+### Locate WASCOB GDB ###
+basins_path = Describe(input_basins).catalogPath
+basins_name = path.basename(basins_path)
+if '_WASCOB.gdb' in basins_path:
+    wascob_gdb = basins_path[:basins_path.find('.gdb')+4]
+else:
+    AddMsgAndPrint('\nThe selected WASCOB Basins layer is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
+    exit()
+
+### Set Paths and Variables ###
+project_workspace = path.dirname(wascob_gdb)
+project_name = path.basename(project_workspace)
+log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
+output_dir = path.join(project_workspace, 'GIS_Output')
+wascob_fd = path.join(wascob_gdb, 'Layers')
+embankments_name = f"{basins_name}_Embankments"
+embankments_path = path.join(wascob_fd, embankments_name)
+stakeout_points_name = 'Stakeout_Points'
+stakeout_points_path = path.join(wascob_fd, stakeout_points_name)
+station_points_name = 'Station_Points'
+station_points_path = path.join(wascob_fd, station_points_name)
+ridge_station_points_name = 'Ridge_Station_Points'
+ridge_station_points_path = path.join(wascob_fd, ridge_station_points_name)
+tile_lines_name = 'Tile_Lines'
+tile_lines_path = path.join(wascob_fd, tile_lines_name)
+ridge_lines_name = 'Ridge_Lines'
+ridge_lines_path = path.join(wascob_fd, ridge_lines_name)
+
+# Shapefile Outputs
+embankments_output = path.join(output_dir, 'Embankments.shp')
+stakeout_points_output = path.join(output_dir, 'StakeoutPoints.shp')
+stations_output = path.join(output_dir, 'StationPoints.shp')
+ridge_stations_output = path.join(output_dir, 'RidgeStationPoints.shp')
+tile_line_output = path.join(output_dir, 'TileLines.shp')
+ridge_line_output = path.join(output_dir, 'RidgeLines.shp')
+
+### ESRI Environment Settings ###
+env.parallelProcessingFactor = '75%'
+env.overwriteOutput = True
+
+try:
+    logBasicSettings(log_file_path, input_basins)
+
+    ### Clear Selections from Layers ###
+    SetProgressorLabel('Clearing any selections from layers...')
+    AddMsgAndPrint('\nClearing any selections from layers...', log_file_path=log_file_path)
+
+    if Exists(embankments_name):
+        SelectLayerByAttribute(embankments_name, 'CLEAR_SELECTION')
+    if Exists(stakeout_points_path):
+        SelectLayerByAttribute(stakeout_points_path, 'CLEAR_SELECTION')
+    if Exists(station_points_name):
+        SelectLayerByAttribute(station_points_name, 'CLEAR_SELECTION')
+    if Exists(ridge_station_points_name):
+        SelectLayerByAttribute(ridge_station_points_name, 'CLEAR_SELECTION')
+    if Exists(tile_lines_name):
+        SelectLayerByAttribute(tile_lines_name, 'CLEAR_SELECTION')
+    if Exists(ridge_lines_name):
+        SelectLayerByAttribute(ridge_lines_name, 'CLEAR_SELECTION')
+
+    ### Export Layers to Shapefiles ###
+    SetProgressorLabel('Exporting layers to shapefiles...')
+    AddMsgAndPrint('\nExporting layers to shapefiles...', log_file_path=log_file_path)
+
+    if Exists(embankments_path):
+        CopyFeatures(embankments_path, embankments_output)
+    else:
+        AddMsgAndPrint('\nUnable to find Embankments in project workspace. Copy failed. Export them manually.', log_file_path, 1)
+
+    if Exists(stakeout_points_path):
+        CopyFeatures(stakeout_points_path, stations_output)
+    else:
+        AddMsgAndPrint('\nUnable to find Stakeout Points in project workspace. Copy failed. Export them manually.', log_file_path, 1)
+
+    if Exists(station_points_path):
+        CopyFeatures(station_points_path, stakeout_points_output)
+    else:
+        AddMsgAndPrint('\nUnable to find Station Points in project workspace. Copy failed. Export them manually.', log_file_path, 1)
+
+    if Exists(ridge_station_points_path):
+        CopyFeatures(ridge_station_points_path, ridge_stations_output)
+    else:
+        AddMsgAndPrint('\nUnable to find Ridge Station Points in project workspace. Copy failed. Export them manually.', log_file_path, 1)
+
+    if Exists(tile_lines_path):
+        CopyFeatures(tile_lines_path, tile_line_output)
+    else:
+        AddMsgAndPrint('\nUnable to find Tile Lines in project workspace. Copy failed. Export them manually.', log_file_path, 1)
+
+    if Exists(ridge_lines_path):
+        CopyFeatures(ridge_lines_path, ridge_line_output)
+    else:
+        AddMsgAndPrint('\nUnable to find Ridge Lines in project workspace. Copy failed. Export them manually.', log_file_path, 1)
+
+    AddMsgAndPrint('\nData was exported using the coordinate system of your project or DEM data.')
+    AddMsgAndPrint('\nIf this coordinate system is not suitable for use with your GPS system, please use the Project (Data Management) tool.')
+
+    AddMsgAndPrint('\nExport Project Data for GPS completed successfully', log_file_path=log_file_path)
+
+except SystemExit:
+    pass
+
+except:
     try:
-
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        theMsg = "\t" + traceback.format_exception(exc_type, exc_value, exc_traceback)[1] + "\n\t" + traceback.format_exception(exc_type, exc_value, exc_traceback)[-1]
-
-        if theMsg.find("exit") > -1:
-            AddMsgAndPrint("\n\n")
-            pass
-        else:
-            AddMsgAndPrint("\n----------------------------------- ERROR Start -----------------------------------",2)
-            AddMsgAndPrint(theMsg,2)
-            AddMsgAndPrint("------------------------------------- ERROR End -----------------------------------\n",2)
-
+        AddMsgAndPrint(errorMsg('Export Project Data for GPS'), 2, log_file_path)
     except:
-        AddMsgAndPrint("Unhandled error in print_exception method", 2)
-        pass
-
-## ================================================================================================================
-def AddMsgAndPrint(msg, severity=0):
-    # prints message to screen if run as a python script
-    # Adds tool message to the geoprocessor
-    # Split the message on  \n first, so that if it's multiple lines, a GPMessage will be added for each line
-
-    print(msg)
-
-    try:
-        f = open(textFilePath,'a+')
-        f.write(msg + " \n")
-        f.close
-        del f
-
-    except:
-        pass
-
-    if severity == 0:
-        arcpy.AddMessage(msg)
-
-    elif severity == 1:
-        arcpy.AddWarning(msg)
-
-    elif severity == 2:
-        arcpy.AddError(msg)
-
-## ================================================================================================================
-def logBasicSettings():
-    # record basic user inputs and settings to log file for future purposes
-
-    import getpass, time
-    arcInfo = arcpy.GetInstallInfo()  # dict of ArcGIS Pro information
-
-    f = open(textFilePath,'a+')
-    f.write("\n################################################################################################################\n")
-    f.write("Executing \"Wascob: Export Data\" Tool\n")
-    f.write("User Name: " + getpass.getuser() + "\n")
-    f.write("Date Executed: " + time.ctime() + "\n")
-    f.write(arcInfo['ProductName'] + ": " + arcInfo['Version'] + "\n")
-    f.write("User Parameters:\n")
-    f.write("\tInput Watershed: " + inWatershed + "\n")
-    f.write("\tWorkspace: " + userWorkspace + "\n")
-
-##    if len(outCoordsys) > 0:
-##        f.write("\tOutput Coord Sys: " + outCoordsys + "\n")
-##    else:
-##        f.write("\tOutput Coord Sys: BLANK\n")
-
-    f.close
-    del f
-
-## ================================================================================================================
-# Import system modules
-import arcpy, sys, os, traceback, string
-
-
-if __name__ == '__main__':
-
-    try:
-
-        # ---------------------------------------------- Input Parameters
-        inWatershed = arcpy.GetParameterAsText(0)
-        #outCoordsys = arcpy.GetParameterAsText(1)
-
-        # Environment settings
-        arcpy.env.parallelProcessingFactor = "75%"
-        arcpy.env.overwriteOutput = True
-
-        # ---------------------------------------------------------------------------- Define Variables
-        watershed_path = arcpy.Describe(inWatershed).CatalogPath
-        watershedGDB_path = watershed_path[:watershed_path .find(".gdb")+4]
-        watershedFD_path = watershedGDB_path + os.sep + "Layers"
-        userWorkspace = os.path.dirname(watershedGDB_path)
-        outputFolder = userWorkspace + os.sep + "gis_output"
-
-        # Set path to log file and start logging
-        textFilePath = userWorkspace + os.sep + os.path.basename(userWorkspace).replace(" ","_") + "_EngTools.txt"
-        logBasicSettings()
-
-        # ----------------------------------- Inputs to be converted to shp
-        stationPoints = watershedFD_path + os.sep + "StationPoints"
-        rStationPoints = watershedFD_path + os.sep + "RidgeStationPoints"
-        tileLines = watershedFD_path + os.sep + "tileLines"
-        ridgeLines = watershedFD_path + os.sep + "RidgeLines"
-        stakeoutPoints = watershedFD_path + os.sep + "stakeoutPoints"
-        referenceLines = watershedFD_path + os.sep + "ReferenceLine"
-
-        # ----------------------------------- Possible Existing Feature Layers
-        stations = "StationPoints"
-        rstations = "RidgeStationPoints"
-        tile = "TileLines"
-        ridge = "RidgeLines"
-        points = "StakeoutPoints"
-        refLine = "Reference Line"
-
-        # ------------------------ If lyrs present, clear any possible selections
-        if arcpy.Exists(stations):
-            arcpy.SelectLayerByAttribute_management(stations, "CLEAR_SELECTION", "")
-        if arcpy.Exists(rstations):
-            arcpy.SelectLayerByAttribute_management(rstations, "CLEAR_SELECTION", "")
-        if arcpy.Exists(tile):
-            arcpy.SelectLayerByAttribute_management(tile, "CLEAR_SELECTION", "")
-        if arcpy.Exists(ridge):
-            arcpy.SelectLayerByAttribute_management(ridge, "CLEAR_SELECTION", "")
-        if arcpy.Exists(refLine):
-            arcpy.SelectLayerByAttribute_management(refLine, "CLEAR_SELECTION", "")
-        if arcpy.Exists(points):
-            arcpy.SelectLayerByAttribute_management(points, "CLEAR_SELECTION", "")
-
-        # ----------------------------------------------------- Shapefile Outputs
-        stationsOut = outputFolder + os.sep + "StationPoints.shp"
-        rStationsOut = outputFolder + os.sep + "RidgeStationPoints.shp"
-        tileOut = outputFolder + os.sep + "TileLines.shp"
-        ridgeOut = outputFolder + os.sep + "RidgeLines.shp"
-        pointsOut = outputFolder + os.sep + "StakeoutPoints.shp"
-        linesOut = outputFolder + os.sep + "ReferenceLines.shp"
-
-        # ------------------------------------------------------------ Copy FC's to Shapefiles
-        AddMsgAndPrint("\nCopying GPS layers to output Folder",0)
-        if arcpy.Exists(stationPoints):
-            arcpy.CopyFeatures_management(stationPoints, stationsOut)
-        else:
-            AddMsgAndPrint("\nUnable to find Station Points in project workspace. Copy failed. Export them manually.",1)
-
-        if arcpy.Exists(rStationPoints):
-            arcpy.CopyFeatures_management(rStationPoints, rStationsOut)
-        else:
-            AddMsgAndPrint("\nUnable to find Ridge Station Points in project workspace. Copy failed. Export them manually.",1)
-
-        if arcpy.Exists(tileLines):
-            arcpy.CopyFeatures_management(tileLines, tileOut)
-        else:
-            AddMsgAndPrint("\nUnable to find TileLines in project workspace. Copy failed. Export them manually.",1)
-
-        if arcpy.Exists(ridgeLines):
-            arcpy.CopyFeatures_management(ridgeLines, ridgeOut)
-        else:
-            AddMsgAndPrint("\nUnable to find Ridge Lines in project workspace. Copy failed. Export them manually.",1)
-
-        if arcpy.Exists(stakeoutPoints):
-            arcpy.CopyFeatures_management(stakeoutPoints, pointsOut)
-        else:
-            AddMsgAndPrint("\nUnable to find stakeoutPoints in project workspace. Copy failed. Export them manually.",1)
-
-        if arcpy.Exists(referenceLines):
-            arcpy.CopyFeatures_management(referenceLines, linesOut)
-        else:
-            AddMsgAndPrint("\nUnable to find referenceLines in project workspace. Copy failed. Export them manually.",1)
-
-        # --------------------------------------------------- Restore Environments if necessary
-        AddMsgAndPrint("\nData was exported using the coordinate system of your project or DEM data!")
-        AddMsgAndPrint("\nIf this coordinate system is not suitable for use with your GPS system, please use the ")
-        AddMsgAndPrint("\nProject tool found in ArcToolbox under Data Management Tools, Projections and Transformations,")
-        AddMsgAndPrint("\nto re-project the exported data into a coordinate system suitable for your GPS system.\n")
-
-        AddMsgAndPrint("\nProcessing Finished!")
-
-    except:
-        print_exception()
+        AddMsgAndPrint(errorMsg('Export Project Data for GPS'), 2)
