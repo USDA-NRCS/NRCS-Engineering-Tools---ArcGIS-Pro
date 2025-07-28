@@ -49,24 +49,24 @@ output_dir = path.join(project_workspace, 'GIS_Output')
 wascob_fd = path.join(wascob_gdb, 'Layers')
 embankments_name = f"{basins_name}_Embankments"
 embankments_path = path.join(wascob_fd, embankments_name)
-stakeout_points_name = 'Stakeout_Points'
+stakeout_points_name = f"{basins_name}_Stakeout_Points"
 stakeout_points_path = path.join(wascob_fd, stakeout_points_name)
-station_points_name = 'Station_Points'
+station_points_name = f"{basins_name}_Station_Points"
 station_points_path = path.join(wascob_fd, station_points_name)
-ridge_station_points_name = 'Ridge_Station_Points'
+ridge_station_points_name = f"{basins_name}_Ridge_Station_Points"
 ridge_station_points_path = path.join(wascob_fd, ridge_station_points_name)
-tile_lines_name = 'Tile_Lines'
+tile_lines_name = f"{basins_name}_Tile_Lines"
 tile_lines_path = path.join(wascob_fd, tile_lines_name)
-ridge_lines_name = 'Ridge_Lines'
+ridge_lines_name = f"{basins_name}_Ridge_Lines"
 ridge_lines_path = path.join(wascob_fd, ridge_lines_name)
 
 # Shapefile Outputs
-embankments_output = path.join(output_dir, 'Embankments.shp')
-stakeout_points_output = path.join(output_dir, 'StakeoutPoints.shp')
-stations_output = path.join(output_dir, 'StationPoints.shp')
-ridge_stations_output = path.join(output_dir, 'RidgeStationPoints.shp')
-tile_line_output = path.join(output_dir, 'TileLines.shp')
-ridge_line_output = path.join(output_dir, 'RidgeLines.shp')
+embankments_output = path.join(output_dir, f"{basins_name}_Embankments.shp")
+stakeout_points_output = path.join(output_dir, f"{basins_name}_StakeoutPoints.shp")
+stations_output = path.join(output_dir, f"{basins_name}_StationPoints.shp")
+ridge_stations_output = path.join(output_dir, f"{basins_name}_RidgeStationPoints.shp")
+tile_line_output = path.join(output_dir, f"{basins_name}_TileLines.shp")
+ridge_line_output = path.join(output_dir, f"{basins_name}_RidgeLines.shp")
 
 ### ESRI Environment Settings ###
 env.parallelProcessingFactor = '75%'
