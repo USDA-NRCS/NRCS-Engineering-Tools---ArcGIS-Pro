@@ -11,7 +11,7 @@ from arcpy.da import InsertCursor, UpdateCursor
 from arcpy.ddd import InterpolateShape
 from arcpy.lr import CreateRoutes, MakeRouteEventLayer
 from arcpy.management import AddField, AddJoin, AddXY, CalculateField, Compact, CopyFeatures, CreateTable, \
-    DeleteField, GetCount, MakeFeatureLayer, RemoveJoin
+    DeleteField, GetCount, MakeFeatureLayer, RemoveJoin, Sort
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ZonalStatisticsAsTable
 
@@ -78,11 +78,11 @@ project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 wascob_dem_path = path.join(wascob_gdb, f"{project_name}_DEM_WASCOB")
 wascob_fd = path.join(wascob_gdb, 'Layers')
-stakeout_points_path = path.join(wascob_fd, 'Stakeout_Points')
+stakeout_points_path = path.join(wascob_fd, f"{basins_name}_Stakeout_Points")
 tables_dir = path.join(project_workspace, 'GIS_Output', 'Tables')
-output_lines_name = 'Tile_Lines'
+output_lines_name = f"{basins_name}_Tile_Lines"
 output_lines_path = path.join(wascob_fd, output_lines_name)
-output_stations_name = 'Station_Points'
+output_stations_name = f"{basins_name}_Station_Points"
 output_stations_path = path.join(wascob_fd, output_stations_name)
 stations_lyr = 'Stations_Lyr'
 station_stats_temp = path.join(scratch_gdb, 'Station_Stats_Temp')
@@ -133,11 +133,11 @@ try:
     # Create Table to hold station values
     station_table = 'in_memory\station_table'
     CreateTable('in_memory', 'station_table')
-    AddField(station_table, "ID", "LONG")
-    AddField(station_table, "STATION", "LONG")
-    AddField(station_table, "POINT_X", "DOUBLE")
-    AddField(station_table, "POINT_Y", "DOUBLE")
-    AddField(station_table, "POINT_Z", "DOUBLE")
+    AddField(station_table, 'ID', 'LONG')
+    AddField(station_table, 'STATION', 'LONG')
+    AddField(station_table, 'POINT_X', 'DOUBLE')
+    AddField(station_table, 'POINT_Y', 'DOUBLE')
+    AddField(station_table, 'POINT_Z', 'DOUBLE')
 
     # Calculate number of stations / remainder
     SetProgressorLabel('Calculating number of stations...')
@@ -158,8 +158,6 @@ try:
                 number_of_stations = (row[3] // interval) + 2
                 equidistant_stations = number_of_stations - 1
 
-            # exp = row[3] / interval - 0.5 + 1
-            # row[1] = round(exp)
             row[1] = number_of_stations
             row[2] = 0
             cursor.updateRow(row)
@@ -188,8 +186,6 @@ try:
     AddField(events_temp, 'STATIONID', 'TEXT', field_length='25')
     CalculateField(events_temp, 'STATIONID', "str(!STATION!) + '_' + str(!ID!)", 'PYTHON3')
 
-    #NOTE: Create Cross Section Profiles tool uses Sort here instead of CopyFeatures
-    # Sort(events_temp, stations_temp, [['STATIONID', 'ASCENDING']])
     CopyFeatures(events_temp, stations_temp)
 
     AddXY(stations_temp)
@@ -218,14 +214,14 @@ try:
     InterpolateShape(wascob_dem_path, line_temp, output_lines_path, '', z_factor)
 
     # Copy Station Points
-    CopyFeatures(stations_temp, output_stations_path)
+    Sort(stations_temp, output_stations_path, [['ID', 'ASCENDING'],['STATION', 'ASCENDING']])
 
     ### Delete Fields Added if Digitized ###
     deleteESRIAddedFields(output_lines_path)
 
     # Copy output to tables folder
-    TableToTable(output_stations_path, tables_dir, 'Stations.dbf')
-    TableToTable(stakeout_points_path, tables_dir, 'Stakeout_Points.dbf')
+    TableToTable(output_stations_path, tables_dir, f"{basins_name}_Stations.dbf")
+    TableToTable(stakeout_points_path, tables_dir, f"{basins_name}_Stakeout_Points.dbf")
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
