@@ -70,12 +70,13 @@ wascob_fd = path.join(wascob_gdb, 'Layers')
 embankments_name = f"{basins_name}_Embankments"
 embankments_path = path.join(wascob_fd, embankments_name)
 embankments_lyr = f"{embankments_name}_Lyr"
-stakeout_points_name = 'Stakeout_Points'
+stakeout_points_name = f"{basins_name}_Stakeout_Points"
 stakeout_points_path = path.join(wascob_fd, stakeout_points_name)
 stakeout_points_lyr = f"{stakeout_points_name}_Lyr"
 intake_point_temp = path.join(scratch_gdb, 'intake_temp')
 dem_polygon_temp = path.join(scratch_gdb, 'dem_poly_temp')
 embankment_points_temp = path.join(scratch_gdb, 'embankment_points_temp')
+embankment_clip_temp = path.join(scratch_gdb, 'embankment_clip_temp')
 
 ### Validate Required Datasets Exist ###
 if not Exists(wascob_dem_path):
@@ -104,16 +105,6 @@ try:
     removeMapLayers(map, [stakeout_points_name])
     logBasicSettings(log_file_path, input_basins, subbasin_number, design_elevation, intake_elevation)
 
-    ### Create Stakeout Points Feature Class ###
-    if not Exists(stakeout_points_path):
-        SetProgressorLabel('Creating Stakeout Points feature class...')
-        AddMsgAndPrint('\nCreating Stakeout Points feature class...', log_file_path=log_file_path)
-        CreateFeatureclass(wascob_fd, stakeout_points_path, 'POINT', '', 'DISABLED', 'DISABLED', '', '', '0', '0', '0')
-        AddField(stakeout_points_path, 'ID', 'LONG')
-        AddField(stakeout_points_path, 'Subbasin', 'LONG')
-        AddField(stakeout_points_path, 'Elev', 'DOUBLE')
-        AddField(stakeout_points_path, 'Notes', 'TEXT', field_length='50')
-
     ### Validate Embankment Exists for Subbasin ###
     where_clause = f"Subbasin = {subbasin_number}"
     MakeFeatureLayer(embankments_path, embankments_lyr, where_clause)
@@ -121,15 +112,18 @@ try:
         AddMsgAndPrint(f"\nNo embankment found for subbasin {subbasin_number}. Exiting...", 2, log_file_path)
         exit()
 
-    #TODO: Not sure this is necessary
-    # refTemp = CreateScratchName("refTemp",data_type="FeatureClass",workspace="in_memory")
-    # CopyFeatures(refLineSelection, refTemp)
-    # SelectLayerByAttribute(embankments_lyr, "CLEAR_SELECTION", "")
+    ### Create Stakeout Points Feature Class ###
+    if not Exists(stakeout_points_path):
+        SetProgressorLabel('Creating Stakeout Points feature class...')
+        AddMsgAndPrint('\nCreating Stakeout Points feature class...', log_file_path=log_file_path)
+        CreateFeatureclass(wascob_fd, stakeout_points_name, 'POINT', '', 'DISABLED', 'DISABLED', '', '', '0', '0', '0')
+        AddField(stakeout_points_path, 'ID', 'LONG')
+        AddField(stakeout_points_path, 'Subbasin', 'LONG')
+        AddField(stakeout_points_path, 'Elev', 'DOUBLE')
+        AddField(stakeout_points_path, 'Notes', 'TEXT', field_length='50')
 
     ### Delete Stakeout Points Record for Subbain if Exists ###
     MakeFeatureLayer(stakeout_points_path, stakeout_points_lyr, where_clause)
-    # SelectLayerByAttribute(stakeout_points_lyr, "NEW_SELECTION", exp)
-    # MakeFeatureLayer(stakeout_points_lyr, pointsSelection)
     if int(GetCount(stakeout_points_lyr).getOutput(0)) > 0:
         DeleteFeatures(stakeout_points_lyr)
     SelectLayerByAttribute(stakeout_points_lyr, 'CLEAR_SELECTION')
@@ -153,30 +147,20 @@ try:
     AddMsgAndPrint('\nApending Intake Location to Stakeout Points...', log_file_path=log_file_path)
     Append(intake_point_temp, stakeout_points_path, 'NO_TEST')
 
-    #TODO: what is this for??
-    # Use DEM to determine intersection of Reference Line and Plane @ Design Elevation
-    # AddMsgAndPrint("\nCalculating Pool Extent")
-    # SelectLayerByAttribute(input_basins, 'NEW_SELECTION', where_clause)
-    # WSmask = CreateScratchName("WSmask",data_type="FeatureClass",workspace="in_memory")
-    # CopyFeatures(input_basins, WSmask)
-    # SelectLayerByAttribute(input_basins, "CLEAR_SELECTION")
+    ### Intersect Embankment with Plane at Design Elevation ###
     MakeFeatureLayer(input_basins, 'subbasin_lyr', where_clause)
-
     subbasin_dem = ExtractByMask(wascob_dem_path, 'subbasin_lyr')
     dem_setnull = SetNull(subbasin_dem, subbasin_dem, f"VALUE > {design_elevation}")
     dem_times_0 = Times(dem_setnull, 0)
     dem_int = Int(dem_times_0)
-
     RasterToPolygon(dem_int, dem_polygon_temp, 'NO_SIMPLIFY', 'VALUE')
 
-    ### Create Points for Embankment Vertices ###
-    SetProgressorLabel('Creating points along Embankment...')
-    AddMsgAndPrint('\nCreating points along Embankment...', log_file_path=log_file_path)
-    # refTempClip = CreateScratchName("refTempClip",data_type="FeatureClass",workspace="in_memory")
-    # Clip(embankments_lyr, dem_polygon_temp, refTempClip)
+    ### Create Points from Embankment Vertices ###
+    SetProgressorLabel('Creating points along Embankment at design elevation...')
+    AddMsgAndPrint('\nCreating points along Embankment at design elevation...', log_file_path=log_file_path)
+    Clip(embankments_lyr, dem_polygon_temp, embankment_clip_temp)
 
-    # refPoints = CreateScratchName("refPoints",data_type="FeatureClass",workspace="in_memory")
-    FeatureVerticesToPoints(embankments_lyr, embankment_points_temp, 'BOTH_ENDS')
+    FeatureVerticesToPoints(embankment_clip_temp, embankment_points_temp, 'BOTH_ENDS')
 
     AddField(embankment_points_temp, 'ID', 'LONG')
     AddField(embankment_points_temp, 'Elev', 'DOUBLE')
