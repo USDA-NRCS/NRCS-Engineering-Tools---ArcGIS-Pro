@@ -3,7 +3,7 @@ from os import path
 from sys import argv, exit
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameter, \
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameter, \
     GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Buffer
 from arcpy.da import InsertCursor, SearchCursor, UpdateCursor
@@ -86,19 +86,31 @@ project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
-station_elev_temp = path.join(scratch_gdb, 'station_elev')
-station_table_temp = path.join(scratch_gdb, 'station_table')
-line_temp = path.join(scratch_gdb, 'line_temp')
-station_temp = path.join(scratch_gdb, 'stations')
-routes_temp = path.join(scratch_gdb, 'routes')
-events_temp = path.join(scratch_gdb, 'station_events')
-buffer_temp = path.join(scratch_gdb, 'station_buffer')
-output_line_name = f"{project_name}_XYZ_line"
-output_line_path = path.join(project_fd, output_line_name)
-output_points_name = f"{project_name}_XYZ_points"
+output_lines_name = f"{project_name}_XYZ_Line"
+output_lines_path = path.join(project_fd, output_lines_name)
+output_points_name = f"{project_name}_XYZ_Points"
 output_points_path = path.join(project_fd, output_points_name)
-output_text_file = path.join(project_workspace, f"{project_name}_XYZ_line.txt")
-stations_lyr_name = 'stations'
+stations_lyr = 'Stations_Lyr'
+station_stats_temp = path.join(scratch_gdb, 'Station_Stats_Temp')
+stations_temp = path.join(scratch_gdb, 'Stations_Temp')
+line_temp = path.join(scratch_gdb, 'Line_Temp')
+routes_temp = path.join(scratch_gdb, 'Routes_Temp')
+events_temp = path.join(scratch_gdb, 'Events_Temp')
+buffer_temp = path.join(scratch_gdb, 'Buffer_Temp')
+output_text_file = path.join(project_workspace, f"{output_lines_name}.txt")
+
+# Append a unique digit to output if required
+x = 0
+while Exists(output_lines_path):
+    x += 1
+    output_lines_path = f"{output_lines_path}_{x}"
+
+if x > 0:
+    output_lines_name = f"{output_lines_name}_{x}"
+    output_lines_path = path.join(project_fd, output_lines_name)
+    output_points_name = f"{output_points_name}_{x}"
+    output_points_path = path.join(project_fd, output_points_name)
+    output_text_file = path.join(project_workspace, f"{output_lines_name}.txt")
 
 ### ESRI Environment Settings ###
 env.resamplingMethod = 'BILINEAR'
@@ -106,40 +118,8 @@ env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 env.parallelProcessingFactor = '75%'
 env.overwriteOutput = True
 
-#TODO: should we allow user to input name, warn if overwriting, or overwite every time?
-# Must Have a unique name for output -- Append a unique digit to output if required
-# x = 1
-# y = 0
-# while x > 0:
-#     if Exists(outLine):
-#         outLine = watershedFD + sep + projectName + "_XYZ_line" + str(x)
-#         x += 1
-#         y += 1
-#     else:
-#         x = 0
-# if y > 0:
-#     outPoints = watershedFD + sep + projectName + "_XYZ_points" + str(y)
-#     outTxt = userWorkspace + sep + projectName + "_XYZ_line" + str(y) + ".txt"
-# else:
-#     outPoints = watershedFD + sep + projectName + "_XYZ_points"
-#     outTxt = userWorkspace + sep + projectName + "_XYZ_line.txt"
-# outLineLyr = path.basename(outLine)
-# outPointsLyr = path.basename(outPoints)
-
-# zUnits will determine Zfactor for the conversion of elevation values to a profile in feet
-# z_factor = 0.3048
-z_factor = 1
-# if zUnits == "Meters":
-#     Zfactor = 3.280839896
-# elif zUnits == "Centimeters":
-#     Zfactor = 0.03280839896
-# elif zUnits == "Inches":
-#     Zfactor = 0.0833333
-# else:
-#     Zfactor = 1
-
 try:
-    removeMapLayers(map, [output_line_name, output_points_name])
+    removeMapLayers(map, [output_lines_name, output_points_name])
     logBasicSettings(log_file_path, project_dem, interval, output_text)
 
     # Copy line input and add fields if not present
@@ -157,114 +137,92 @@ try:
     CalculateField(line_temp, 'ID', '!OBJECTID!', 'PYTHON3')
     CalculateField(line_temp, 'LENGTH_FT', "!shape!.getLength('PLANAR', 'FeetInt')", 'PYTHON3')
 
+    # Create Table to hold station values
+    station_table = 'in_memory\station_table'
+    CreateTable('in_memory', 'station_table')
+    AddField(station_table, 'ID', 'LONG')
+    AddField(station_table, 'STATION', 'LONG')
+    AddField(station_table, 'POINT_X', 'DOUBLE')
+    AddField(station_table, 'POINT_Y', 'DOUBLE')
+    AddField(station_table, 'POINT_Z', 'DOUBLE')
+
     # Calculate number of stations / remainder
     SetProgressorLabel('Calculating number of stations...')
     AddMsgAndPrint('\nCalculating number of stations...', log_file_path=log_file_path)
     AddMsgAndPrint(f"\tStation Point interval: {interval} Feet", log_file_path=log_file_path)
 
-    #NOTE: Original code from profileXYZ refactored to use 'with arcpy.da.UpdateCursor' syntax
-    with UpdateCursor(line_temp, ['ID','NO_STATIONS','FROM_PT','LENGTH_FT']) as cursor:
+    with UpdateCursor(line_temp,['ID','NO_STATIONS','FROM_PT','LENGTH_FT']) as cursor:
         for row in cursor:
             if row[3] < interval:
                 AddMsgAndPrint(f"\nThe length of line {row[0]} is less than the specified interval of {interval} ft. Use a smaller interval or a longer line. Exiting...", 2, log_file_path)
                 exit()
-            exp = row[3] / interval - 0.5 + 1
-            row[1] = round(exp)
+
+            remainder = row[3] % interval
+            if remainder == 0:
+                number_of_stations = row[3] / interval
+                equidistant_stations = number_of_stations
+            else:
+                number_of_stations = (row[3] // interval) + 2
+                equidistant_stations = number_of_stations - 1
+
+            row[1] = number_of_stations
             row[2] = 0
             cursor.updateRow(row)
+
             AddMsgAndPrint(f"\tLine ID {row[0]} Total Length: {row[3]} Feet", log_file_path=log_file_path)
-            AddMsgAndPrint(f"\tEquidistant stations (Including Station 0): {row[1]}", log_file_path=log_file_path)
-            remainder = (round(exp) * interval) - row[3]
+            AddMsgAndPrint(f"\tEquidistant Stations (Including Station 0): {equidistant_stations}", log_file_path=log_file_path)
+
             if remainder > 0:
                 AddMsgAndPrint(f"\tPlus 1 covering the remaining {remainder} Feet", log_file_path=log_file_path)
 
-    #NOTE: The code below produces an ESRI transaction error - can't have InsertCursor inside of UpdateCursor
-    # with UpdateCursor(line_temp, ['ID','NO_STATIONS','FROM_PT','LENGTH_FT']) as u_cursor:
-    #     for row in u_cursor:
-    #         if row[3] < interval:
-    #             AddMsgAndPrint(f"\nThe length of line {row[0]} is less than the specified interval of {interval} ft. Use a smaller interval or a longer line. Exiting...", 2)
-    #             exit()
+            insertCursor = InsertCursor(station_table, ['ID','STATION'])
+            insertCursor.insertRow((row[0], int(row[3])))
 
-    #         exp = row[3] / interval - 0.5 + 1
-    #         row[1] = round(exp)
-    #         row[2] = 0
-    #         u_cursor.updateRow(row)
-
-    #         AddMsgAndPrint(f"\tLine ID {row[0]} Total Length: {row[3]} Feet")
-    #         AddMsgAndPrint(f"\tEquidistant stations (Including Station 0): {row[1]}")
-
-    #         remainder = (round(exp) * interval) - row[3]
-    #         if remainder > 0:
-    #             AddMsgAndPrint(f"\tPlus 1 covering the remaining {remainder} Feet")
-
-    #         i_cursor = InsertCursor(station_table_temp, ['ID','STATION'])
-    #         i_cursor.insertRow((row[0],int(row[3])))
-
-    #         currentStation = 0
-    #         while currentStation < row[1]:
-    #             i_cursor.insertRow((row[0], currentStation*interval))
-    #             currentStation+=1
-    #         del i_cursor
-
-    # Create Table to hold station values
-    CreateTable(scratch_gdb, 'station_table')
-    AddField(station_table_temp, 'ID', 'LONG')
-    AddField(station_table_temp, 'STATION', 'LONG')
-    AddField(station_table_temp, 'POINT_X', 'DOUBLE')
-    AddField(station_table_temp, 'POINT_Y', 'DOUBLE')
-    AddField(station_table_temp, 'POINT_Z', 'DOUBLE')
-
-    # Calculate location for each station along the line
-    #NOTE: Original code from profileXYZ refactored to use 'with arcpy.da.UpdateCursor' syntax
-    with SearchCursor(line_temp, ['ID','NO_STATIONS','LENGTH_FT']) as s_cursor:
-        for row in s_cursor:
-            stations = row[1]
-            length = row[2]
-            station_cursor = InsertCursor(station_table_temp, ['ID', 'STATION'])
-            station_cursor.insertRow((row[0], length))
-            current_station = 0
-            while current_station < stations:
-                station_cursor.insertRow((row[0], current_station * interval))
-                current_station = current_station + 1
+            currentStation = 0
+            while currentStation < (row[1]-1):
+                insertCursor.insertRow((row[0], currentStation*interval))
+                currentStation += 1
+            del insertCursor
 
     # Create Route(s) lyr and define events along each route
     SetProgressorLabel('Creating stations...')
     AddMsgAndPrint('\nCreating stations...', log_file_path=log_file_path)
     CreateRoutes(line_temp, 'ID', routes_temp, 'TWO_FIELDS', 'FROM_PT', 'LENGTH_FT', 'UPPER_LEFT', '1', '0', 'IGNORE', 'INDEX')
 
-    MakeRouteEventLayer(routes_temp, 'ID', station_table_temp, 'ID POINT STATION', events_temp, '', 'NO_ERROR_FIELD', 'NO_ANGLE_FIELD', 'NORMAL', 'ANGLE', 'LEFT', 'POINT')
+    MakeRouteEventLayer(routes_temp, 'ID', station_table, 'ID POINT STATION', events_temp, '', 'NO_ERROR_FIELD', 'NO_ANGLE_FIELD', 'NORMAL', 'ANGLE', 'LEFT', 'POINT')
     AddField(events_temp, 'STATIONID', 'TEXT', field_length='25')
     CalculateField(events_temp, 'STATIONID', "str(!STATION!) + '_' + str(!ID!)", 'PYTHON3')
 
-    Sort(events_temp, station_temp, [['STATIONID', 'ASCENDING']])
+    CopyFeatures(events_temp, stations_temp)
 
-    AddXY(station_temp)
-    AddField(station_temp, 'POINT_Z', 'DOUBLE')
+    AddXY(stations_temp)
+    AddField(stations_temp, 'POINT_Z', 'DOUBLE')
 
-    MakeFeatureLayer(station_temp, stations_lyr_name)
-    AddMsgAndPrint(f"\nCreated a total of {GetCount(stations_lyr_name)[0]} stations for the {GetCount(line_temp)[0]} provided line(s)...", log_file_path=log_file_path)
+    MakeFeatureLayer(stations_temp, stations_lyr)
+    AddMsgAndPrint(f"\nCreated a total of {GetCount(stations_lyr)[0]} stations for the {GetCount(line_temp)[0]} provided line(s)...", log_file_path=log_file_path)
 
     # Retrieve Elevation values
     SetProgressorLabel('Retrieving station elevations...')
     AddMsgAndPrint('\nRetrieving station elevations...', log_file_path=log_file_path)
 
-    Buffer(station_temp, buffer_temp, f"{dem_cell_size} Meters", 'FULL', 'ROUND', 'NONE', '')
+    Buffer(stations_temp, buffer_temp, f"{dem_cell_size} Meters", 'FULL', 'ROUND', 'NONE', '')
 
-    ZonalStatisticsAsTable(buffer_temp, 'STATIONID', project_dem, station_elev_temp, 'NODATA', 'ALL')
+    ZonalStatisticsAsTable(buffer_temp, 'STATIONID', project_dem, station_stats_temp, 'NODATA', 'ALL')
 
-    AddJoin(stations_lyr_name, 'StationID', station_elev_temp, 'StationID', 'KEEP_ALL')
+    AddJoin(stations_lyr, 'StationID', station_stats_temp, 'StationID', 'KEEP_ALL')
 
-    expression = f"round(!station_elev.MEAN! * {z_factor},1)"
-    CalculateField(stations_lyr_name, 'stations.POINT_Z', expression, 'PYTHON3')
+    expression = f"round(!station_stats_temp.MEAN! * 1,1)"
+    CalculateField(stations_lyr, 'POINT_Z', expression, 'PYTHON3')
 
-    RemoveJoin(stations_lyr_name)
-    DeleteField(station_temp, 'STATIONID; POINT_M')
+    RemoveJoin(stations_lyr, 'station_stats_temp')
+    DeleteField(stations_temp, 'STATIONID; POINT_M')
 
     # Interpolate Line to 3d via Z factor
-    InterpolateShape(project_dem, line_temp, output_line_path, '', z_factor)
+    InterpolateShape(project_dem, line_temp, output_lines_path, '', 1)
 
     # Copy Station Points
-    CopyFeatures(station_temp, output_points_path)
+    Sort(stations_temp, output_points_path, [['ID', 'ASCENDING'],['STATION', 'ASCENDING']])
+    DeleteField(output_points_path, 'ORIG_FID')
 
     # Create Txt file if selected and write attributes of station points
     if output_text:
@@ -279,12 +237,12 @@ try:
                     f.write(f"{row[0]},{row[1]},{row[2]},{row[3]},{row[4]}\n")
 
     ### Delete Fields Added if Digitized ###
-    deleteESRIAddedFields(output_line_path)
+    deleteESRIAddedFields(output_lines_path)
 
     ### Add Outputs to Map ###
     SetProgressorLabel('Adding output layers to map...')
     AddMsgAndPrint('\nAdding output layers to map...', log_file_path=log_file_path)
-    SetParameterAsText(4, output_line_path)
+    SetParameterAsText(4, output_lines_path)
     SetParameterAsText(5, output_points_path)
 
     ### Remove Digitized Layer (if present) ###
