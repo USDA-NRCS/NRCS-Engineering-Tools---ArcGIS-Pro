@@ -211,6 +211,7 @@ try:
 
     # Copy Station Points
     Sort(stations_temp, output_stations_path, [['ID', 'ASCENDING'],['STATION', 'ASCENDING']])
+    DeleteField(output_stations_path, 'ORIG_FID')
 
     ### Delete Fields Added if Digitized ###
     deleteESRIAddedFields(output_lines_path)
