@@ -1,198 +1,177 @@
 from getpass import getuser
 from os import path
-from sys import exit
+from sys import argv, exit
 from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameter, \
-    GetParameterAsText, SetParameterAsText, ValidateTableName
+    GetParameterAsText, SetParameterAsText, SetProgressorLabel
 from arcpy.da import InsertCursor, SearchCursor
 from arcpy.ddd import AddSurfaceInformation
-from arcpy.management import AddXY, CalculateField, Compact, CopyFeatures, CreateFeatureDataset, CreateFileGDB, DeleteField
+from arcpy.management import AddXY, CalculateField, Compact, CopyFeatures, CreateFolder, DeleteField, Project
+from arcpy.mp import ArcGISProject
 
-from utils import AddMsgAndPrint, deleteScratchLayers, errorMsg
+from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings():    
-    with open(textFilePath, 'a+') as f:
-        f.write('\n##################################################################\n')
-        f.write('Executing Change Point Coordinates Tool\n')
+def logBasicSettings(log_file_path, input_points, input_dem, elevation_units, output_sr, transformation, output_text):
+    with open (log_file_path, 'a+') as f:
+        f.write('\n######################################################################\n')
+        f.write('Executing Tool: Change Point Coordinates\n')
+        f.write(f"Pro Version: {GetInstallInfo()['Version']}\n")
         f.write(f"User Name: {getuser()}\n")
         f.write(f"Date Executed: {ctime()}\n")
-        f.write(f"ArcGIS Version: {str(GetInstallInfo()['Version'])}\n")    
         f.write('User Parameters:\n')
-        f.write(f"\tWorkspace: {userWorkspace}\n")
-        f.write(f"\tInput Dem: {Describe(inputDEM).CatalogPath}\n")
-        f.write(f"\tElevation Z-units: {zUnits}\n")
-        f.write(f"\tCoordinate System: {outCS}\n")
+        f.write(f"\tInput Profile Points: {input_points}\n")
+        f.write(f"\tInput DEM: {input_dem}\n")
+        f.write(f"\tElevation Units: {elevation_units}\n")
+        f.write(f"\tOutput Coordinate System: {output_sr}\n")
+        f.write(f"\tTransformation: {transformation}\n")
+        f.write(f"\tCreate Text File: {output_text}\n")
 
 
-### ESRI Environment settings
-env.overwriteOutput = True
-env.geographicTransformations = 'WGS_1984_(ITRF00)_To_NAD_1983'
+### Initial Tool Validation ###
+try:
+    aprx = ArcGISProject('CURRENT')
+    map = aprx.listMaps('Engineering')[0]
+except:
+    AddMsgAndPrint('\nThis tool must be run from an ArcGIS Pro project template distributed with the Engineering Tools. Exiting!', 2)
+    exit()
+
+if CheckExtension('3d') == 'Available':
+    CheckOutExtension('3d')
+else:
+    AddMsgAndPrint('\n3D Analyst Extension not enabled. Please enable 3D Analyst from Project, Licensing, Configure licensing options. Exiting...', 2)
+    exit()
+
+### Input Parameters ###
+input_points = GetParameterAsText(0)
+input_dem = GetParameterAsText(1)
+elevation_units = GetParameterAsText(2)
+output_sr = GetParameterAsText(4)
+transformation = GetParameterAsText(5)
+output_text = GetParameter(6)
+
+### Locate Project GDB ###
+points_path = Describe(input_points).catalogPath
+dem_desc = Describe(input_dem)
+dem_path = dem_desc.catalogPath
+if ('_EngPro.gdb' in points_path and '_EngPro.gdb' in dem_path) or ('_WASCOB.gdb' in points_path and '_WASCOB.gdb' in dem_path):
+    project_gdb = points_path[:points_path.find('.gdb')+4]
+elif ('_EngPro.gdb' in points_path and '_WASCOB.gdb' in dem_path) or ('_WASCOB.gdb' in points_path and '_EngPro.gdb' in dem_path):
+    AddMsgAndPrint('\nThe Profile Points and DEM must be in the same project geodatabase. Exiting...', 2)
+    exit()
+else:
+    AddMsgAndPrint('\nThe Profile Points layer is not from an Engineering Tools project or is not compatible with this version of the toolbox. Exiting...', 2)
+    exit()
+
+### Set Paths and Variables ###
+support_dir = path.dirname(argv[0])
+scratch_gdb = path.join(support_dir, 'Scratch.gdb')
+project_workspace = path.dirname(project_gdb)
+project_name = path.basename(project_workspace)
+log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
+gis_output_dir = path.join(project_workspace, 'GIS_Output')
+output_points_name = f"{project_name}_XYZ_Projected"
+output_points_path = path.join(project_gdb, output_points_name)
+output_points_shp = path.join(gis_output_dir, f"{output_points_name}.shp")
+output_text_file = path.join(project_workspace, f"{output_points_name}.txt")
+points_temp = path.join(scratch_gdb, 'Points_Temp')
+
+# Append a unique digit to output if required
+x = 0
+while Exists(output_points_path):
+    x += 1
+    output_points_path = f"{output_points_path}_{x}"
+
+if x > 0:
+    output_points_name = f"{output_points_name}_{x}"
+    output_points_path = path.join(project_gdb, output_points_name)
+    output_points_shp = path.join(gis_output_dir, f"{output_points_name}.shp")
+    output_text_file = path.join(project_workspace, f"{output_points_name}.txt")
+
+### ESRI Environment Settings ###
 env.resamplingMethod = 'BILINEAR'
 env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
+env.parallelProcessingFactor = '75%'
+env.overwriteOutput = True
 
-### Input Parameters
-userWorkspace = GetParameterAsText(0)
-inputPoints = GetParameterAsText(1)
-inputDEM = GetParameterAsText(2)
-zUnits = GetParameterAsText(3)
-outCS = GetParameterAsText(4)
-text = GetParameter(5)
+# Set z-factor based on XYZ units of DEM
+z_factor = 1
+dem_xy_units = dem_desc.spatialReference.linearUnitName
+if dem_xy_units in ['Foot', 'Foot_US']:
+    xy_units = 'Feet'
+    if elevation_units == 'Meters':
+        z_factor = 3.28084
+elif dem_xy_units == 'Meter':
+    xy_units = 'Meters'
+    if elevation_units in ['International Feet', 'US Survey Feet']:
+        z_factor = 0.3048
+else:
+    AddMsgAndPrint('\nLinear units of the input DEM are not supported. Exiting...', 2)
+    exit()
 
 try:
-    # Check out 3D and SA licenses
-    if CheckExtension('3D') == 'Available':
-        CheckOutExtension('3D')
+    # removeMapLayers(map, [])
+    logBasicSettings(log_file_path, input_points, input_dem, elevation_units, output_sr, transformation, output_text)
+
+    ### Create GIS_Output Folder ###
+    if not Exists(gis_output_dir):
+        SetProgressorLabel('Creating GIS_Output folder...')
+        AddMsgAndPrint('\nCreating GIS_Output folder...', log_file_path=log_file_path)
+        CreateFolder(project_workspace, 'GIS_Output')
+
+    ### Project Input Points ###
+    if transformation:
+        Project(input_points, points_temp, output_sr, transformation)
     else:
-        AddMsgAndPrint('\n3D analyst extension is not enabled. Please enable 3D Analyst from the Tools/Extensions menu. Exiting...\n', 2)
-        exit()
+        Project(input_points, points_temp, output_sr)
 
-    # Directory Paths
-    workspace_name = path.basename(userWorkspace).replace(' ','_')
-    watershedGDB_name = f"{workspace_name}_EngTools.gdb"
-    watershedGDB_path = path.join(userWorkspace, watershedGDB_name)
-    watershedFD = path.join(watershedGDB_path, 'Layers')
-    projectName = ValidateTableName(workspace_name)
+    ### Update XY Values ###
+    AddXY(points_temp)
 
-    # record basic user inputs and settings to log file for future purposes
-    textFilePath = path.join(userWorkspace, f"{workspace_name}_EngTools.txt")
-    logBasicSettings()
+    ### Update Z Values ###
+    AddSurfaceInformation(points_temp, input_dem, 'Z', '', '', z_factor)
+    CalculateField(points_temp, 'POINT_Z', 'round(!Z!,1)', 'PYTHON3')
+    DeleteField(points_temp, 'POINT_M')
+    DeleteField(points_temp, 'Z')
 
-    # Capture User environments
-    tempCoordSys = env.outputCoordinateSystem
+    ### Save Output as Feature Class and Shapefile ###
+    CopyFeatures(points_temp, output_points_path)
+    CopyFeatures(points_temp, output_points_shp)
 
-    # Set the following environments
-    env.outputCoordinateSystem = outCS
+    ### Create Text File ###
+    if output_text:
+        SetProgressorLabel('Creating output text file...')
+        AddMsgAndPrint('\nCreating output text file...', log_file_path=log_file_path)
 
-    # Permanent Datasets
-    outPoints = path.join(userWorkspace, f"{projectName}_XYZ_new_coordinates.shp") #NOTE: should these be shapefiles??
-    outTxt = path.join(userWorkspace, f"{projectName}_XYZ_new_coordinates.txt")
-    # Must Have a unique name for output -- Append a unique digit to output if required
-    x = 1
-    while x > 0:
-        if Exists(outPoints):
-            outPoints = path.join(userWorkspace, f"{projectName}_XYZ_new_coordinates{str(x)}.shp")
-            outTxt = path.join(userWorkspace, f"{projectName}_XYZ_new_coordinates{str(x)}.txt")
-            x += 1
-        else:
-            x = 0
-    
-    outPointsLyr = path.basename(outPoints)
+        with open(output_text_file, 'w') as f:
+            f.write('ID, STATION, X, Y, Z')
 
-    # Temp Datasets
-    pointsProj = path.join(watershedGDB_path, 'pointsProj')
+            with SearchCursor(output_points_path, ['ID','STATION','POINT_X','POINT_Y','POINT_Z'], sql_clause=(None,'ORDER BY STATION')) as cursor:
+                for row in cursor:
+                    f.write(f"{row[0]},{row[1]},{row[2]},{row[3]},{row[4]}\n")
 
-    # Check DEM Coordinate System and Linear Units
-    AddMsgAndPrint(f"\nGathering information about DEM: {path.basename(inputDEM)}\n", textFilePath=textFilePath)
-    desc = Describe(inputDEM)
-    sr = desc.SpatialReference
-    units = sr.LinearUnitName
-    cellSize = desc.MeanCellWidth
-    
-    if units == 'Meter':
-        units = 'Meters'
-    elif units == 'Foot':
-        units = 'Feet'
-    elif units == 'Foot_US':
-        units = 'Feet'
+    ### Add Outputs to Map ###
+    SetParameterAsText(7, output_points_path)
 
-    # Coordinate System must be a Projected type in order to continue.
-    # zUnits will determine Zfactor for the conversion of elevation values to feet.
-    
-    if sr.Type == 'Projected':
-        if zUnits == 'Meters':
-            Zfactor = 3.280839896       # 3.28 feet in a meter
-        elif zUnits == 'Centimeters':   # 0.033 feet in a centimeter
-            Zfactor = 0.03280839896
-        elif zUnits == 'Inches':        # 0.083 feet in an inch
-            Zfactor = 0.0833333
-        # zUnits must be feet; no more choices       
-        else:
-            Zfactor = 1                 
-        AddMsgAndPrint(f"\tProjection Name: {sr.Name}", textFilePath=textFilePath)
-        AddMsgAndPrint(f"\tXY Linear Units: {units}", textFilePath=textFilePath)
-        AddMsgAndPrint(f"\tElevation Values (Z): {zUnits}", textFilePath=textFilePath) 
-        AddMsgAndPrint(f"\tCell Size: {str(desc.MeanCellWidth)} x {str(desc.MeanCellHeight)} {units}", textFilePath=textFilePath)
-    else:
-        AddMsgAndPrint(f"\n\n\t{path.basename(inputDEM)} is NOT in a projected Coordinate System. Exiting...", 2, textFilePath)
-        exit()
-                      
-    # Create Watershed FGDB and feature dataset if it doesn't exist
-    if not Exists(watershedGDB_path):
-        CreateFileGDB(userWorkspace, watershedGDB_name)
-        CreateFeatureDataset(watershedGDB_path, 'Layers', sr)
-        AddMsgAndPrint(f"\nSuccessfully created File Geodatabase: {watershedGDB_name}", textFilePath=textFilePath)
-
-    # if GDB already existed but feature dataset doesn't
-    if not Exists(watershedFD):
-        CreateFeatureDataset(watershedGDB_path, 'Layers', sr)
-
-    # Copy Features will use the spatial reference of the geoprocessing environment that has been set
-    # Transformation between WGS84 and NAD83 will default to WGS_1984_(ITRF00)_To_NAD_1983, per env settings
-    # No other areas of transformation can be used - document this in help and manuals
-    CopyFeatures(inputPoints, pointsProj)
-
-    # Recalculate X,Y values in output table
-    AddXY(pointsProj)
-    
-    # Update Elevation values in feet
-    AddSurfaceInformation(pointsProj, inputDEM, 'Z', '', '', Zfactor)
-    expression = 'round(!Z!,1)'
-    CalculateField(pointsProj, 'POINT_Z', expression, 'PYTHON3')
-
-    # Clean up extra fields
-    DeleteField(pointsProj, 'POINT_M')
-    DeleteField(pointsProj, 'Z')
-
-    # Create final output
-    CopyFeatures(pointsProj, outPoints)
-
-    # Create Txt file if selected and write attributes of station points
-    if text == True:
-        AddMsgAndPrint('Creating Output text file:\n', textFilePath=textFilePath)
-        AddMsgAndPrint(f"\t{str(outTxt)}\n", textFilePath=textFilePath)
-
-        with open(outTxt, 'w') as t:
-            t.write('ID, STATION, X, Y, Z')
-        
-        with SearchCursor(outPoints, '', '', 'STATION', 'STATION' + ' A') as rows:
-            with InsertCursor(outTxt) as txtRows:
-                row = rows.next()
-                while row:
-                    newRow = txtRows.newRow()
-                    newRow.ID = row.ID
-                    newRow.STATION = row.STATION
-                    newRow.X = row.POINT_X
-                    newRow.Y = row.POINT_Y
-                    newRow.Z = row.POINT_Z
-                    txtRows.insertRow(newRow)
-                    row = rows.next()
-
-    # Restore environments
-    env.outputCoordinateSystem = tempCoordSys
-
-    # Add layer to map
-    AddMsgAndPrint('Adding layer to map\n', textFilePath=textFilePath)
-    SetParameterAsText(6, outPoints)
-
-    # Delete Temp Layers 
-    AddMsgAndPrint('Deleting temporary files...\n', textFilePath=textFilePath)
-    deleteScratchLayers([pointsProj])
-
+    ### Compact Project GDB ###
     try:
-        Compact(watershedGDB_path)
-        AddMsgAndPrint(f"\nSuccessfully Compacted FGDB: {path.basename(watershedGDB_path)}", textFilePath=textFilePath)    
+        SetProgressorLabel('Compacting project geodatabase...')
+        AddMsgAndPrint('\nCompacting project geodatabase...', log_file_path=log_file_path)
+        Compact(project_gdb)
     except:
         pass
 
-    AddMsgAndPrint('Processing Complete!\n', textFilePath=textFilePath)
+    AddMsgAndPrint('\nChange Point Coordinates completed successfully', log_file_path=log_file_path)
 
 except SystemExit:
     pass
 
 except:
     try:
-        AddMsgAndPrint(errorMsg('Change Point Coordinates'), 2, textFilePath)
+        AddMsgAndPrint(errorMsg('Change Point Coordinates'), 2, log_file_path)
     except:
-        AddMsgAndPrint(errorMsg('Change Point Coordinates'), 2) 
+        AddMsgAndPrint(errorMsg('Change Point Coordinates'), 2)
+
+finally:
+    emptyScratchGDB(scratch_gdb)
