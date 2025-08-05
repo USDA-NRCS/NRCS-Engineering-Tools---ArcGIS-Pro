@@ -53,7 +53,8 @@ else:
 project_dem = GetParameterAsText(0)
 input_line = GetParameterAsText(1)
 interval = GetParameterAsText(2)
-output_text = GetParameter(3)
+output_name = GetParameterAsText(3).replace(' ','_')
+output_text = GetParameter(4)
 
 ### Locate Project GDB ###
 dem_desc = Describe(project_dem)
@@ -86,9 +87,9 @@ project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
-output_lines_name = f"{project_name}_XYZ_Line"
+output_lines_name = f"{output_name}_Line"
 output_lines_path = path.join(project_fd, output_lines_name)
-output_points_name = f"{project_name}_XYZ_Points"
+output_points_name = f"{output_name}_Points"
 output_points_path = path.join(project_fd, output_points_name)
 stations_lyr = 'Stations_Lyr'
 station_stats_temp = path.join(scratch_gdb, 'Station_Stats_Temp')
@@ -99,18 +100,10 @@ events_temp = path.join(scratch_gdb, 'Events_Temp')
 buffer_temp = path.join(scratch_gdb, 'Buffer_Temp')
 output_text_file = path.join(project_workspace, f"{output_lines_name}.txt")
 
-# Append a unique digit to output if required
-x = 0
-while Exists(output_lines_path):
-    x += 1
-    output_lines_path = f"{output_lines_path}_{x}"
-
-if x > 0:
-    output_lines_name = f"{output_lines_name}_{x}"
-    output_lines_path = path.join(project_fd, output_lines_name)
-    output_points_name = f"{output_points_name}_{x}"
-    output_points_path = path.join(project_fd, output_points_name)
-    output_text_file = path.join(project_workspace, f"{output_lines_name}.txt")
+if Exists(output_lines_path):
+    AddMsgAndPrint(f"\nOutput Lines name: {output_lines_path} already exists in project geodatabase and will be overwritten...", 1)
+if Exists(output_points_path):
+    AddMsgAndPrint(f"\nOutput Points name: {output_points_path} already exists in project geodatabase and will be overwritten...", 1)
 
 ### ESRI Environment Settings ###
 env.resamplingMethod = 'BILINEAR'
@@ -230,7 +223,7 @@ try:
         AddMsgAndPrint('\nCreating output text file...', log_file_path=log_file_path)
 
         with open(output_text_file, 'w') as f:
-            f.write('ID, STATION, X, Y, Z')
+            f.write('ID, STATION, X, Y, Z\n')
 
             with SearchCursor(output_points_path, ['ID','STATION','POINT_X','POINT_Y','POINT_Z'], sql_clause=(None,'ORDER BY STATION')) as cursor:
                 for row in cursor:
@@ -242,8 +235,8 @@ try:
     ### Add Outputs to Map ###
     SetProgressorLabel('Adding output layers to map...')
     AddMsgAndPrint('\nAdding output layers to map...', log_file_path=log_file_path)
-    SetParameterAsText(4, output_lines_path)
-    SetParameterAsText(5, output_points_path)
+    SetParameterAsText(5, output_lines_path)
+    SetParameterAsText(6, output_points_path)
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():

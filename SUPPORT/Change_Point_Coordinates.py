@@ -5,7 +5,7 @@ from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameter, \
     GetParameterAsText, SetParameterAsText, SetProgressorLabel
-from arcpy.da import InsertCursor, SearchCursor
+from arcpy.da import SearchCursor
 from arcpy.ddd import AddSurfaceInformation
 from arcpy.management import AddXY, CalculateField, Compact, CopyFeatures, CreateFolder, DeleteField, Project
 from arcpy.mp import ArcGISProject
@@ -13,7 +13,7 @@ from arcpy.mp import ArcGISProject
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, input_points, input_dem, elevation_units, output_sr, transformation, output_text):
+def logBasicSettings(log_file_path, input_points, input_dem, elevation_units, output_sr, transformation, output_points_name, output_text):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Change Point Coordinates\n')
@@ -26,6 +26,7 @@ def logBasicSettings(log_file_path, input_points, input_dem, elevation_units, ou
         f.write(f"\tElevation Units: {elevation_units}\n")
         f.write(f"\tOutput Coordinate System: {output_sr}\n")
         f.write(f"\tTransformation: {transformation}\n")
+        f.write(f"\tOutput Points Name: {output_points_name}\n")
         f.write(f"\tCreate Text File: {output_text}\n")
 
 
@@ -49,7 +50,8 @@ input_dem = GetParameterAsText(1)
 elevation_units = GetParameterAsText(2)
 output_sr = GetParameterAsText(4)
 transformation = GetParameterAsText(5)
-output_text = GetParameter(6)
+output_points_name = GetParameterAsText(6).replace(' ','_')
+output_text = GetParameter(7)
 
 ### Locate Project GDB ###
 points_path = Describe(input_points).catalogPath
@@ -71,23 +73,13 @@ project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 gis_output_dir = path.join(project_workspace, 'GIS_Output')
-output_points_name = f"{project_name}_XYZ_Projected"
 output_points_path = path.join(project_gdb, output_points_name)
 output_points_shp = path.join(gis_output_dir, f"{output_points_name}.shp")
 output_text_file = path.join(project_workspace, f"{output_points_name}.txt")
 points_temp = path.join(scratch_gdb, 'Points_Temp')
 
-# Append a unique digit to output if required
-x = 0
-while Exists(output_points_path):
-    x += 1
-    output_points_path = f"{output_points_path}_{x}"
-
-if x > 0:
-    output_points_name = f"{output_points_name}_{x}"
-    output_points_path = path.join(project_gdb, output_points_name)
-    output_points_shp = path.join(gis_output_dir, f"{output_points_name}.shp")
-    output_text_file = path.join(project_workspace, f"{output_points_name}.txt")
+if Exists(output_points_path):
+    AddMsgAndPrint(f"\nOutput Points name: {output_points_path} already exists in project geodatabase and will be overwritten...", 1)
 
 ### ESRI Environment Settings ###
 env.resamplingMethod = 'BILINEAR'
@@ -111,8 +103,8 @@ else:
     exit()
 
 try:
-    # removeMapLayers(map, [])
-    logBasicSettings(log_file_path, input_points, input_dem, elevation_units, output_sr, transformation, output_text)
+    removeMapLayers(map, [output_points_name])
+    logBasicSettings(log_file_path, input_points, input_dem, elevation_units, output_sr, transformation, output_points_name, output_text)
 
     ### Create GIS_Output Folder ###
     if not Exists(gis_output_dir):
@@ -145,14 +137,14 @@ try:
         AddMsgAndPrint('\nCreating output text file...', log_file_path=log_file_path)
 
         with open(output_text_file, 'w') as f:
-            f.write('ID, STATION, X, Y, Z')
+            f.write('ID, STATION, X, Y, Z\n')
 
             with SearchCursor(output_points_path, ['ID','STATION','POINT_X','POINT_Y','POINT_Z'], sql_clause=(None,'ORDER BY STATION')) as cursor:
                 for row in cursor:
                     f.write(f"{row[0]},{row[1]},{row[2]},{row[3]},{row[4]}\n")
 
     ### Add Outputs to Map ###
-    SetParameterAsText(7, output_points_path)
+    SetParameterAsText(8, output_points_path)
 
     ### Compact Project GDB ###
     try:
