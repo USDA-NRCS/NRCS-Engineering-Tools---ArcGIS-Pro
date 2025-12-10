@@ -1,24 +1,24 @@
 {
   "type" : "CIMLayerDocument",
-  "version" : "2.7.0",
-  "build" : 26828,
+  "version" : "3.2.0",
+  "build" : 49743,
   "layers" : [
-    "CIMPATH=field_test/elevation_half_m_dtm.xml"
+    "CIMPATH=determinations/elevation_half_m_dtm.json"
   ],
   "layerDefinitions" : [
     {
       "type" : "CIMImageServiceLayer",
       "name" : "NRCS Bare Earth 0.5m",
-      "uRI" : "CIMPATH=field_test/elevation_half_m_dtm.xml",
+      "uRI" : "CIMPATH=determinations/elevation_half_m_dtm.json",
       "sourceModifiedTime" : {
         "type" : "TimeInstant"
       },
       "useSourceMetadata" : true,
-      "attribution" : "USDA-FPAC-GEO",
-      "description" : "The high resolution elevation raster services are composed of raster derivatives from LiDAR projects collected from 2002 to the present. Rasters from individual projects are added to a mosaic dataset and functions are applied on ArcGIS Server to produce further derivatives such as; hillshade, slope and aspect. Height values (Z-values) that come in feet are converted to meters to create a consistent elevation layer. Coordinate systems are adjusted to match the national. Some collections were made with resolution in feet, not exactly matching resolution in meters. Datasets that are equal to or smaller than 0.5 Meters resolution are included in the 0.5M layer. \n<br /><strong>Purpose: </strong>This service provides the latest 1m USDA-FPAC-GEO collection <br />\n<strong>Creation Date: </strong>2002 - 20220815<br />\n<strong>Publication Date: </strong>20220815<br />\n<strong>Revision Date: </strong>20221206<br />\n<strong>Refresh Cycle: </strong>Updated periodically as new Lidar data is acquired.<br />\n<strong>Version: </strong>1.2.0<br />\n<strong><a href='https://gis-dev.dev.sc.egov.usda.gov/info/changelog/elevation/half_m_dtm.html' target='_blank'>Change Log</a></strong><br />\n<strong><a href='https://usdafpacbc.servicenowservices.com/isd' target='_blank'>Report Service Errors</a></strong><br />",
+      "attribution" : "USDA-FPAC_GEO",
+      "description" : "<div style='text-align:Left;'><div><div><p><span>The high resolution elevation raster services are composed of raster derivatives from LiDAR projects collected from 2002 to the present. Rasters from individual projects are added to a mosaic dataset and functions are applied on ArcGIS Server to produce further derivatives such as; hillshade, slope and aspect. Height values (Z-values) that come in feet are converted to meters to create a consistent elevation layer. Coordinate systems are adjusted to match the national. Some collections were made with resolution in feet, not exactly matching resolution in meters. Datasets that are equal to or smaller than 0.5 Meters resolution are included in the 0.5M layer.</span></p><p><span style='font-weight:bold;'>Purpose: </span><span>This service provides the latest 0.5m USDA-FPAC-GEO collection</span></p><p><span style='font-weight:bold;'>Creation Date</span><span>: 2002 - 20220815</span></p><p><span style='font-weight:bold;'>Publication Date</span><span>: 20220815</span></p><p><span style='font-weight:bold;'>Revision Date</span><span>: 20250415</span></p><p><span>Refresh Cycle: Updated periodically as new Lidar data is acquired.</span></p><p><span>Version: 2.1.0</span></p><p><a href='https://apps.geo.fpac.usda.gov/nrcs-metadata/changelog/elevation/half_m_dtm.html' style='text-decoration:underline;'><span style='font-weight:bold;'>Change Log</span></a></p><p><a href='https://usdafpacbc.servicenowservices.com:443/isd' style='text-decoration:underline;'><span style='font-weight:bold;'>Report Service Errors</span></a></p></div></div></div>",
       "layerElevation" : {
         "type" : "CIMLayerElevationSurface",
-        "mapElevationID" : "{75C128EC-40E8-4AB0-8BC7-3442F405A3AA}"
+        "elevationSurfaceLayerURI" : "CIMPATH=map/ground.json"
       },
       "layerType" : "Operational",
       "showLegends" : true,
@@ -30,16 +30,17 @@
       "refreshRate" : -1,
       "refreshRateUnit" : "esriTimeUnitsSeconds",
       "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
       "dataConnection" : {
         "type" : "CIMAGSServiceConnection",
         "objectName" : "elevation/half_m_dtm",
         "objectType" : "ImageServer",
-        "url" : "https://gis.sc.egov.usda.gov/image/services/elevation/half_m_dtm/ImageServer",
+        "url" : "https://intranet.geo.fpac.usda.gov/nrcs-elevation/services/elevation/half_m_dtm/ImageServer",
         "serverConnection" : {
           "type" : "CIMInternetServerConnection",
           "anonymous" : true,
           "hideUserProperty" : true,
-          "url" : "https://gis.sc.egov.usda.gov/image/services"
+          "url" : "https://intranet.geo.fpac.usda.gov/nrcs-elevation/services"
         }
       },
       "colorizer" : {
@@ -93,7 +94,6 @@
         "colorScheme" : "Black to White",
         "customStretchMax" : 1,
         "gammaValue" : 1,
-        "hillshadeZFactor" : 1,
         "maxPercent" : 2,
         "minPercent" : 2,
         "standardDeviationParam" : 2,
@@ -123,7 +123,7 @@
           "limitMin" : -1.1342744887950962e+38,
           "limitMax" : 1.1342744887950962e+38,
           "histogram" : [
-            154699814745512,
+            0.49938987532229906,
             0,
             0,
             0,
@@ -378,7 +378,7 @@
             0,
             0,
             0,
-            155077820705489
+            0.50061012467770094
           ],
           "nsamples" : 17600501,
           "resolution" : 8.8962705003536957e+35
@@ -401,7 +401,7 @@
           "customTimeExtent" : {
             "type" : "TimeExtent",
             "start" : 1525824000000,
-            "end" : 1667520000000,
+            "end" : 1730764800000,
             "empty" : false
           }
         },
@@ -428,6 +428,8 @@
               "lineStyle3D" : "Strip",
               "miterLimit" : 10,
               "width" : 1,
+              "height3D" : 1,
+              "anchor3D" : "Center",
               "color" : {
                 "type" : "CIMRGBColor",
                 "values" : [
@@ -451,7 +453,8 @@
                 ]
               }
             }
-          ]
+          ],
+          "angleAlignment" : "Map"
         }
       },
       "mosaicRule" : {
@@ -466,13 +469,29 @@
       "useSelectionSymbol" : false
     }
   ],
-  "elevationSurfaces" : [
+  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
+  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2",
+  "elevationSurfaceLayerDefinitions" : [
     {
-      "type" : "CIMMapElevationSurface",
-      "elevationMode" : "BaseGlobeSurface",
+      "type" : "CIMElevationSurfaceLayer",
       "name" : "Ground",
+      "uRI" : "CIMPATH=map/ground.json",
+      "useSourceMetadata" : true,
+      "description" : "Ground",
+      "expanded" : true,
+      "layerType" : "Operational",
+      "showLegends" : false,
+      "visibility" : true,
+      "displayCacheType" : "Permanent",
+      "maxDisplayCacheAge" : 5,
+      "showPopups" : true,
+      "serviceLayerID" : -1,
+      "refreshRate" : -1,
+      "refreshRateUnit" : "esriTimeUnitsSeconds",
+      "blendingMode" : "Alpha",
+      "allowDrapingOnIntegratedMesh" : true,
+      "elevationMode" : "BaseGlobeSurface",
       "verticalExaggeration" : 1,
-      "mapElevationID" : "{75C128EC-40E8-4AB0-8BC7-3442F405A3AA}",
       "color" : {
         "type" : "CIMRGBColor",
         "values" : [
@@ -482,11 +501,7 @@
           100
         ]
       },
-      "surfaceTINShadingMode" : "Smooth",
-      "visibility" : true,
-      "expanded" : true
+      "surfaceTINShadingMode" : "Smooth"
     }
-  ],
-  "rGBColorProfile" : "sRGB IEC61966-2-1 noBPC",
-  "cMYKColorProfile" : "U.S. Web Coated (SWOP) v2"
+  ]
 }
