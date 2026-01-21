@@ -152,8 +152,8 @@ try:
             rcn_value = [row[0] for row in SearchCursor(rcn_stats_temp, ['SUM_WGTRCN'], where_clause=expression)][0]
             row[1] = rcn_value
             cursor.updateRow(row)
-            AddMsgAndPrint(f"\n\tSubbasin ID: {subbasin_number}")
-            AddMsgAndPrint(f"\t\tWeighted Average RCN Value: {round(rcn_value,0)}")
+            AddMsgAndPrint(f"\n\tSubbasin ID: {subbasin_number}", 0, log_file_path)
+            AddMsgAndPrint(f"\t\tWeighted Average RCN Value: {round(rcn_value,0)}", 0, log_file_path)
 
     ### Finalize RCN Layer ###
     SetProgressorLabel('Creating RCN Layer...')
