@@ -101,8 +101,9 @@ def removeMapLayers(map, map_layers):
     ''' Remove layers from the active map for a given list of layer names.'''
     for lyr in map.listLayers():
         try:
-            if lyr.name in map_layers:
-                map.removeLayer(lyr)
+            if lyr.supports("NAME"):
+                if lyr.name in map_layers:
+                    map.removeLayer(lyr)
         except:
             continue
 
