@@ -183,8 +183,9 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if '02. Create Stream Network' in lyr.name:
-            map.removeLayer(lyr)
+        if lyr.supports("NAME"):
+            if '02. Create Stream Network' in lyr.name:
+                map.removeLayer(lyr)
 
     ### Compact Project GDB ###
     try:

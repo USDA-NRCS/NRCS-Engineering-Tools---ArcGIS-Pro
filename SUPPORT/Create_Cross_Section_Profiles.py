@@ -240,8 +240,9 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if 'Create Cross Section / ' in lyr.name:
-            map.removeLayer(lyr)
+        if lyr.supports("NAME"):
+            if 'Create Cross Section / ' in lyr.name:
+                map.removeLayer(lyr)
 
     ### Compact Project GDB ###
     try:

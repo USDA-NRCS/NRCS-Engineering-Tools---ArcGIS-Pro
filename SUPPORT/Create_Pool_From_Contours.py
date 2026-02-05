@@ -330,8 +330,9 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if 'Create Pool from Contours' in lyr.name:
-            map.removeLayer(lyr)
+        if lyr.supports("NAME"):
+            if 'Create Pool from Contours' in lyr.name:
+                map.removeLayer(lyr)
 
     ### Compact Project GDB ###
     try:
