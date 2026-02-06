@@ -202,8 +202,9 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if 'Add Points To Tile Profile' in lyr.name:
-            map.removeLayer(lyr)
+        if lyr.supports("NAME"):
+            if 'Add Points To Tile Profile' in lyr.name:
+                map.removeLayer(lyr)
 
     ### Add Output to Map ###
     SetParameterAsText(2, stations_path)

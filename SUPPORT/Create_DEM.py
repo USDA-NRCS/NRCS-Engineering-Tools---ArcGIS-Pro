@@ -235,10 +235,11 @@ try:
     dem_layer.symbology = sym
 
     ### Update Layer Order in TOC ###
-    if map.listLayers()[0].name == project_dem_name:
-        SetProgressorLabel('Updating layer order...')
-        AddMsgAndPrint('\nUpdating layer order...', log_file_path=log_file_path)
-        map.moveLayer(map.listLayers()[1], dem_layer, 'AFTER')
+    if map.listLayers()[0].supports("NAME"):
+        if map.listLayers()[0].name == project_dem_name:
+            SetProgressorLabel('Updating layer order...')
+            AddMsgAndPrint('\nUpdating layer order...', log_file_path=log_file_path)
+            map.moveLayer(map.listLayers()[1], dem_layer, 'AFTER')
 
     ### Compact Project GDB ###
     try:

@@ -180,8 +180,9 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if '08. Design Height' in lyr.name:
-            map.removeLayer(lyr)
+        if lyr.supports("NAME"):
+            if '08. Design Height' in lyr.name:
+                map.removeLayer(lyr)
 
     ### Add Output to Map ###
     SetParameterAsText(5, stakeout_points_path)

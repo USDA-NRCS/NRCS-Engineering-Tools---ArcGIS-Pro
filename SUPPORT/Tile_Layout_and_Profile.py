@@ -226,8 +226,9 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if '09. Tile Layout and Profile' in lyr.name:
-            map.removeLayer(lyr)
+        if lyr.supports("NAME"):
+            if '09. Tile Layout and Profile' in lyr.name:
+                map.removeLayer(lyr)
 
     ### Add Output to Map ###
     SetParameterAsText(3, output_lines_path)

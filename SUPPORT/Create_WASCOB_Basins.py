@@ -242,8 +242,9 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if '03. Create WASCOB Basins' in lyr.name:
-            map.removeLayer(lyr)
+        if lyr.supports("NAME"):
+            if '03. Create WASCOB Basins' in lyr.name:
+                map.removeLayer(lyr)
 
     ### Compact Project GDB ###
     try:

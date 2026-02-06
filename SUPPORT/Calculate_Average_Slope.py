@@ -118,8 +118,9 @@ try:
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():
-        if 'Calculate Average Slope Select' in lyr.name:
-            map.removeLayer(lyr)
+        if lyr.supports("NAME"):
+            if 'Calculate Average Slope Select' in lyr.name:
+                map.removeLayer(lyr)
 
     ### Compact Project GDB ###
     try:
