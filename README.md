@@ -2,7 +2,7 @@
 NRCS engineering tools for runoff curve number (RCN) generation and general elevation data workflows in ArcGIS Pro.
 
 ## **General Notes:**
-- Support enabled for ArcGIS Pro enabled.
+- Support for ArcGIS Pro enabled.
 - Current ArcGIS Pro Versions supported: 3.2.x through 3.6.1.
 - Support for ArcMap versions of the tools ended.
 - Toolbox reorganized to remove redundancies in tools and related code.
