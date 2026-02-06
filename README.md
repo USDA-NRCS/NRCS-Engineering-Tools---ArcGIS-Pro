@@ -1,47 +1,39 @@
-# USDA-NRCS-Engineering-Tools---ArcGIS-Pro
+# NRCS-Engineering-Tools---ArcGIS-Pro
+NRCS engineering tools for runoff curve number (RCN) generation and general elevation data workflows in ArcGIS Pro.
 
-## Current status of the ArcGIS Pro migration from ArcGIS 10.x
+## **General Notes:**
+- Support enabled for ArcGIS Pro enabled.
+- Current ArcGIS Pro Versions supported: 3.2.x through 3.6.1.
+- Support for ArcMap versions of the tools ended.
+- Toolbox reorganized to remove redundancies in tools and related code.
+- Starting template added with updated (basic) layouts.
+- Enclosed toolbox must be used from within the provided APRX template, which can be further customized as needed.
+  - This is a remnant of not yet addressing the possibility for multiple maps in ArcGIS Pro, compared to a maximum of one available data frame in ArcMap.
+  - Issue has been logged to revisit in the future.
+- Project folder reorganized to separate work for general analysis to one geodatabase and work for WASCOB analysis to a second geoodatabase.
+- Input data is converted to streamline the computational workflow inside the toolbox.
+  - Users aren't re-prompted for the same x, y, and z units information as often, reducing the opportunities for user error, typos, or misclick.
+  - Input data is converted to WGS 1984 UTM (selected zone) to minimize conversions throughout the workflow.
+  - Input data is converted to vertical international feet to minimize conversions throughout the workflow.
+  - Resulting Project DEM is x,y meters and z international feet.
+  - Finished products can be exported back to desired coordinate systems and vertical units manually using standard ArcGIS Pro export procedures on datasets, as needed.
+- NLCD RCN tool for large watersheds not converted yet due to a high number of assumptions for only one region of the country present in the original ArcMap version.
+  - Issue has been logged to revisit in the future.
 
-Toolset|Tool|ArcGIS Pro Compatible|
---------------------------------------------------|-------------------------------------------------------------------|---------------------------|
-Field Office Tools|Clip DEM to AOI|X|
-Field Office Tools|Create Contours from AOI|X|
-Field Office Tools|Create Cross Section/Profile(s)|X|
-Field Office Tools|Estimate Pool from Contours||
-Field Office Tools|Slope - Average by AOI|X|
-Field Office Tools|Slope - Percent by AOI||
-Practice Design - Wascob Design|1. Define Area of Interest (WASCOB)|X|
-Practice Design - Wascob Design|2. Create Stream Network (WASCOB)|X|
-Practice Design - Wascob Design|3. Create Watershed(s) (WASCOB)|X|
-Practice Design - Wascob Design|4. Watershed Attributes|X|
-Practice Design - Wascob Design|5. Calculate Runoff Curve Number|X|
-Practice Design - Wascob Design|6. Wascob Design Worksheet|X|
-Practice Design - Wascob Design|7. Design Height & Intake Location|X|
-Practice Design - Wascob Design|8. Tile Layout and Profile|X|
-Practice Design - Wascob Design|9. Ridge Layout and Profile|X|
-Practice Design - Wascob Design|Export Project Data for GPS|X|
-Practice Design - Wascob Utilities|Add Points to Tile Profile|X|
-Practice Design - Wascob Utilities|Calibrate DEM to Field Survey||
-Terrain Analysis Tools|1. Define Area of Interest (Optional)|X|
-Terrain Analysis Tools|2. Create Stream Network (Optional)|X|
-Terrain Analysis Tools|Compound Topographic Index (CTI)|X|
-Terrain Analysis Tools|Stream Power Index (SPI)|X|
-Terrain Analysis Tools|Topographic Position Index (TPI)|X|
-Watershed Tools - Delineation|1. Define Area of Interest|X|
-Watershed Tools - Delineation|2. Create Stream Network|X|
-Watershed Tools - Delineation|3. Create Watershed|X|
-Watershed Tools - Delineation|4. Update Watershed Attributes|X|
-Watershed Tools - Runoff Curve Number|1. Prepare Soils and Landuse|X|
-Watershed Tools - Runoff Curve Number|2.a. Calculate Runoff Curve Number|X|
-Watershed Tools - Runoff Curve Number|2.b. Calculate Curve Number from NLCD|X|
-Watershed Tools - Storage|Calculate Stage Storage|X|
-Watershed Tools - Storage|Create Pool at Desired Elevation|X|
-Watershed Tools - Storage|Estimate Pool from Contours||
-Utilities|Clip/Merge Adjacent Datasets||
-Utilities|Clip/Merge Adjacent DEMs||
-Utilities|ElevationWebServiceClipUSERSELECTReprojectModel||
-Utilities|Change Point Coordinates||
-Utilities|Convert DEM Z-Units||
+## **Version 1.0.3 (02/06/2026; Production Release):**
+### **New Features/Changes**
+- Corrected bug for layer names out of range when tables are included in the ArcGIS Pro Contents pane.
 
-## Tortoise SVN
-TortoiseSVN is a free open-source Windows client that manages files and directories that arestored in a central repository.
+## **Version History:**
+### Version 1.0.2 (Production Release)
+- Regression testing for ArcGIS Pro 3.6.x completed.
+- Small bug corrections
+
+### Version 1.0.1 (Production Release)
+- Small bug corrections
+
+### Version 1.0.0 (Production Release)
+- Initial ArcGIS Pro release following beta versions
+- Support for versions of ArcGIS Pro 3.1 and lower ended.
+- Terrain analysis formulas were reviewed and parameters were updated to give the user more options to tune their analysis and results on those tools.
+- Land use tables updated with all known NRCS engineering handbook and state supplemental entries for use when attributing land uses to prepare for RCN calculations.
