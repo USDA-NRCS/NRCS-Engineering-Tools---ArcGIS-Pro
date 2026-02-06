@@ -30,6 +30,7 @@ NRCS engineering tools for runoff curve number (RCN) generation and general elev
 - Small bug corrections
 
 ### Version 1.0.1 (Production Release)
+- NRCS internal elevation service options updated to support new NRCS elevation service endpoints.
 - Small bug corrections
 
 ### Version 1.0.0 (Production Release)
