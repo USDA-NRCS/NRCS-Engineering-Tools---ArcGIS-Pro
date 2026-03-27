@@ -86,21 +86,20 @@ dem_cell_area = dem_desc.meanCellWidth * dem_desc.meanCellHeight
 dams_lyr = 'Dams_Lyr'
 contour_lyr = 'Contour_Lyr'
 contour_lyr2 = 'Contour_Lyr2'
-contour_mask = path.join(scratch_gdb, 'Contour_Mask')
-contour_erase = path.join(scratch_gdb, 'Contour_Erase')
-buffer1 = path.join(scratch_gdb, 'Buffer1')
-buffer2 = path.join(scratch_gdb, 'Buffer2')
-buffer3 = path.join(scratch_gdb, 'Buffer3')
-buffer4 = path.join(scratch_gdb, 'Buffer4')
-buffer5 = path.join(scratch_gdb, 'Buffer5')
-buffer6 = path.join(scratch_gdb, 'Buffer6')
-buffer7 = path.join(scratch_gdb, 'Buffer7')
-extent_mask = path.join(scratch_gdb, 'Extent_Mask')
-dams_temp = path.join(scratch_gdb, 'Dams_Temp')
-dams_stats = path.join(scratch_gdb, 'Dams_Stats')
-pool_mask = path.join(scratch_gdb, 'Pool_Mask')
-volume = path.join(scratch_gdb, 'Volume')
-temp_pool = path.join(scratch_gdb, 'Temp_Pool')
+contour_mask = r'memory\Contour_Mask'
+contour_erase = r'memory\Contour_Erase'
+buffer1 = r'memory\Buffer1'
+buffer2 = r'memory\Buffer2'
+buffer3 = r'memory\Buffer3'
+buffer4 = r'memory\Buffer4'
+buffer5 = r'memory\Buffer5'
+buffer6 = r'memory\Buffer6'
+buffer7 = r'memory\Buffer7'
+extent_mask = r'memory\Extent_Mask'
+dams_temp = r'memory\Dams_Temp'
+dams_stats = r'memory\Dams_Stats'
+pool_mask = r'memory\Pool_Mask'
+temp_pool = r'memory\Temp_Pool'
 
 ### ESRI Environment Settings ###
 env.overwriteOutput = True
@@ -354,4 +353,29 @@ except:
         AddMsgAndPrint(errorMsg('Create Pool from Contours'), 2)
 
 finally:
+    memory_datasets = [
+        contour_mask,
+        contour_erase,
+        buffer1,
+        buffer2,
+        buffer3,
+        buffer4,
+        buffer5,
+        buffer6,
+        buffer7,
+        extent_mask,
+        dams_temp,
+        dams_stats,
+        pool_mask,
+        temp_pool
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
+
     emptyScratchGDB(scratch_gdb)
+

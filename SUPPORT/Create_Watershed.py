@@ -79,12 +79,12 @@ flow_length_name = f"{watershed_name}_FlowPaths"
 flow_length_path = path.join(project_fd, flow_length_name)
 id_domain_table = path.join(support_gdb, 'ID_TABLE')
 reach_domain_table = path.join(support_gdb, 'REACH_TYPE')
-outlet_buffer_temp = path.join(scratch_gdb, 'Outlet_Buffer')
-pour_point_temp = path.join(scratch_gdb, 'Pour_Point')
-watershed_temp = path.join(scratch_gdb, 'Watershed_Temp')
-lp_smooth_temp = path.join(scratch_gdb, 'LP_Smooth')
-longest_path_temp = path.join(scratch_gdb, 'Longpath_Temp')
-slope_stats_temp = path.join(scratch_gdb, 'Slope_Stats')
+outlet_buffer_temp = r"memory\Outlet_Buffer"
+pour_point_temp = r"memory\Pour_Point"
+watershed_temp = r"memory\Watershed_Temp"
+lp_smooth_temp = r"memory\LP_Smooth"
+longest_path_temp = r"memory\Longpath_Temp"
+slope_stats_temp = r"memory\Slope_Stats"
 
 ### Validate Required Datasets Exist ###
 if not Exists(project_dem_path):
@@ -307,4 +307,21 @@ except:
         AddMsgAndPrint(errorMsg('Create Watershed'), 2)
 
 finally:
+    # Clean up memory intermediates
+    memory_datasets = [
+        outlet_buffer_temp,
+        watershed_temp,
+        lp_smooth_temp,
+        longest_path_temp,
+        slope_stats_temp,
+        pour_point_temp
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
+
     emptyScratchGDB(scratch_gdb)

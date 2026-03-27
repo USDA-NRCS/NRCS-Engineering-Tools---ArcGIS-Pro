@@ -7,7 +7,7 @@ from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetI
     GetParameterAsText, SetParameterAsText, SetProgressorLabel
 from arcpy.da import SearchCursor
 from arcpy.ddd import AddSurfaceInformation
-from arcpy.management import AddXY, CalculateField, Compact, CopyFeatures, CreateFolder, DeleteField, Project
+from arcpy.management import AddXY, CalculateField, Compact, CopyFeatures, CreateFolder, Delete, DeleteField, Project
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
@@ -76,7 +76,7 @@ gis_output_dir = path.join(project_workspace, 'GIS_Output')
 output_points_path = path.join(project_gdb, output_points_name)
 output_points_shp = path.join(gis_output_dir, f"{output_points_name}.shp")
 output_text_file = path.join(project_workspace, f"{output_points_name}.txt")
-points_temp = path.join(scratch_gdb, 'Points_Temp')
+points_temp = r"memory\Points_Temp"
 
 if Exists(output_points_path):
     AddMsgAndPrint(f"\nOutput Points name: {output_points_path} already exists in project geodatabase and will be overwritten...", 1)
@@ -166,4 +166,8 @@ except:
         AddMsgAndPrint(errorMsg('Change Point Coordinates'), 2)
 
 finally:
+    try:
+        Delete(points_temp)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)

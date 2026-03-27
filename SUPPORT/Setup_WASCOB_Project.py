@@ -70,7 +70,7 @@ wascob_dem_name = f"{project_name}_DEM_WASCOB"
 wascob_dem_path = path.join(wascob_gdb_path, wascob_dem_name)
 contours_name = f"Relative_Contour_{contour_interval.replace('.','_dot_')}"
 contours_path = path.join(wascob_fd_path, contours_name)
-temp_contours_path = path.join(scratch_gdb, contours_name)
+temp_contours_path = f"memory\\{contours_name}"
 
 ### ESRI Environment Settings ###
 dem_desc = Describe(project_dem_path)

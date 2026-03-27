@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, \
     SetParameterAsText, SetProgressorLabel
 from arcpy.da import SearchCursor, UpdateCursor
-from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, GetCount
+from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, Delete, GetCount
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Slope, ZonalStatisticsAsTable
 
@@ -65,7 +65,7 @@ project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_slope_name = f"{project_name}_Slope"
 project_slope_path = path.join(project_gdb, project_slope_name)
-slope_stats_temp = path.join(scratch_gdb, 'Slope_Stats')
+slope_stats_temp = r"memory\Slope_Stats"
 output_slope_path = path.join(project_gdb, 'Layers', output_name)
 
 ### ESRI Environment Settings ###
@@ -85,18 +85,22 @@ try:
 
     ### Copy Input Polygon Features and Add Fields ###
     CopyFeatures(input_polygons, output_slope_path)
-    field_list = ListFields(output_slope_path)
+    # Build case-insensitive field name lookup
+    field_names = {f.name.upper() for f in ListFields(output_slope_path)}
 
-    if 'Acres' not in field_list:
+    if 'ACRES' not in field_names:
         AddField(output_slope_path, 'Acres', 'DOUBLE')
+        field_names.add('ACRES')
     CalculateField(output_slope_path, 'Acres', "!shape!.getArea('PLANAR', 'ACRES')", 'PYTHON3')
 
-    if 'Avg_Slope' not in field_list:
+    if 'AVG_SLOPE' not in field_names:
         AddField(output_slope_path, 'Avg_Slope', 'DOUBLE')
+        field_names.add('AVG_SLOPE')
 
-    # Standardize possible inputs for objectID headings getting appended for cases where objectID already exists in inputs
-    if 'UID' not in field_list:
+    # Standardize possible inputs for objectID headings getting appended
+    if 'UID' not in field_names:
         AddField(output_slope_path, 'UID', 'LONG')
+        field_names.add('UID')
     CalculateField(output_slope_path, 'UID', f"!{Describe(output_slope_path).OIDFieldName}!", 'PYTHON3')
 
     ### Find Average Slope in Input Polygons ###
@@ -142,4 +146,8 @@ except:
         AddMsgAndPrint(errorMsg('Calculate Average Slope'), 2)
 
 finally:
+    try:
+        Delete(slope_stats_temp)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)

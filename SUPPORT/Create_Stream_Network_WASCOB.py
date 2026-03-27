@@ -61,9 +61,9 @@ project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_gdb_path = path.join(project_workspace, f"{project_name}_EngPro.gdb")
 project_aoi_path = path.join(project_gdb_path, f"{project_name}_AOI")
-culverts_buffer_temp = path.join(scratch_gdb, 'Culverts_Buffer')
-culverts_raster_temp = path.join(scratch_gdb, 'Culverts_Raster')
+culverts_buffer_temp = r"memory\Culverts_Buffer"
 hydro_dem_temp = path.join(scratch_gdb, 'Hydro_DEM')
+
 culverts_name = f"{project_name}_Culverts_WASCOB"
 culverts_path = path.join(wascob_gdb, 'Layers', culverts_name)
 streams_name = f"{project_name}_Streams_WASCOB"
@@ -107,7 +107,7 @@ try:
         else:
             AddMsgAndPrint('\nExisting project culverts layer used as input...', log_file_path=log_file_path)
 
-        # Ensure output culverts layer has at least one feature in AOI
+                # Ensure output culverts layer has at least one feature in AOI
         if int(GetCount(culverts_path).getOutput(0)) > 0:
 
             # Buffer the culverts to 1 pixel
@@ -129,6 +129,10 @@ try:
             MosaicToNewRaster(mosaic_list, scratch_gdb, 'Hydro_DEM', '#', '32_BIT_FLOAT', dem_cell_size, '1', 'LAST')
 
             hydro_dem_fill = Fill(hydro_dem_temp)
+        else:
+            AddMsgAndPrint('\nNo culverts within project AOI...', log_file_path=log_file_path)
+            hydro_dem_fill = Fill(wascob_dem_path)
+
 
     else:
         AddMsgAndPrint('\nNo culverts within project AOI...', log_file_path=log_file_path)

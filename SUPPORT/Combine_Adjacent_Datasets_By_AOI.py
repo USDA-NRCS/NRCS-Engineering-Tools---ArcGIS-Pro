@@ -5,7 +5,7 @@ from time import ctime
 
 from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Clip
-from arcpy.management import Compact, Merge
+from arcpy.management import Compact, Delete, Merge
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
@@ -72,7 +72,7 @@ try:
     x = 0
     while x < dataset_count:
         dataset = input_datasets[x].replace("'",'')
-        temp_clip = path.join(scratch_gdb, f"Clip_{x}")
+        temp_clip = fr"memory\Clip_{x}"
         Clip(dataset, project_aoi, temp_clip)
         if x == 0:
             merge_list = f"{temp_clip}"
@@ -110,4 +110,8 @@ except:
         AddMsgAndPrint(errorMsg('Combine Adjacent Datasets By AOI'), 2)
 
 finally:
+    try:
+        Delete(temp_clip)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)  

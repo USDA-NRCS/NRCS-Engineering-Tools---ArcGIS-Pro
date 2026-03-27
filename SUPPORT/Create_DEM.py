@@ -71,8 +71,8 @@ extracted_dem_name = f"{project_name}_DEM_extract"
 extracted_dem_path = path.join(project_gdb, extracted_dem_name)
 project_dem_name = f"{project_name}_DEM"
 project_dem_path = path.join(project_gdb, project_dem_name)
-temp_aoi = path.join(scratch_gdb, 'temp_aoi')
-clipped_dem = path.join(scratch_gdb, 'clipped_dem')
+temp_aoi = r"memory\temp_aoi"   # CHANGED: was path.join(scratch_gdb, 'temp_aoi')
+clipped_dem = r"memory\clipped_dem"   # CHANGED: was path.join(scratch_gdb, 'clipped_dem')
 temp_dem = path.join(scratch_gdb, 'temp_dem')
 
 ### ESRI Environment Settings ###
@@ -121,6 +121,12 @@ try:
         else:
             SetProgressorLabel('Projecting project AOI to match input DEM...')
             AddMsgAndPrint('\nProjecting project AOI to match input DEM...', log_file_path=log_file_path)
+
+            try:
+                Delete(temp_aoi)  # clear prior in-memory object if present
+            except:
+                pass
+
             Project(project_aoi, temp_aoi, input_dem_sr)
 
             SetProgressorLabel('Downloading DEM data...')
@@ -128,6 +134,11 @@ try:
             aoi_ext = Describe(temp_aoi).extent
             clip_ext = f"{str(aoi_ext.XMin)} {str(aoi_ext.YMin)} {str(aoi_ext.XMax)} {str(aoi_ext.YMax)}"
             Clip(sourceService, clip_ext, clipped_dem, '', '', '', 'NO_MAINTAIN_EXTENT')
+
+            try:
+                Delete(temp_aoi)  # free memory after extent is obtained
+            except:
+                pass
 
             SetProgressorLabel('Projecting downloaded DEM...')
             AddMsgAndPrint('\nProjecting downloaded DEM...', log_file_path=log_file_path)
@@ -159,7 +170,7 @@ try:
             else:
                 AddMsgAndPrint('\nHorizontal units of one or more input DEMs do not appear to be feet or meters! Exiting...', 2, log_file_path)
                 exit()
-            out_clip = f"{temp_dem}_{str(x)}"
+            out_clip = fr"memory\temp_dem_{str(x)}"   # CHANGED: was f"{temp_dem}_{str(x)}"
             try:
                 extracted_dem = ExtractByMask(raster_path, project_aoi)
                 extracted_dem.save(out_clip)

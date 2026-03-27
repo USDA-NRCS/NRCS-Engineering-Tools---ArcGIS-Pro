@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, \
     SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Buffer, Clip
-from arcpy.management import AddField, CalculateField, CalculateStatistics, Compact, GetCount, MosaicToNewRaster
+from arcpy.management import AddField, CalculateField, CalculateStatistics, Compact, Delete, GetCount, MosaicToNewRaster
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Con, Fill, FlowAccumulation, FlowDirection, StreamLink, StreamToFeature, ZonalStatistics
 
@@ -60,9 +60,8 @@ project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_aoi_path = path.join(project_gdb, f"{project_name}_AOI")
-culverts_buffer_temp = path.join(scratch_gdb, 'Culverts_Buffer')
-culverts_raster_temp = path.join(scratch_gdb, 'Culverts_Raster')
-hydro_dem_temp = path.join(scratch_gdb, 'Hydro_DEM')
+culverts_buffer_temp = r"memory\Culverts_Buffer"
+hydro_dem_temp = r"memory\Hydro_DEM"
 culverts_name = f"{project_name}_Culverts"
 culverts_path = path.join(project_gdb, 'Layers', culverts_name)
 streams_name = f"{project_name}_Streams"
@@ -206,4 +205,12 @@ except:
         AddMsgAndPrint(errorMsg('Create Stream Network'), 2)
 
 finally:
+    try:
+        Delete(culverts_buffer_temp)
+    except:
+        pass
+    try:
+        Delete(hydro_dem_temp)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)

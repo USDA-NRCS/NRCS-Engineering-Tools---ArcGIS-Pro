@@ -11,7 +11,7 @@ from arcpy.da import InsertCursor, UpdateCursor
 from arcpy.ddd import InterpolateShape
 from arcpy.lr import CreateRoutes, MakeRouteEventLayer
 from arcpy.management import AddField, AddJoin, AddXY, CalculateField, Compact, CopyFeatures, CreateTable, \
-    DeleteField, GetCount, MakeFeatureLayer, RemoveJoin, Sort
+    Delete, DeleteField, GetCount, MakeFeatureLayer, RemoveJoin, Sort
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ZonalStatisticsAsTable
 
@@ -84,12 +84,12 @@ output_lines_path = path.join(wascob_fd, output_lines_name)
 output_stations_name = f"{basins_name}_Ridge_Station_Points"
 output_stations_path = path.join(wascob_fd, output_stations_name)
 stations_lyr = 'Stations_Lyr'
-station_stats_temp = path.join(scratch_gdb, 'Station_Stats_Temp')
-stations_temp = path.join(scratch_gdb, 'Stations_Temp')
-line_temp = path.join(scratch_gdb, 'Line_Temp')
-routes_temp = path.join(scratch_gdb, 'Routes_Temp')
-events_temp = path.join(scratch_gdb, 'Events_Temp')
-buffer_temp = path.join(scratch_gdb, 'Buffer_Temp')
+station_stats_temp = r"memory\Station_Stats_Temp"
+stations_temp = r"memory\Stations_Temp"
+line_temp = r"memory\Line_Temp"
+routes_temp = r"memory\Routes_Temp"
+events_temp = "Events_Temp_Lyr"
+buffer_temp = r"memory\Buffer_Temp"
 
 ### Validate Required Datasets Exist ###
 if not Exists(wascob_dem_path):
@@ -249,4 +249,19 @@ except:
         AddMsgAndPrint(errorMsg('Ridge Layout and Profile'), 2)
 
 finally:
+    # Clean up memory intermediates
+    memory_datasets = [
+        line_temp,
+        routes_temp,
+        stations_temp,
+        buffer_temp,
+        station_stats_temp
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
     emptyScratchGDB(scratch_gdb)
