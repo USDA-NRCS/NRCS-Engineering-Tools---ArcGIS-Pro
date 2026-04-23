@@ -55,7 +55,8 @@ else:
 
 ### Set Paths and Variables ###
 support_dir = path.dirname(argv[0])
-scratch_gdb = path.join(support_dir, 'Scratch.gdb')
+#scratch_gdb = path.join(support_dir, 'Scratch.gdb')
+scratch_gdb = "memory"
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
@@ -89,7 +90,8 @@ env.snapRaster = project_dem_path
 env.outputCoordinateSystem = dem_desc.spatialReference
 
 try:
-    removeMapLayers(map, [culverts_name, streams_name, flow_accum_name, flow_dir_name])
+    #removeMapLayers(map, [culverts_name, streams_name, flow_accum_name, flow_dir_name])
+    removeMapLayers(map, [streams_name, flow_accum_name, flow_dir_name])
     logBasicSettings(log_file_path, project_dem, input_culverts, stream_threshold)
 
     ### Process Input Culverts ###
