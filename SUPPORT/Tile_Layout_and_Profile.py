@@ -131,8 +131,9 @@ try:
     CalculateField(line_temp, 'LENGTH_FT', "!shape!.getLength('PLANAR', 'FeetInt')", 'PYTHON3')
 
     # Create Table to hold station values
-    station_table = 'memory\station_table'
-    CreateTable('in_memory', 'station_table')
+    station_table = r"memory\station_table"
+
+    CreateTable('memory', 'station_table')
     AddField(station_table, 'ID', 'LONG')
     AddField(station_table, 'STATION', 'LONG')
     AddField(station_table, 'POINT_X', 'DOUBLE')
