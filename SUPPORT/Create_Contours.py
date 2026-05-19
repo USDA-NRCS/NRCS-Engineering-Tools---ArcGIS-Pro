@@ -5,7 +5,7 @@ from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, \
     SetParameterAsText, SetProgressorLabel
-from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, DeleteField, MakeFeatureLayer, \
+from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, Delete, DeleteField, MakeFeatureLayer, \
     SelectLayerByAttribute
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Contour
@@ -67,7 +67,7 @@ scratch_gdb = path.join(support_dir, 'Scratch.gdb')
 project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
-temp_contour_path = path.join(scratch_gdb, 'temp_contour')
+temp_contour_path = r"memory\temp_contour"
 contour_name = f"{project_name}_Contour_{contour_interval.replace('.','_dot_')}"
 contour_path = path.join(project_gdb, 'Layers', contour_name)
 
@@ -127,4 +127,8 @@ except:
         AddMsgAndPrint(errorMsg('Create Contours'), 2)
 
 finally:
+    try:
+        Delete(temp_contour_path)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)

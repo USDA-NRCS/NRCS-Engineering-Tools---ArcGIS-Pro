@@ -10,7 +10,7 @@ from arcpy.conversion import TableToTable
 from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.lr import CreateRoutes, MakeRouteEventLayer
 from arcpy.management import AddField, AddJoin, AddXY, Append, CalculateField, Compact, CopyFeatures, CopyRows, \
-    DeleteField, GetCount, MakeFeatureLayer, RemoveJoin, Sort
+    Delete, DeleteField, GetCount, MakeFeatureLayer, RemoveJoin, Sort
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ZonalStatisticsAsTable
 
@@ -75,15 +75,15 @@ tables_dir = path.join(project_workspace, 'GIS_Output', 'Tables')
 stations_dbf = path.join(tables_dir, f"{basins_name}_Stations.dbf")
 stations_lyr = 'Stations_Lyr'
 stations_lyr_2 = 'Stations_Lyr_2'
-stations_temp = path.join(scratch_gdb, 'Stations_Temp')
-stations_temp_2 = path.join(scratch_gdb, 'Stations_Temp_2')
-station_table_temp = path.join(scratch_gdb, 'Station_Table_Temp')
-lines_near = path.join(scratch_gdb, 'Lines_Near')
-points_near = path.join(scratch_gdb, 'Points_Near')
-routes_temp = path.join(scratch_gdb, 'Routes_Temp')
-events_temp = path.join(scratch_gdb, 'Events_Temp')
-buffer_temp = path.join(scratch_gdb, 'Buffer_Temp')
-station_stats_temp = path.join(scratch_gdb, 'Station_Stats_Temp')
+stations_temp = r'memory\Stations_Temp'
+stations_temp_2 = r'memory\Stations_Temp_2'
+station_table_temp = r'memory\Station_Table_Temp'
+lines_near = r'memory\Lines_Near'
+points_near = r'memory\Points_Near'
+routes_temp = r'memory\Routes_Temp'
+events_temp = 'Events_Temp_Lyr'
+buffer_temp = r'memory\Buffer_Temp'
+station_stats_temp = r'memory\Station_Stats_Temp'
 
 ### Validate Required Datasets Exist ###
 if not Exists(wascob_dem_path):
@@ -229,4 +229,23 @@ except:
         AddMsgAndPrint(errorMsg('Add Points To Tile Profile'), 2)
 
 finally:
+    # Clean up memory intermediates
+    memory_datasets = [
+        stations_temp,
+        stations_temp_2,
+        station_table_temp,
+        lines_near,
+        points_near,
+        routes_temp,
+        events_temp,
+        buffer_temp,
+        station_stats_temp
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
     emptyScratchGDB(scratch_gdb)

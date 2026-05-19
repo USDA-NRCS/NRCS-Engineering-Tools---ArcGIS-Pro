@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Intersect, Statistics
 from arcpy.da import SearchCursor, UpdateCursor
-from arcpy.management import AddField, AlterField, CalculateField, Compact, DeleteField, Dissolve
+from arcpy.management import AddField, AlterField, CalculateField, Compact, Delete, DeleteField, Dissolve
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
@@ -56,8 +56,8 @@ soils_path = path.join(project_fd, f"{watershed_name}_Soils")
 output_rcn_name = f"{watershed_name}_RCN"
 output_rcn_path = path.join(project_fd, output_rcn_name)
 tr_55_rcn_lookup_table = path.join(support_gdb, 'TR_55_RCN_Lookup')
-watershed_landuse_soils_temp = path.join(scratch_gdb, 'watershed_landuse_soils')
-rcn_stats_temp = path.join(scratch_gdb, 'rcn_stats')
+watershed_landuse_soils_temp = r"memory\watershed_landuse_soils"
+rcn_stats_temp = r"memory\rcn_stats"
 
 ### Validate Required Datasets Exist ###
 if '_Land_Use' in input_watershed or '_Soils' in input_watershed:
@@ -195,4 +195,12 @@ except:
         AddMsgAndPrint(errorMsg('Calculate Runoff Curve Number'), 2)
 
 finally:
+    try:
+        Delete(rcn_stats_temp)
+    except:
+        pass
+    try:
+        Delete(watershed_landuse_soils_temp)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)

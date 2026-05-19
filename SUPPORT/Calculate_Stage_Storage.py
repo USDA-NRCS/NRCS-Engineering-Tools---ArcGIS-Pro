@@ -4,7 +4,7 @@ from sys import argv, exit
 from time import ctime
 
 from arcpy import AlterAliasName, Describe, CheckExtension, CheckOutExtension, env, Exists, GetInstallInfo, GetParameterAsText, \
-    GetParameter, ListFeatureClasses, SetParameterAsText, SetProgressorLabel
+    GetParameter, SetParameterAsText, SetProgressorLabel
 from arcpy.conversion import RasterToPolygon
 from arcpy.da import SearchCursor
 from arcpy.ddd import SurfaceVolume
@@ -78,7 +78,7 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
 input_pool_name = path.splitext(path.basename(input_pool))[0]
 storage_table_temp = path.join(project_workspace, f"{input_pool_name}_StorageCSV.txt")
-temp_pool = path.join(scratch_gdb, 'Temp_Pool')
+temp_pool = r'memory\Temp_Pool'
 
 # Include Subbasin number in output names if input polygon is Watershed layer
 try:
@@ -139,6 +139,8 @@ try:
     if Exists(storage_table_temp):
         Delete(storage_table_temp)
 
+    pool_fcs = []
+
     while elevation_to_process > temp_dem_meters_min:
         SetProgressorLabel(f"Processing elevation {elevation_to_process}...")
         AddMsgAndPrint(f"\nProcessing elevation {elevation_to_process}...", log_file_path=log_file_path)
@@ -148,7 +150,7 @@ try:
         if create_pools_layer:
             try:
                 increment_pool_name = f"Pool_{str(round(elevation_to_process,1)).replace('.','_')}"
-                increment_pool_path = path.join(scratch_gdb, increment_pool_name)
+                increment_pool_path = fr'memory\{increment_pool_name}'
 
                 # Create new raster of only values below an elevation value by nullifying cells above the desired elevation value
                 above_elevation = SetNull(temp_dem_meters, temp_dem_meters, f"Value > {elevation_to_process}")
@@ -198,6 +200,8 @@ try:
                 AddMsgAndPrint(f"\t\tVolume: {volume_acre_foot} Acre Feet")
                 AddMsgAndPrint(f"\t\tVolume: {volume_cubic_meters} Cubic Meters")
                 AddMsgAndPrint(f"\t\tVolume: {volume_cubic_feet} Cubic Feet")
+
+                pool_fcs.append(increment_pool_path)
 
             except:
                 AddMsgAndPrint(f"\nFailed to create pool at elevation: {elevation_to_process}. Exiting...", 2, log_file_path)
@@ -250,9 +254,10 @@ try:
     if create_pools_layer:
         SetProgressorLabel('Finalizing pools feature class...')
         AddMsgAndPrint('\nFinalizing pools feature class...', log_file_path=log_file_path)
-        env.workspace = scratch_gdb
-        poolFCs = ListFeatureClasses('Pool_*')
-        Merge(poolFCs, output_pool_path)
+        if pool_fcs:
+            Merge(pool_fcs, output_pool_path)
+        else:
+            AddMsgAndPrint('\nNo pool features were created to merge.', 1, log_file_path)
 
     ### Add Outputs to Map ###
     SetParameterAsText(5, storage_table_path)
@@ -278,4 +283,15 @@ except:
         AddMsgAndPrint(errorMsg('Calculate Stage Storage'), 2)
 
 finally:
+    memory_datasets = [temp_pool]
+    memory_datasets.extend(locals().get('pool_fcs', []))
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
+
     emptyScratchGDB(scratch_gdb)
+

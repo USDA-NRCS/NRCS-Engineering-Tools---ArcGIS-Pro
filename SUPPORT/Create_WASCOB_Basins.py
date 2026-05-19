@@ -70,11 +70,11 @@ flow_dir_path = path.join(wascob_gdb, 'Flow_Direction_WASCOB')
 basins_path = path.join(wascob_fd, basins_name)
 embankments_name = f"{basins_name}_Embankments"
 embankments_path = path.join(wascob_fd, embankments_name)
-embankment_buffer_temp = path.join(scratch_gdb, 'Embankment_Buffer')
-pour_point_temp = path.join(scratch_gdb, 'Pour_Point')
-watershed_temp = path.join(scratch_gdb, 'Watershed_Temp')
-embankment_stats_temp = path.join(scratch_gdb, 'Embankment_Stats')
-slope_stats_temp = path.join(scratch_gdb, 'Slope_Stats')
+embankment_buffer_temp = r"memory\Embankment_Buffer"
+pour_point_temp = r"memory\Pour_Point"
+watershed_temp = r"memory\Watershed_Temp"
+embankment_stats_temp = r"memory\Embankment_Stats"
+slope_stats_temp = r"memory\Slope_Stats"
 
 ### Validate Required Datasets Exist ###
 if not Exists(project_aoi_path):
@@ -266,4 +266,19 @@ except:
         AddMsgAndPrint(errorMsg('Create WASCOB Basins'), 2)
 
 finally:
+    # Clean up memory intermediates
+    memory_datasets = [
+        embankment_buffer_temp,
+        pour_point_temp,
+        watershed_temp,
+        embankment_stats_temp,
+        slope_stats_temp
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
     emptyScratchGDB(scratch_gdb)

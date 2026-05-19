@@ -5,7 +5,7 @@ from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameter, GetParameterAsText, SetProgressorLabel
 from arcpy.da import SearchCursor, UpdateCursor
-from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, GetCount
+from arcpy.management import AddField, CalculateField, Compact, CopyFeatures, GetCount, Delete
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Plus, ZonalStatisticsAsTable
 
@@ -61,8 +61,8 @@ project_fd = path.join(project_gdb, 'Layers')
 survey_points = path.join(project_fd, 'DEM_Calibration_Points')
 adjusted_dem_name = f"{project_name}_DEM_adjusted"
 adjusted_dem_path = path.join(project_gdb, adjusted_dem_name)
-temp_points = path.join(scratch_gdb, 'temp_points')
-temp_stats = path.join(scratch_gdb, 'temp_stats')
+temp_points = r"memory\temp_points"
+temp_stats = r"memory\temp_stats"
 elevation_adjustment = 0
 
 ### ESRI Environment Settings ###
@@ -172,4 +172,12 @@ except:
         AddMsgAndPrint(errorMsg('Calibrate DEM to Field Survey'), 2)
 
 finally:
+    try:
+        Delete(temp_points)
+    except:
+        pass
+    try:
+        Delete(temp_stats)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)

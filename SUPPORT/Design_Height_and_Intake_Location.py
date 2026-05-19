@@ -8,7 +8,7 @@ from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetI
 from arcpy.analysis import Clip
 from arcpy.conversion import RasterToPolygon
 from arcpy.management import AddField, AddXY, Append, CalculateField, CreateFeatureclass, Compact, CopyFeatures, \
-    DeleteFeatures, FeatureVerticesToPoints, GetCount, MakeFeatureLayer, SelectLayerByAttribute
+    Delete, DeleteFeatures, FeatureVerticesToPoints, GetCount, MakeFeatureLayer, SelectLayerByAttribute
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask, Int, SetNull, Times
 
@@ -73,10 +73,10 @@ embankments_lyr = f"{embankments_name}_Lyr"
 stakeout_points_name = f"{basins_name}_Stakeout_Points"
 stakeout_points_path = path.join(wascob_fd, stakeout_points_name)
 stakeout_points_lyr = f"{stakeout_points_name}_Lyr"
-intake_point_temp = path.join(scratch_gdb, 'intake_temp')
-dem_polygon_temp = path.join(scratch_gdb, 'dem_poly_temp')
-embankment_points_temp = path.join(scratch_gdb, 'embankment_points_temp')
-embankment_clip_temp = path.join(scratch_gdb, 'embankment_clip_temp')
+intake_point_temp = r"memory\intake_temp"
+dem_polygon_temp = r"memory\dem_poly_temp"
+embankment_points_temp = r"memory\embankment_points_temp"
+embankment_clip_temp = r"memory\embankment_clip_temp"
 
 ### Validate Required Datasets Exist ###
 if not Exists(wascob_dem_path):
@@ -207,4 +207,18 @@ except:
         AddMsgAndPrint(errorMsg('Design Height and Intake Location'), 2)
 
 finally:
+    # Clean up memory intermediates
+    memory_datasets = [
+        intake_point_temp,
+        dem_polygon_temp,
+        embankment_points_temp,
+        embankment_clip_temp
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
     emptyScratchGDB(scratch_gdb)

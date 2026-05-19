@@ -10,7 +10,7 @@ from arcpy.da import InsertCursor, SearchCursor, UpdateCursor
 from arcpy.ddd import InterpolateShape
 from arcpy.lr import CreateRoutes, MakeRouteEventLayer
 from arcpy.management import AddField, AddJoin, AddXY, CalculateField, Compact, CopyFeatures, CreateTable, \
-    DeleteField, GetCount, MakeFeatureLayer, RemoveJoin, Sort
+    Delete, DeleteField, GetCount, MakeFeatureLayer, RemoveJoin, Sort
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ZonalStatisticsAsTable
 
@@ -92,12 +92,12 @@ output_lines_path = path.join(project_fd, output_lines_name)
 output_points_name = f"{output_name}_Points"
 output_points_path = path.join(project_fd, output_points_name)
 stations_lyr = 'Stations_Lyr'
-station_stats_temp = path.join(scratch_gdb, 'Station_Stats_Temp')
-stations_temp = path.join(scratch_gdb, 'Stations_Temp')
-line_temp = path.join(scratch_gdb, 'Line_Temp')
-routes_temp = path.join(scratch_gdb, 'Routes_Temp')
-events_temp = path.join(scratch_gdb, 'Events_Temp')
-buffer_temp = path.join(scratch_gdb, 'Buffer_Temp')
+station_stats_temp = r"memory\Station_Stats_Temp"
+stations_temp = r"memory\Stations_Temp"
+line_temp = r"memory\Line_Temp"
+routes_temp = r"memory\Routes_Temp"
+events_temp = "Events_Temp_Lyr"
+buffer_temp = r"memory\Buffer_Temp"
 output_text_file = path.join(project_workspace, f"{output_lines_name}.txt")
 
 if Exists(output_lines_path):
@@ -131,8 +131,8 @@ try:
     CalculateField(line_temp, 'LENGTH_FT', "!shape!.getLength('PLANAR', 'FeetInt')", 'PYTHON3')
 
     # Create Table to hold station values
-    station_table = 'in_memory\station_table'
-    CreateTable('in_memory', 'station_table')
+    station_table = "memory\station_table"
+    CreateTable("memory", "station_table")
     AddField(station_table, 'ID', 'LONG')
     AddField(station_table, 'STATION', 'LONG')
     AddField(station_table, 'POINT_X', 'DOUBLE')
@@ -264,4 +264,19 @@ except:
         AddMsgAndPrint(errorMsg('Create Cross Section Profiles'), 2)
 
 finally:
+    # Clean up memory intermediates
+    memory_datasets = [
+        line_temp,
+        routes_temp,
+        stations_temp,
+        buffer_temp,
+        station_stats_temp
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
     emptyScratchGDB(scratch_gdb)

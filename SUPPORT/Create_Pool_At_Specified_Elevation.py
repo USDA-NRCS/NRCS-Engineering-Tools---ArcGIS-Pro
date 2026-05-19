@@ -73,7 +73,7 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
 input_pool_name = path.splitext(path.basename(input_pool))[0]
 storage_table_temp = path.join(project_workspace, f"{input_pool_name}_StorageCSV.txt")
-temp_pool = path.join(scratch_gdb, 'Temp_Pool')
+temp_pool = r'memory\Temp_Pool'
 
 # Include Subbasin number in output names if input polygon is Watershed layer
 try:
@@ -207,4 +207,11 @@ except:
         AddMsgAndPrint(errorMsg('Create Pool At Specified Elevation'), 2)
 
 finally:
+    try:
+        if Exists(temp_pool):
+            Delete(temp_pool)
+    except:
+        pass
+
     emptyScratchGDB(scratch_gdb)
+

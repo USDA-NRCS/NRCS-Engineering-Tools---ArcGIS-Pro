@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Intersect, Statistics
 from arcpy.da import SearchCursor, UpdateCursor
-from arcpy.management import AddField, AlterField, CalculateField, Compact, DeleteField, Dissolve
+from arcpy.management import AddField, AlterField, CalculateField, Compact, Delete, DeleteField, Dissolve
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
@@ -56,8 +56,8 @@ soils_path = path.join(project_fd, f"{basins_name}_Soils_WASCOB")
 output_rcn_name = f"{basins_name}_RCN_WASCOB"
 output_rcn_path = path.join(project_fd, output_rcn_name)
 tr_55_rcn_lookup_table = path.join(support_gdb, 'TR_55_RCN_Lookup')
-basins_landuse_soils_temp = path.join(scratch_gdb, 'basins_landuse_soils')
-rcn_stats_temp = path.join(scratch_gdb, 'rcn_stats')
+basins_landuse_soils_temp = r"memory\basins_landuse_soils"
+rcn_stats_temp = r"memory\rcn_stats"
 
 ### Validate Required Datasets Exist ###
 if '_Land_Use' in input_basins or '_Soils' in input_basins:
@@ -195,4 +195,12 @@ except:
         AddMsgAndPrint(errorMsg('Calculate Runoff Curve Number (WASCOB)'), 2)
 
 finally:
+    try:
+        Delete(basins_landuse_soils_temp)
+    except:
+        pass
+    try:
+        Delete(rcn_stats_temp)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)

@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import AddFieldDelimiters, CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, \
     GetParameterAsText, ListFields, SetProgressorLabel
 from arcpy.da import SearchCursor, UpdateCursor
-from arcpy.management import AddField, CalculateField, Compact
+from arcpy.management import AddField, CalculateField, Compact, Delete
 from arcpy.mp import ArcGISProject
 from arcpy.sa import Slope, ZonalStatisticsAsTable
 
@@ -61,15 +61,17 @@ project_dem_path = path.join(project_gdb, f"{project_name}_DEM")
 watershed_name = path.basename(watershed_path)
 flow_length_path = path.join(project_fd, f"{watershed_name}_FlowPaths")
 slope_grid_temp = path.join(scratch_gdb, 'Slope_Grid')
-slope_stats_temp = path.join(scratch_gdb, 'Slope_Stats')
+slope_stats_temp = r"memory\Slope_Stats"
 update_flow_length = False
 
 ### Validate Required Datasets Exist ###
 if not Exists(project_dem_path):
     AddMsgAndPrint('\nThe project DEM was not found. Exiting...', 2)
     exit()
-if not Exists(flow_length_path):
+if Exists(flow_length_path):
     update_flow_length = True
+else:
+    AddMsgAndPrint('\nFlow path layer not found. Skipping flow path length update...', 1, log_file_path=log_file_path)
 
 ### ESRI Environment Settings ###
 dem_desc = Describe(project_dem_path)
@@ -147,4 +149,8 @@ except:
         AddMsgAndPrint(errorMsg('Update Watershed Attributes'), 2)
 
 finally:
+    try:
+        Delete(slope_stats_temp)
+    except:
+        pass
     emptyScratchGDB(scratch_gdb)

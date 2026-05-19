@@ -6,7 +6,7 @@ from time import ctime
 from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel
 from arcpy.analysis import Clip, Union
 from arcpy.da import SearchCursor
-from arcpy.management import AddField, AssignDomainToField, CalculateField, Compact, DeleteField, Dissolve, MultipartToSinglepart, TableToDomain
+from arcpy.management import AddField, AssignDomainToField, CalculateField, Compact, Delete, DeleteField, Dissolve, MultipartToSinglepart, TableToDomain
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
@@ -64,9 +64,9 @@ output_landuse_name = f"{basins_name}_Land_Use_WASCOB"
 output_landuse_path = path.join(wascob_fd, output_landuse_name)
 tr_55_land_use_table = path.join(support_gdb, 'TR_55_Land_Use_Domain')
 hydro_groups_table = path.join(support_gdb, 'Hydro_Groups_Domain')
-boundaries_clip_temp = path.join(scratch_gdb, 'Boundaries_Clip_Temp')
-land_use_temp = path.join(scratch_gdb, 'Land_Use_Temp')
-basins_dissolve_temp = path.join(scratch_gdb, 'Basins_Dissolve')
+boundaries_clip_temp = r"memory\Boundaries_Clip_Temp"
+land_use_temp = r"memory\Land_Use_Temp"
+basins_dissolve_temp = r"memory\Basins_Dissolve"
 
 ### Validate Required Datasets Exist ###
 if '_Land_Use' in input_basins or '_Soils' in input_basins:
@@ -190,4 +190,17 @@ except:
         AddMsgAndPrint(errorMsg('Prepare Soil and Land Use Layers (WASCOB)'), 2)
 
 finally:
+    # Clean up memory intermediates
+    memory_datasets = [
+        boundaries_clip_temp,
+        land_use_temp,
+        basins_dissolve_temp
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
     emptyScratchGDB(scratch_gdb)

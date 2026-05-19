@@ -69,11 +69,10 @@ wascob_fd = path.join(wascob_gdb, 'Layers')
 wascob_dem_path = path.join(wascob_gdb, f"{project_name}_DEM_WASCOB")
 embankments_name = f"{basins_name}_Embankments"
 embankments_path = path.join(wascob_fd, embankments_name)
-embankment_buffer_temp = path.join(scratch_gdb, 'Embankment_Buffer')
-embankment_stats_temp = path.join(scratch_gdb, 'Embankment_Stats')
-slope_stats_temp = path.join(scratch_gdb, 'Slope_Stats')
-subbasin_mask_temp = path.join(scratch_gdb, 'Subbasin_Mask')
-storage_table_temp = path.join(scratch_gdb, 'Storage')
+embankment_buffer_temp = r"memory\Embankment_Buffer"
+embankment_stats_temp = r"memory\Embankment_Stats"
+slope_stats_temp = r"memory\Slope_Stats"
+storage_table_temp = r"memory\Storage"
 storage_dbf_template = path.join(support_dir, 'storage.dbf')
 tables_dir = path.join(project_workspace, 'GIS_Output', 'Tables')
 storage_dbf = path.join(tables_dir, 'Storage.dbf')
@@ -274,4 +273,18 @@ except:
         AddMsgAndPrint(errorMsg('Update WASCOB Attributes'), 2)
 
 finally:
+    # Clean up memory intermediates
+    memory_datasets = [
+        embankment_buffer_temp,
+        embankment_stats_temp,
+        slope_stats_temp,
+        storage_table_temp
+    ]
+
+    for ds in memory_datasets:
+        try:
+            if Exists(ds):
+                Delete(ds)
+        except:
+            pass
     emptyScratchGDB(scratch_gdb)
