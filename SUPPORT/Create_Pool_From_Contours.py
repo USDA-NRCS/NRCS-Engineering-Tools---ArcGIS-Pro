@@ -5,7 +5,7 @@ from time import ctime
 
 from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, \
     SetParameterAsText, SetProgressorLabel
-from arcpy.analysis import Buffer, Clip, Erase
+from arcpy.analysis import Buffer, Clip, PairwiseErase
 from arcpy.conversion import RasterToPolygon
 from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.ddd import SurfaceVolume
@@ -141,13 +141,13 @@ try:
 
     # Buffer and erase to break contours at dam and select closed contours
     Buffer(dams_temp, buffer1, '1 Feet', 'FULL', 'FLAT', 'NONE')
-    Erase(contour_mask, buffer1, contour_erase)
+    PairwiseErase(contour_mask, buffer1, contour_erase)
 
     Buffer(dams_temp, buffer2, '1.5 Feet', 'LEFT', 'FLAT', 'NONE')
     Buffer(dams_temp, buffer3, '3 Feet', 'LEFT', 'FLAT', 'NONE')
 
-    Erase(buffer3, buffer1, buffer4)
-    Erase(buffer4, buffer2, buffer5)
+    PairwiseErase(buffer3, buffer1, buffer4)
+    PairwiseErase(buffer4, buffer2, buffer5)
 
     SetProgressorLabel('Determining highest closed contour...')
     AddMsgAndPrint('\nDetermining highest closed contour...', log_file_path=log_file_path)
