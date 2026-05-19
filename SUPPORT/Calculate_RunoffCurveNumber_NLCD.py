@@ -291,7 +291,7 @@ if __name__ == '__main__':
             aprx = arcpy.mp.ArcGISProject("CURRENT")
             for maps in aprx.listMaps():
                 for lyr in maps.listLayers():
-                    if lyr.name in datasetsBaseName:
+                    if lyr.supports("NAME") and lyr.name in datasetsBaseName:
                         maps.removeLayer(lyr)
         except:
             pass
