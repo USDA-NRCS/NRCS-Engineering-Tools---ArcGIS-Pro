@@ -88,19 +88,10 @@ env.parallelProcessingFactor = '75%'
 env.overwriteOutput = True
 
 # Set z-factor based on XYZ units of DEM
-z_factor = 1
-dem_xy_units = dem_desc.spatialReference.linearUnitName
-if dem_xy_units in ['Foot', 'Foot_US']:
-    xy_units = 'Feet'
-    if elevation_units == 'Meters':
-        z_factor = 3.28084
-elif dem_xy_units == 'Meter':
-    xy_units = 'Meters'
-    if elevation_units in ['International Feet', 'US Survey Feet']:
-        z_factor = 0.3048
+if elevation_units == 'Meters':
+    z_factor = 3.28084
 else:
-    AddMsgAndPrint('\nLinear units of the input DEM are not supported. Exiting...', 2)
-    exit()
+    z_factor = 1
 
 try:
     removeMapLayers(map, [output_points_name])
