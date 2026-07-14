@@ -2,6 +2,7 @@
 NRCS engineering tools for runoff curve number (RCN) generation and general elevation data workflows in ArcGIS Pro.
 
 ## **Version 1.0.4 (07/14/2026; Production Release):**
+### **New Features/Changes**
 - Updated Change Point Coordinates to preserve and not convert vertical units on output Z values.
 
 ## **General Notes:**
@@ -23,11 +24,10 @@ NRCS engineering tools for runoff curve number (RCN) generation and general elev
 - NLCD RCN tool for large watersheds not converted yet due to a high number of assumptions for only one region of the country present in the original ArcMap version.
   - Issue has been logged to revisit in the future.
 
-## **Version 1.0.3 (02/06/2026; Production Release):**
-### **New Features/Changes**
+## **Version History:**
+### Version 1.0.3 (02/06/2026; Production Release):
 - Corrected bug for layer names out of range when tables are included in the ArcGIS Pro Contents pane.
 
-## **Version History:**
 ### Version 1.0.2 (Production Release)
 - Regression testing for ArcGIS Pro 3.6.x completed.
 - Small bug corrections
