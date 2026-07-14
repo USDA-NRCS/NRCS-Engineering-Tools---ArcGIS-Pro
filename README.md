@@ -1,6 +1,9 @@
 # NRCS-Engineering-Tools---ArcGIS-Pro
 NRCS engineering tools for runoff curve number (RCN) generation and general elevation data workflows in ArcGIS Pro.
 
+## **Version 1.0.4 (07/14/2026; Production Release):**
+- Updated Change Point Coordinates to preserve and not convert vertical units on output Z values.
+
 ## **General Notes:**
 - Support for ArcGIS Pro enabled.
 - Current ArcGIS Pro Versions supported: 3.2.x through 3.6.1.
