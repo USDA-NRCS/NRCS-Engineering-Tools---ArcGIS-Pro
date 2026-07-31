@@ -9,3 +9,4 @@ venv/
 .pyHistory
 test.py
 *_index/
+.vs/
