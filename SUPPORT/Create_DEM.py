@@ -3,15 +3,16 @@ from os import path
 from sys import argv
 from time import ctime
 
-from arcpy import CheckExtension, CheckOutExtension, Describe, env, GetInstallInfo, GetParameterAsText, SetProgressorLabel
-from arcpy.management import Clip, Compact, CopyRaster, Delete, MosaicToNewRaster, Project, ProjectRaster
+from arcpy import CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetParameterAsText, ListFields, SetParameterAsText, SetProgressorLabel, SpatialReference
+from arcpy.da import InsertCursor
+from arcpy.management import AddField, Clip, Compact, CopyRaster, CreateTable, Delete, DeleteRows, MosaicToNewRaster, Project, ProjectRaster
 from arcpy.mp import ArcGISProject
 from arcpy.sa import ExtractByMask, Fill, FocalStatistics, Times
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_workspace, dem_format, input_z_units, input_dem_sr, output_sr, cell_size):
+def logBasicSettings(log_file_path, project_workspace, dem_format, project_xy_units, input_z_units, output_vertical_units, input_dem_sr, output_sr, transformation, cell_size):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create DEM\n')
@@ -21,10 +22,69 @@ def logBasicSettings(log_file_path, project_workspace, dem_format, input_z_units
         f.write('User Parameters:\n')
         f.write(f"\tProject Workspace: {project_workspace}\n")
         f.write(f"\tDEM Format: {dem_format}\n")
+        f.write(f"\tProject XY Units: {project_xy_units}\n")
         f.write(f"\tInput DEM Elevation Units: {input_z_units}\n")
+        f.write(f"\tOutput DEM Elevation Units: {output_vertical_units}\n")
         f.write(f"\tInput DEM Spatial Reference: {input_dem_sr}\n")
         f.write(f"\tOutput DEM Spatial Reference: {output_sr}\n")
+        f.write(f"\tTransformation: {transformation if transformation else 'None'}\n")
         f.write(f"\tOutput DEM Cell Size: {cell_size}\n")
+
+
+
+def getProjectedXYUnits(spatial_ref):
+    sr_type = getattr(spatial_ref, 'type', getattr(spatial_ref, 'Type', ''))
+    if sr_type != 'Projected':
+        return ''
+
+    linear_unit_name = getattr(spatial_ref, 'linearUnitName', getattr(spatial_ref, 'LinearUnitName', ''))
+    unit_lookup = {
+        'Meter': 'Meters',
+        'Meters': 'Meters',
+        'Foot': 'International Feet',
+        'Foot_US': 'US Survey Feet'
+    }
+    return unit_lookup.get(linear_unit_name, linear_unit_name)
+
+
+### Build table for project that tracks output spatial ref, xy units, z units, and transformation. ###
+def updateProjectUnitTable(project_units_table_path, project_units_table_name, output_sr_name, project_xy_units, output_vertical_units, transformation, log_file_path):
+
+    AddMsgAndPrint('\nUpdating project unit settings table...', log_file_path=log_file_path)
+
+    if not Exists(project_units_table_path):
+        CreateTable(path.dirname(project_units_table_path), project_units_table_name)
+
+    field_names = [field.name for field in ListFields(project_units_table_path)]
+    if 'OUTPUT_SR' not in field_names:
+        AddField(project_units_table_path, 'OUTPUT_SR', 'TEXT', '', '', 255)
+    if 'XY_UNITS' not in field_names:
+        AddField(project_units_table_path, 'XY_UNITS', 'TEXT', '', '', 50)
+    if 'OUTPUT_Z_UNITS' not in field_names:
+        AddField(project_units_table_path, 'OUTPUT_Z_UNITS', 'TEXT', '', '', 50)
+    if 'TRANSFORMATION' not in field_names:
+        AddField(project_units_table_path, 'TRANSFORMATION', 'TEXT', '', '', 255)
+
+    DeleteRows(project_units_table_path)
+    with InsertCursor(project_units_table_path, ['OUTPUT_SR', 'XY_UNITS', 'OUTPUT_Z_UNITS', 'TRANSFORMATION']) as cursor:
+        cursor.insertRow([output_sr_name, project_xy_units, output_vertical_units, transformation if transformation else ''])
+
+
+def getSpatialReferenceFromParameter(parameter_index):
+    spatial_ref_text = GetParameterAsText(parameter_index)
+    if spatial_ref_text == '':
+        return '', ''
+
+    try:
+        spatial_ref = SpatialReference()
+        spatial_ref.loadFromString(spatial_ref_text)
+        return spatial_ref, spatial_ref.name
+    except:
+        try:
+            spatial_ref = SpatialReference(spatial_ref_text)
+            return spatial_ref, spatial_ref.name
+        except:
+            return spatial_ref_text, spatial_ref_text
 
 
 ### Initial Tool Validation ###
@@ -48,10 +108,20 @@ input_dems = GetParameterAsText(2).split(';')
 nrcs_service = GetParameterAsText(3)
 external_service = GetParameterAsText(4)
 cell_size = GetParameterAsText(5)
-input_z_units = GetParameterAsText(6)
-input_dem_sr = GetParameterAsText(7)
-output_sr = GetParameterAsText(8)
-transformation = GetParameterAsText(9)
+project_raster_cell_size = f"{cell_size} {cell_size}"
+_ = GetParameterAsText(6)  # XY units are derived from the selected output coordinate system.
+input_z_units = GetParameterAsText(7)
+output_vertical_units = GetParameterAsText(8)
+input_dem_sr = GetParameterAsText(9)
+output_sr, output_sr_name = getSpatialReferenceFromParameter(10)
+transformation = GetParameterAsText(11)
+output_dem = GetParameterAsText(12)
+project_xy_units = getProjectedXYUnits(output_sr)
+
+if project_xy_units == '':
+    AddMsgAndPrint('\nThe selected output coordinate system is not projected or its XY units could not be determined. Exiting...', 2)
+    exit()
+
 
 ### Locate Project GDB ###
 project_aoi_path = Describe(project_aoi).CatalogPath
@@ -71,8 +141,10 @@ extracted_dem_name = f"{project_name}_DEM_extract"
 extracted_dem_path = path.join(project_gdb, extracted_dem_name)
 project_dem_name = f"{project_name}_DEM"
 project_dem_path = path.join(project_gdb, project_dem_name)
-temp_aoi = r"memory\temp_aoi"   # CHANGED: was path.join(scratch_gdb, 'temp_aoi')
-clipped_dem = r"memory\clipped_dem"   # CHANGED: was path.join(scratch_gdb, 'clipped_dem')
+project_units_table_name = f"{project_name}_Project_Units"
+project_units_table_path = path.join(project_gdb, project_units_table_name)
+temp_aoi = r"memory\temp_aoi"
+clipped_dem = r"memory\clipped_dem"
 temp_dem = path.join(scratch_gdb, 'temp_dem')
 
 ### ESRI Environment Settings ###
@@ -94,24 +166,37 @@ elif '3m' in nrcs_service:
 elif external_service != '':
     sourceService = external_service
 
-# Set z-factor for converting vertical units to International Feet
-if input_z_units == 'Meters':
-    z_factor = 3.28083989501
-elif input_z_units == 'Centimeters':
-    z_factor = 328.083989501
-elif input_z_units == 'International Feet':
-    z_factor = 1
-elif input_z_units == 'International Inches':
-    z_factor = 12
-elif input_z_units == 'US Survey Feet':
-    z_factor = 1.000002000
-elif input_z_units == 'US Survey Inches':
-    z_factor = 12.000002400
+# Set z-factor for converting input vertical units to the selected output vertical units
+z_factor_lookup = {
+    'Meters': {
+        'Meters': 1,
+        'International Feet': 3.280839895,
+        'US Survey Feet': 3.2808333333
+    },
+    'International Feet': {
+        'Meters': 0.3048,
+        'International Feet': 1,
+        'US Survey Feet': 0.999998
+    },
+    'US Survey Feet': {
+        'Meters': 0.3048006096,
+        'International Feet': 1.000002,
+        'US Survey Feet': 1
+    }
+}
+
+try:
+    z_factor = z_factor_lookup[input_z_units][output_vertical_units]
+except:
+    AddMsgAndPrint('\nUnable to determine the correct vertical unit conversion. Exiting...', 2)
+    exit()
+
 
 try:
     emptyScratchGDB(scratch_gdb)
     removeMapLayers(map, [project_dem_name])
-    logBasicSettings(log_file_path, project_workspace, dem_format, input_z_units, input_dem_sr, output_sr, cell_size)
+    logBasicSettings(log_file_path, project_workspace, dem_format, project_xy_units, input_z_units, output_vertical_units, input_dem_sr, output_sr_name, transformation, cell_size)
+    updateProjectUnitTable(project_units_table_path, project_units_table_name, output_sr_name, project_xy_units, output_vertical_units, transformation, log_file_path)
 
     ### Image Service Extract ###
     if dem_format in ['NRCS Image Service', 'External Image Service']:
@@ -142,7 +227,10 @@ try:
 
             SetProgressorLabel('Projecting downloaded DEM...')
             AddMsgAndPrint('\nProjecting downloaded DEM...', log_file_path=log_file_path)
-            ProjectRaster(clipped_dem, temp_dem, output_sr, 'BILINEAR', cell_size)
+            if transformation != '':
+                ProjectRaster(clipped_dem, temp_dem, output_sr, 'BILINEAR', project_raster_cell_size, transformation)
+            else:
+                ProjectRaster(clipped_dem, temp_dem, output_sr, 'BILINEAR', project_raster_cell_size)
 
     ### Local File(s) Extract ###
     else:
@@ -220,11 +308,11 @@ try:
         AddMsgAndPrint(f"\n\t{path.basename(temp_dem)} is not in a projected Coordinate System! Exiting...", 2, log_file_path)
         exit()
 
-    ### Convert DEM Values to International Feet ###
-    SetProgressorLabel('Converting DEM elevation values to feet...')
-    AddMsgAndPrint('\nConverting DEM elevation values to feet...', log_file_path=log_file_path)
-    output_ft_dem = Times(temp_dem, z_factor)
-    output_ft_dem.save(extracted_dem_path)
+    ### Convert DEM Values to Selected Output Vertical Units ###
+    SetProgressorLabel('Converting DEM elevation values to selected output vertical units...')
+    AddMsgAndPrint(f'\nConverting DEM elevation values to {output_vertical_units}...', log_file_path=log_file_path)
+    output_z_dem = Times(temp_dem, z_factor)
+    output_z_dem.save(extracted_dem_path)
 
     ### Finalize DEM ###
     SetProgressorLabel('Finalizing DEM...')
@@ -234,23 +322,32 @@ try:
     output_focal_stats.save(project_dem_path)
 
     ### Add Output DEM to Map and Symbolize ###
-    SetProgressorLabel('Adding DEM to map...')
-    AddMsgAndPrint('\nAdding DEM to map...', log_file_path=log_file_path)
-    map.addDataFromPath(project_dem_path)
-    dem_layer = map.listLayers(project_dem_name)[0]
-    sym = dem_layer.symbology
-    sym.colorizer.resamplingType = 'Bilinear' #NOTE: Pro does not seem to honor this
-    sym.colorizer.stretchType = 'StandardDeviation'
-    sym.colorizer.standardDeviation = 2.5
-    sym.colorizer.colorRamp = aprx.listColorRamps('Elevation #1')[0]
-    dem_layer.symbology = sym
+    try:
+        SetProgressorLabel('Adding DEM to map...')
+        AddMsgAndPrint('\nAdding DEM to map...', log_file_path=log_file_path)
+        map.addDataFromPath(project_dem_path)
 
-    ### Update Layer Order in TOC ###
-    if map.listLayers()[0].supports("NAME"):
-        if map.listLayers()[0].name == project_dem_name:
-            SetProgressorLabel('Updating layer order...')
-            AddMsgAndPrint('\nUpdating layer order...', log_file_path=log_file_path)
-            map.moveLayer(map.listLayers()[1], dem_layer, 'AFTER')
+        dem_layers = map.listLayers(project_dem_name)
+        if not dem_layers:
+            raise RuntimeError(f"DEM layer was not added to the map: {project_dem_name}")
+
+        dem_layer = dem_layers[0]
+        sym = dem_layer.symbology
+        sym.colorizer.resamplingType = 'Bilinear'  # NOTE: Pro does not seem to honor this
+        sym.colorizer.stretchType = 'StandardDeviation'
+        sym.colorizer.standardDeviation = 2.5
+        sym.colorizer.colorRamp = aprx.listColorRamps('Elevation #1')[0]
+        dem_layer.symbology = sym
+
+        ### Update Layer Order in TOC ###
+        if map.listLayers()[0].supports("NAME"):
+            if map.listLayers()[0].name == project_dem_name:
+                SetProgressorLabel('Updating layer order...')
+                AddMsgAndPrint('\nUpdating layer order...', log_file_path=log_file_path)
+                map.moveLayer(map.listLayers()[1], dem_layer, 'AFTER')
+
+    except Exception as e:
+        AddMsgAndPrint(f"\nFailed to add or symbolize DEM layer: {str(e)}", 1, log_file_path)
 
     ### Compact Project GDB ###
     try:
@@ -260,7 +357,9 @@ try:
     except:
         pass
 
+    SetParameterAsText(12, project_dem_path)
     AddMsgAndPrint('\nCreate DEM completed successfully', log_file_path=log_file_path)
+
 
 except SystemExit:
     pass

@@ -50,8 +50,9 @@ if not path.exists(project_workspace) or not Exists(gdb_path) or not Exists(fd_p
     exit()
 else:
     fd_sr = Describe(fd_path).spatialReference
-    if 'WGS' not in fd_sr.name or '1984' not in fd_sr.name or 'UTM' not in fd_sr.name:
-        AddMsgAndPrint('\nThe geodatabase found in the selected workspace is not using a WGS 1984 UTM coordinate system. Please run the Create Project Workspace tool. Exiting...', 2)
+    fd_sr_type = fd_sr.type
+    if not fd_sr_type == "Projected":
+        AddMsgAndPrint('\nThe geodatabase found in the selected workspace is not using a Projected coordinate system. Please run the Create Project Workspace tool. Exiting...', 2)
         exit()
 
 ### ESRI Environment Settings ###
