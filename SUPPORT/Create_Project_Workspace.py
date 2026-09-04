@@ -3,14 +3,14 @@ from os import mkdir, path
 from sys import exit
 from time import ctime
 
-from arcpy import Exists, GetInstallInfo, GetParameter, GetParameterAsText, SetProgressorLabel
-from arcpy.management import CreateFeatureDataset, CreateFileGDB
+from arcpy import Exists, GetInstallInfo, GetParameterAsText, SetProgressorLabel
+from arcpy.management import CreateFileGDB
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint
 
 
-def logBasicSettings(log_file_path, output_folder, project_name, output_sr_name):
+def logBasicSettings(log_file_path, output_folder, project_name):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create Project Workspace\n')
@@ -20,7 +20,6 @@ def logBasicSettings(log_file_path, output_folder, project_name, output_sr_name)
         f.write('User Parameters:\n')
         f.write(f"\tOutput Folder: {output_folder}\n")
         f.write(f"\tProject Name: {project_name}\n")
-        f.write(f"\tSpatial Reference: {output_sr_name}\n")
 
 
 ### Initial Tool Validation ###
@@ -34,21 +33,12 @@ except:
 ### Input Parameters ###
 output_folder = GetParameterAsText(0)
 project_name = GetParameterAsText(1).replace(' ','_')
-output_sr = GetParameter(2)
-
-### Validate Chosen Coordinate System Is Projected ###
-if output_sr.type != "Projected":
-    AddMsgAndPrint('\nThe selected coordinate system is not projected. Exiting...', 2)
-    exit()
 
 ### Set Paths and Variables ###
 workspace_path = path.join(output_folder, project_name)
 log_file_path = path.join(workspace_path, f"{project_name}_log.txt")
 gdb_name = f"{project_name}_EngPro.gdb"
 gdb_path = path.join(workspace_path, gdb_name)
-fd_path = path.join(gdb_path, 'Layers')
-output_sr_name = output_sr.name
-output_sr_code = output_sr.factoryCode
 
 ### Create Project Folder ###
 if path.exists(workspace_path):
@@ -64,7 +54,7 @@ else:
         exit()
 
 # Create log file in project folder
-logBasicSettings(log_file_path, output_folder, project_name, output_sr_name)
+logBasicSettings(log_file_path, output_folder, project_name)
 
 ### Create Geodatabase ###
 if not Exists(gdb_path):
@@ -74,16 +64,6 @@ if not Exists(gdb_path):
         CreateFileGDB(workspace_path, gdb_name)
     except:
         AddMsgAndPrint('\nThe project geodatabase could not be created. Exiting...', 2)
-        exit()
-
-### Create Feature Dataset ###
-if not Exists(fd_path):
-    try:
-        SetProgressorLabel('Creating project feature dataset...')
-        AddMsgAndPrint('\nCreating project feature dataset...', log_file_path=log_file_path)
-        CreateFeatureDataset(gdb_path, 'Layers', output_sr_code)
-    except:
-        AddMsgAndPrint('\nThe project feature dataset could not be created. Exiting...', 2)
         exit()
 
 ### Update Project Folder Connections ###
@@ -97,6 +77,5 @@ try:
         aprx.updateFolderConnections(connection_list, validate=True)
 except:
     AddMsgAndPrint('\nFailed to update project folder connections. End of script...', 1, log_file_path=log_file_path)
-
 
 AddMsgAndPrint('\nCreate Project Workspace completed successfully', log_file_path=log_file_path)

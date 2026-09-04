@@ -3,14 +3,14 @@ from os import path
 from sys import argv, exit
 from time import ctime
 
-from arcpy import Describe, env, Exists, GetInstallInfo, GetParameterAsText, SetParameterAsText, SetProgressorLabel
-from arcpy.management import Append, CalculateField, Compact, CreateFeatureclass, GetCount, MakeFeatureLayer
+from arcpy import Describe, env, Exists, GetInstallInfo, GetParameter, GetParameterAsText, SetParameterAsText, SetProgressorLabel
+from arcpy.management import Append, CalculateField, Compact, CreateFeatureDataset, CreateFeatureclass, GetCount, MakeFeatureLayer
 from arcpy.mp import ArcGISProject
 
 from utils import AddMsgAndPrint, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_workspace):
+def logBasicSettings(log_file_path, project_workspace, output_sr_name, linear_units):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create AOI\n')
@@ -19,6 +19,8 @@ def logBasicSettings(log_file_path, project_workspace):
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
         f.write(f"\tProject Workspace: {project_workspace}\n")
+        f.write(f"\tSpatial Reference: {output_sr_name}\n")
+        f.write(f"\tLinear Units: {linear_units}\n")
 
 
 ### Initial Tool Validation ###
@@ -32,6 +34,13 @@ except:
 ### Input Parameters ###
 project_workspace = GetParameterAsText(0)
 input_aoi = GetParameterAsText(1)
+output_sr = GetParameter(3)
+linear_units = GetParameterAsText(4)
+
+### Validate Chosen Coordinate System Is Projected ###
+if output_sr.type != "Projected":
+    AddMsgAndPrint('\nThe selected coordinate system is not projected. Exiting...', 2)
+    exit()
 
 ### Set Paths and Variables ###
 project_name = path.basename(project_workspace)
@@ -43,26 +52,37 @@ input_aoi_path = Describe(input_aoi).catalogPath
 output_aoi_name = f"{project_name}_AOI"
 output_aoi_path = path.join(fd_path, output_aoi_name)
 template_aoi = path.join(path.dirname(argv[0]), 'Support.gdb', 'aoi_template')
+output_sr_name = output_sr.name
+output_sr_code = output_sr.factoryCode
 
 ### Verify Project Workspace and GDB ###
-if not path.exists(project_workspace) or not Exists(gdb_path) or not Exists(fd_path):
+if not path.exists(project_workspace) or not Exists(gdb_path):
     AddMsgAndPrint('\nThe project folder or geodatabase does not exist or is not compatible with this version of the toolbox. Please run the Create Project Workspace tool. Exiting...', 2)
     exit()
-else:
-    fd_sr = Describe(fd_path).spatialReference
-    fd_sr_type = fd_sr.type
-    if not fd_sr_type == "Projected":
-        AddMsgAndPrint('\nThe geodatabase found in the selected workspace is not using a Projected coordinate system. Please run the Create Project Workspace tool. Exiting...', 2)
-        exit()
-
-### ESRI Environment Settings ###
-project_sr = Describe(fd_path).spatialReference
-env.outputCoordinateSystem = project_sr
-env.overwriteOutput = True
-
 try:
+    ### Create Feature Dataset ###
+    if not Exists(fd_path):
+        try:
+            SetProgressorLabel('Creating project feature dataset...')
+            AddMsgAndPrint('\nCreating project feature dataset...', log_file_path=log_file_path)
+            CreateFeatureDataset(gdb_path, 'Layers', output_sr_code)
+        except:
+            AddMsgAndPrint('\nThe project feature dataset could not be created. Exiting...', 2)
+            exit()
+    else:
+        fd_sr = Describe(fd_path).spatialReference
+        fd_sr_type = fd_sr.type
+        if not fd_sr_type == "Projected":
+            AddMsgAndPrint('\nThe geodatabase found in the selected workspace is not using a Projected coordinate system. Please run the Create Project Workspace tool. Exiting...', 2)
+            exit()
+
+    ### ESRI Environment Settings ###
+    project_sr = Describe(fd_path).spatialReference
+    env.outputCoordinateSystem = project_sr
+    env.overwriteOutput = True
+
     removeMapLayers(map, [output_aoi_name])
-    logBasicSettings(log_file_path, project_workspace)
+    logBasicSettings(log_file_path, project_workspace, output_sr_name, linear_units)
 
     ### Validate Input AOI Layer ###
     if int(GetCount(input_aoi).getOutput(0)) > 1:
