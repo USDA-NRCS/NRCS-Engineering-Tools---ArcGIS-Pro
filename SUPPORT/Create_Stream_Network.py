@@ -80,6 +80,31 @@ if not Exists(project_aoi_path):
 ### ESRI Environment Settings ###
 dem_desc = Describe(project_dem_path)
 dem_cell_size = dem_desc.meanCellWidth
+dem_units = dem_desc.spatialReference.linearUnitName
+# Square DEM units per acre; Foot is international, Foot_US is US survey.
+square_units_per_acre = {
+    'Meter': 4046.8564224,
+    'Foot': 43560,
+    'Foot_US': 43560.174,
+}
+# Map spatial reference unit names to explicit Buffer distance units.
+buffer_units = {
+    'Meter': 'Meters',
+    'Foot': 'Feet',
+    'Foot_US': 'FeetUS',
+}
+# Reject unsupported units before processing to avoid incorrect distances or areas.
+if dem_units not in square_units_per_acre:
+    AddMsgAndPrint(
+        f"\nUnsupported DEM linear units: {dem_units}. "
+        "Expected meters, International Feet, or US Survey Feet. Exiting...",
+        2,
+        log_file_path=log_file_path,
+    )
+    exit()
+
+acre_conversion = square_units_per_acre[dem_units]
+buffer_distance = f"{dem_cell_size} {buffer_units[dem_units]}"
 env.overwriteOutput = True
 env.resamplingMethod = 'BILINEAR'
 env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
@@ -110,10 +135,10 @@ try:
         # Ensure output culverts layer has at least one feature in AOI
         if int(GetCount(culverts_path).getOutput(0)) > 0:
 
-            # Buffer the culverts to 1 pixel
+            # Buffer by one DEM cell width using the DEM's linear units.
             SetProgressorLabel('Buffering culverts by DEM cell size...')
             AddMsgAndPrint('\nBuffering culverts by DEM cell size...', log_file_path=log_file_path)
-            Buffer(culverts_path, culverts_buffer_temp, f"{str(dem_cell_size)} Meters", 'FULL', 'ROUND', 'NONE')
+            Buffer(culverts_path, culverts_buffer_temp, buffer_distance, 'FULL', 'ROUND', 'NONE')
 
             # Dummy field just to execute Zonal Stats on each feature
             AddField(culverts_buffer_temp, 'ZONE', 'TEXT')
@@ -151,8 +176,8 @@ try:
 
     ### Create Stream Link ###
     if stream_threshold > 0:
-        # created using pixels that have a flow accumulation greater than the user-specified acre threshold
-        acre_threshold = round((stream_threshold * 4046.8564224)/(dem_cell_size**2))
+        # Convert acres to a cell count using area in square DEM units.
+        acre_threshold = round((stream_threshold * acre_conversion)/(dem_cell_size**2))
 
         # Select all cells that are greater than or equal to the acre stream threshold value
         con_flow_accumulation = Con(flow_accum_path, flow_accum_path, where_clause=f"Value >= {str(acre_threshold)}")

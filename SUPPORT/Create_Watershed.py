@@ -2,6 +2,7 @@ from getpass import getuser
 from os import path
 from sys import argv, exit
 from time import ctime
+import traceback
 
 from arcpy import AddFieldDelimiters, CheckExtension, CheckOutExtension, Describe, env, Exists, GetInstallInfo, GetMessages, \
     GetParameter, GetParameterAsText, SetParameterAsText, SetProgressorLabel
@@ -12,7 +13,7 @@ from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.management import AddField, AssignDomainToField, CalculateField, Compact, CreateFeatureclass, Delete, DeleteField, \
     Dissolve, GetCount, TableToDomain
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Con, FlowLength, GreaterThan, Minus, Plus, Slope, StreamLink, StreamToFeature, Watershed, ZonalStatistics, \
+from arcpy.sa import Con, FlowLength, GreaterThan, Minus, Plus, StreamLink, StreamToFeature, Watershed, ZonalStatistics, \
     ZonalStatisticsAsTable
 
 from utils import AddMsgAndPrint, deleteESRIAddedFields, emptyScratchGDB, errorMsg, removeMapLayers
@@ -70,6 +71,7 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
 project_aoi_path = path.join(project_fd, f"{project_name}_AOI")
 project_dem_path = path.join(project_gdb, f"{project_name}_DEM")
+project_slope_path = path.join(project_gdb, f"{project_name}_Slope")
 flow_accum_path = path.join(project_gdb, 'Flow_Accumulation')
 flow_dir_path = path.join(project_gdb, 'Flow_Direction')
 outlets_name = f"{watershed_name}_Outlets"
@@ -89,6 +91,9 @@ slope_stats_temp = r"memory\Slope_Stats"
 ### Validate Required Datasets Exist ###
 if not Exists(project_dem_path):
     AddMsgAndPrint('\nThe project DEM was not found. Exiting...', 2)
+    exit()
+if not Exists(project_slope_path):
+    AddMsgAndPrint(f"\nThe project slope raster was not found: {project_slope_path}. Generate it using Create Hillshade, Slope, and Depth Grid before running this tool. Exiting...", 2, log_file_path=log_file_path)
     exit()
 if not Exists(flow_accum_path):
     AddMsgAndPrint('\nThe project Flow Accumulation Grid was not found. Exiting...', 2)
@@ -216,7 +221,8 @@ try:
             SmoothLine(longest_path_temp, lp_smooth_temp, 'PAEK', '100 Feet', 'FIXED_CLOSED_ENDPOINT', 'NO_CHECK')
 
             # Intersect with watershed to get subbasin ID
-            Intersect(lp_smooth_temp + '; ' + watershed_path, longest_path_temp, 'ALL', '', 'INPUT')
+            # Changed formatting from concatenated string to list
+            Intersect([lp_smooth_temp, watershed_path], longest_path_temp, 'ALL', '', 'INPUT')
 
             # Dissolve to create single lines for each subbasin
             Dissolve(longest_path_temp, flow_length_path, 'Subbasin', '', 'MULTI_PART', 'DISSOLVE_LINES')
@@ -242,15 +248,16 @@ try:
             AssignDomainToField(flow_length_path, 'Reach', 'Reach_Domain')
             AssignDomainToField(flow_length_path, 'TYPE', 'Type_Domain')
 
-        except:
+        except Exception:
             # If Calc LHL fails prompt user to delineate manually and continue...capture error for reference
-            AddMsgAndPrint('\nAn error occured while calculating Flow Path(s).\nYou will have to trace your stream network to create them manually. Continuing...\n' + GetMessages(2), 1, log_file_path=log_file_path)
+            gp_messages = GetMessages(2)
+            error_details = gp_messages if gp_messages else traceback.format_exc()
+            AddMsgAndPrint('\nAn error occured while calculating Flow Path(s).\nYou will have to trace your stream network to create them manually. Continuing...\n' + error_details, 1, log_file_path=log_file_path)
 
     ### Calculate Average Slope ###
     SetProgressorLabel('Calculating average slope...')
     AddMsgAndPrint('\nCalculating average slope...', log_file_path=log_file_path)
-    slope_grid = Slope(project_dem_path, 'PERCENT_RISE', 0.3048) # Z-factor Intl Feet to Meters
-    ZonalStatisticsAsTable(watershed_path, 'Subbasin', slope_grid, slope_stats_temp, 'DATA')
+    ZonalStatisticsAsTable(watershed_path, 'Subbasin', project_slope_path, slope_stats_temp, 'DATA')
 
     AddMsgAndPrint('\nWatershed Results:', log_file_path=log_file_path)
     AddMsgAndPrint(f"\tUser Watershed: {str(watershed_name)}", log_file_path=log_file_path)

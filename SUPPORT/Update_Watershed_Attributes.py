@@ -8,7 +8,7 @@ from arcpy import AddFieldDelimiters, CheckExtension, CheckOutExtension, Describ
 from arcpy.da import SearchCursor, UpdateCursor
 from arcpy.management import AddField, CalculateField, Compact, Delete
 from arcpy.mp import ArcGISProject
-from arcpy.sa import Slope, ZonalStatisticsAsTable
+from arcpy.sa import ZonalStatisticsAsTable
 
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg
 
@@ -58,15 +58,18 @@ log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
 project_aoi_path = path.join(project_fd, f"{project_name}_AOI")
 project_dem_path = path.join(project_gdb, f"{project_name}_DEM")
+project_slope_path = path.join(project_gdb, f"{project_name}_Slope")
 watershed_name = path.basename(watershed_path)
 flow_length_path = path.join(project_fd, f"{watershed_name}_FlowPaths")
-slope_grid_temp = path.join(scratch_gdb, 'Slope_Grid')
 slope_stats_temp = r"memory\Slope_Stats"
 update_flow_length = False
 
 ### Validate Required Datasets Exist ###
 if not Exists(project_dem_path):
     AddMsgAndPrint('\nThe project DEM was not found. Exiting...', 2)
+    exit()
+if not Exists(project_slope_path):
+    AddMsgAndPrint(f"\nThe project slope raster was not found: {project_slope_path}. Generate it using Create Hillshade, Slope, and Depth Grid before running this tool. Exiting...", 2, log_file_path=log_file_path)
     exit()
 if Exists(flow_length_path):
     update_flow_length = True
@@ -105,8 +108,7 @@ try:
     ### Update Average Slope ###
     SetProgressorLabel('Updating average slope...')
     AddMsgAndPrint('\nUpdating average slope...')
-    slope_grid = Slope(project_dem_path, 'PERCENT_RISE', 0.3048) # Z-factor Intl Feet to Meters
-    ZonalStatisticsAsTable(watershed_path, 'Subbasin', slope_grid, slope_stats_temp, 'DATA')
+    ZonalStatisticsAsTable(watershed_path, 'Subbasin', project_slope_path, slope_stats_temp, 'DATA')
 
     # Update Watershed FC with Average Slope
     AddMsgAndPrint('\nWatershed Results:', log_file_path=log_file_path)
