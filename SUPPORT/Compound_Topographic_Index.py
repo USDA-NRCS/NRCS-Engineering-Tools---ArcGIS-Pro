@@ -25,7 +25,8 @@ def logBasicSettings(log_file_path, project_dem, project_xy_units, project_z_uni
         f.write(f"\tProject XY Units: {project_xy_units}\n")
         f.write(f"\tProject DEM Vertical Units: {project_z_units}\n")
         f.write(f"\tSlope Z-Factor: {z_factor}\n")
-        f.write('\tCTI Specific Catchment Area Units: Meters\n')
+        f.write(f"\tCTI Specific Catchment Area Units: {project_xy_units}\n")
+
 
 
 def normalizeLinearUnits(unit_name):
@@ -136,8 +137,6 @@ z_factor_lookup = {
     },
 }
 z_factor = z_factor_lookup[project_z_units][project_xy_units]
-# Use meters for specific catchment area regardless of project horizontal units.
-dem_cell_size_meters = dem_cell_size * z_factor_lookup[project_xy_units]['Meters']
 env.overwriteOutput = True
 env.resamplingMethod = 'BILINEAR'
 env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
@@ -159,9 +158,9 @@ try:
     SetProgressorLabel('Computing Compound Topographic Index...')
     AddMsgAndPrint('\nComputing Compound Topographic Index...', log_file_path=log_file_path)
 
-    # Specific catchment area: contributing cell count times cell width in meters.
+    # Specific catchment area: contributing cell count times cell width in DEM native XY units.
     flow_accum_raster = Raster(project_flow_accum)
-    As = Times(Plus(flow_accum_raster,1), dem_cell_size_meters)
+    As = Times(Plus(flow_accum_raster,1), dem_cell_size)
 
     # Match elevation units to horizontal units before calculating slope in degrees.
     slope_degrees = Slope(project_dem, 'DEGREE', z_factor)
