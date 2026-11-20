@@ -85,7 +85,7 @@ dem_cell_size = dem_desc.meanCellWidth
 dem_units = dem_desc.spatialReference.linearUnitName
 # Square DEM units per acre, using the project conversion table.
 square_units_per_acre = {
-    'Meter': 4046.85642,
+    'Meter': 4046.8564224,
     'Foot': 43560,
     'Foot_US': 43560.174,
 }
@@ -113,7 +113,7 @@ try:
 
     # Convert overland flow input to DEM XY units.
     if dem_units == 'Meter':
-        overland_thresh = float(min_flow) / 3.280839895013123
+        overland_thresh = float(min_flow) / 3.280839895
     elif dem_units == 'Foot':
         overland_thresh = float(min_flow)
     elif dem_units == 'Foot_US':
@@ -124,7 +124,7 @@ try:
 
     # Convert drainage area threshold (acres) to raster cell count using DEM XY units.
     if dem_units == 'Meter':
-        channel_thresh = float(max_drainage) * 4046.85642 / dem_cell_size**2
+        channel_thresh = float(max_drainage) * 4046.8564224 / dem_cell_size**2
     elif dem_units in ('Foot', 'Foot_US'):
         channel_thresh = float(max_drainage) * 43560 / dem_cell_size**2
     else:

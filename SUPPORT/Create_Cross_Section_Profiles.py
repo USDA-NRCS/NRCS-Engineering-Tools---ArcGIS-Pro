@@ -17,7 +17,7 @@ from arcpy.sa import ZonalStatisticsAsTable
 from utils import AddMsgAndPrint, deleteESRIAddedFields, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, project_dem, interval, output_text):
+def logBasicSettings(log_file_path, project_dem, project_vertical_units, interval, output_text, output_elevation_units, z_factor):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Create Cross Section Profiles\n')
@@ -26,8 +26,73 @@ def logBasicSettings(log_file_path, project_dem, interval, output_text):
         f.write(f"Date Executed: {ctime()}\n")
         f.write('User Parameters:\n')
         f.write(f"\tProject DEM: {project_dem}\n")
+        f.write(f"\tProject DEM Vertical Units: {project_vertical_units}\n")
         f.write(f"\tInterval: {interval}\n")
         f.write(f"\tCreate text file: {output_text}\n")
+        f.write(f"\tOutput Elevation Units: {output_elevation_units}\n")
+        f.write(f"\tZ-Factor: {z_factor}\n")
+
+
+# vertical-unit helpers so cross-section elevations can be converted to the requested feet units.
+def normalizeVerticalUnits(unit_name):
+    if not unit_name:
+        return ''
+
+    unit_lookup = {
+        'Meter': 'Meters',
+        'Meters': 'Meters',
+        'Foot': 'International Feet',
+        'Feet': 'International Feet',
+        'International Foot': 'International Feet',
+        'International Feet': 'International Feet',
+        'Foot_US': 'US Survey Feet',
+        'US Survey Foot': 'US Survey Feet',
+        'US Survey Feet': 'US Survey Feet'
+    }
+    return unit_lookup.get(unit_name, unit_name)
+
+
+def getVerticalConversionFactor(input_units, output_units):
+    input_units = normalizeVerticalUnits(input_units)
+    output_units = normalizeVerticalUnits(output_units)
+
+    conversion_lookup = {
+        'Meters': {
+            'Meters': 1,
+            'International Feet': 3.280839895,
+            'US Survey Feet': 3.2808333333
+        },
+        'International Feet': {
+            'Meters': 0.3048,
+            'International Feet': 1,
+            'US Survey Feet': 0.999998
+        },
+        'US Survey Feet': {
+            'Meters': 0.3048006096,
+            'International Feet': 1.000002,
+            'US Survey Feet': 1
+        }
+    }
+
+    try:
+        return conversion_lookup[input_units][output_units]
+    except:
+        return None
+
+
+def getProjectVerticalUnits(project_units_table_path):
+    if not Exists(project_units_table_path):
+        return ''
+
+    field_names = [field.name.upper() for field in ListFields(project_units_table_path)]
+    if 'OUTPUT_Z_UNITS' not in field_names:
+        return ''
+
+    with SearchCursor(project_units_table_path, ['OUTPUT_Z_UNITS']) as cursor:
+        for row in cursor:
+            return normalizeVerticalUnits(row[0])
+
+    return ''
 
 
 ### Initial Tool Validation ###
@@ -53,12 +118,15 @@ else:
 project_dem = GetParameterAsText(0)
 input_line = GetParameterAsText(1)
 interval = GetParameterAsText(2)
-output_name = GetParameterAsText(3).replace(' ','_')
-output_text = GetParameter(4)
+output_elevation_units = normalizeVerticalUnits(GetParameterAsText(3))
+output_name = GetParameterAsText(4).replace(' ','_')
+output_text = GetParameter(5)
 
 ### Locate Project GDB ###
 dem_desc = Describe(project_dem)
 dem_cell_size = dem_desc.meanCellWidth
+project_sr = dem_desc.spatialReference
+dem_units = getattr(project_sr, 'linearUnitName', getattr(project_sr, 'LinearUnitName', ''))
 project_dem_path = dem_desc.CatalogPath
 if 'EngPro.gdb' in project_dem_path and 'DEM' in project_dem_path:
     project_gdb = project_dem_path[:project_dem_path.find('.gdb')+4]
@@ -87,6 +155,7 @@ project_workspace = path.dirname(project_gdb)
 project_name = path.basename(project_workspace)
 log_file_path = path.join(project_workspace, f"{project_name}_log.txt")
 project_fd = path.join(project_gdb, 'Layers')
+project_units_table_path = path.join(project_gdb, f"{project_name}_Project_Units")
 output_lines_name = f"{output_name}_Line"
 output_lines_path = path.join(project_fd, output_lines_name)
 output_points_name = f"{output_name}_Points"
@@ -105,15 +174,39 @@ if Exists(output_lines_path):
 if Exists(output_points_path):
     AddMsgAndPrint(f"\nOutput Points name: {output_points_path} already exists in project geodatabase and will be overwritten...", 1)
 
+if output_elevation_units not in ('International Feet', 'US Survey Feet'):
+    AddMsgAndPrint('\nThe output elevation units must be either International Feet or US Survey Feet. Exiting...', 2)
+    exit()
+
+buffer_units = {
+    'Meter': 'Meters',
+    'Foot': 'Feet',
+    'Foot_US': 'FeetUS'
+}
+if dem_units not in buffer_units:
+    AddMsgAndPrint(f"\nUnsupported DEM linear units: {dem_units}. Expected meters, International Feet, or US Survey Feet. Exiting...", 2)
+    exit()
+buffer_distance = f"{dem_cell_size} {buffer_units[dem_units]}"
+
+project_vertical_units = getProjectVerticalUnits(project_units_table_path)
+if project_vertical_units == '':
+    AddMsgAndPrint('\nProject unit settings table is missing or does not contain output DEM vertical units. Exiting...', 2)
+    exit()
+
 ### ESRI Environment Settings ###
 env.resamplingMethod = 'BILINEAR'
 env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 env.parallelProcessingFactor = '75%'
 env.overwriteOutput = True
 
+z_factor = getVerticalConversionFactor(project_vertical_units, output_elevation_units)
+if z_factor is None:
+    AddMsgAndPrint(f"\nUnable to determine the correct vertical unit conversion using DEM vertical units ({project_vertical_units}) and requested output elevation units ({output_elevation_units}). Exiting...", 2)
+    exit()
+
 try:
     removeMapLayers(map, [output_lines_name, output_points_name])
-    logBasicSettings(log_file_path, project_dem, interval, output_text)
+    logBasicSettings(log_file_path, project_dem, project_vertical_units, interval, output_text, output_elevation_units, z_factor)
 
     # Copy line input and add fields if not present
     CopyFeatures(input_line, line_temp)
@@ -187,31 +280,30 @@ try:
     CalculateField(events_temp, 'STATIONID', "str(!STATION!) + '_' + str(!ID!)", 'PYTHON3')
 
     CopyFeatures(events_temp, stations_temp)
-
     AddXY(stations_temp)
     AddField(stations_temp, 'POINT_Z', 'DOUBLE')
-
     MakeFeatureLayer(stations_temp, stations_lyr)
     AddMsgAndPrint(f"\nCreated a total of {GetCount(stations_lyr)[0]} stations for the {GetCount(line_temp)[0]} provided line(s)...", log_file_path=log_file_path)
 
     # Retrieve Elevation values
     SetProgressorLabel('Retrieving station elevations...')
     AddMsgAndPrint('\nRetrieving station elevations...', log_file_path=log_file_path)
-
-    Buffer(stations_temp, buffer_temp, f"{dem_cell_size} Meters", 'FULL', 'ROUND', 'NONE', '')
-
+    AddMsgAndPrint(f"\tDEM XY units: {dem_units}", log_file_path=log_file_path)
+    AddMsgAndPrint(f"\tSource DEM vertical units: {project_vertical_units}", log_file_path=log_file_path)
+    AddMsgAndPrint(f"\tOutput elevation units: {output_elevation_units}", log_file_path=log_file_path)
+    AddMsgAndPrint(f"\tElevation z-factor: {z_factor}", log_file_path=log_file_path)
+    AddMsgAndPrint(f"\tBuffer distance: {buffer_distance}", log_file_path=log_file_path)
+    Buffer(stations_temp, buffer_temp, buffer_distance, 'FULL', 'ROUND', 'NONE', '')
     ZonalStatisticsAsTable(buffer_temp, 'STATIONID', project_dem, station_stats_temp, 'NODATA', 'ALL')
 
     AddJoin(stations_lyr, 'StationID', station_stats_temp, 'StationID', 'KEEP_ALL')
-
-    expression = f"round(!station_stats_temp.MEAN! * 1,1)"
+    expression = f"round(!station_stats_temp.MEAN! * {z_factor},1)"
     CalculateField(stations_lyr, 'POINT_Z', expression, 'PYTHON3')
-
     RemoveJoin(stations_lyr, 'station_stats_temp')
     DeleteField(stations_temp, 'STATIONID; POINT_M')
 
-    # Interpolate Line to 3d via Z factor
-    InterpolateShape(project_dem, line_temp, output_lines_path, '', 1)
+    # Interpolate line to 3D using the requested output elevation units.
+    InterpolateShape(project_dem, line_temp, output_lines_path, '', z_factor)
 
     # Copy Station Points
     Sort(stations_temp, output_points_path, [['ID', 'ASCENDING'],['STATION', 'ASCENDING']])
@@ -235,8 +327,8 @@ try:
     ### Add Outputs to Map ###
     SetProgressorLabel('Adding output layers to map...')
     AddMsgAndPrint('\nAdding output layers to map...', log_file_path=log_file_path)
-    SetParameterAsText(5, output_lines_path)
-    SetParameterAsText(6, output_points_path)
+    SetParameterAsText(6, output_lines_path)
+    SetParameterAsText(7, output_points_path)
 
     ### Remove Digitized Layer (if present) ###
     for lyr in map.listLayers():

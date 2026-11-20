@@ -13,7 +13,7 @@ from arcpy.mp import ArcGISProject
 from utils import AddMsgAndPrint, emptyScratchGDB, errorMsg, removeMapLayers
 
 
-def logBasicSettings(log_file_path, input_points, input_dem, elevation_units, output_sr, transformation, output_points_name, output_text):
+def logBasicSettings(log_file_path, input_points, input_dem, input_elevation_units, output_elevation_units, output_sr, transformation, output_points_name, output_text, z_factor):
     with open (log_file_path, 'a+') as f:
         f.write('\n######################################################################\n')
         f.write('Executing Tool: Change Point Coordinates\n')
@@ -23,11 +23,60 @@ def logBasicSettings(log_file_path, input_points, input_dem, elevation_units, ou
         f.write('User Parameters:\n')
         f.write(f"\tInput Profile Points: {input_points}\n")
         f.write(f"\tInput DEM: {input_dem}\n")
-        f.write(f"\tElevation Units: {elevation_units}\n")
+        f.write(f"\tInput DEM Elevation Units: {input_elevation_units}\n")
+        f.write(f"\tOutput Elevation Units: {output_elevation_units}\n")
         f.write(f"\tOutput Coordinate System: {output_sr}\n")
         f.write(f"\tTransformation: {transformation}\n")
         f.write(f"\tOutput Points Name: {output_points_name}\n")
         f.write(f"\tCreate Text File: {output_text}\n")
+        f.write(f"\tZ-Factor: {z_factor}\n")
+
+
+# vertical-unit helpers so output point elevations can be converted to the requested units.
+def normalizeVerticalUnits(unit_name):
+    if not unit_name:
+        return ''
+
+    unit_lookup = {
+        'Meter': 'Meters',
+        'Meters': 'Meters',
+        'Foot': 'International Feet',
+        'Feet': 'International Feet',
+        'International Foot': 'International Feet',
+        'International Feet': 'International Feet',
+        'Foot_US': 'US Survey Feet',
+        'US Survey Foot': 'US Survey Feet',
+        'US Survey Feet': 'US Survey Feet'
+    }
+    return unit_lookup.get(unit_name, unit_name)
+
+
+def getVerticalConversionFactor(input_units, output_units):
+    input_units = normalizeVerticalUnits(input_units)
+    output_units = normalizeVerticalUnits(output_units)
+
+    conversion_lookup = {
+        'Meters': {
+            'Meters': 1,
+            'International Feet': 3.280839895,
+            'US Survey Feet': 3.2808333333
+        },
+        'International Feet': {
+            'Meters': 0.3048,
+            'International Feet': 1,
+            'US Survey Feet': 0.999998
+        },
+        'US Survey Feet': {
+            'Meters': 0.3048006096,
+            'International Feet': 1.000002,
+            'US Survey Feet': 1
+        }
+    }
+
+    try:
+        return conversion_lookup[input_units][output_units]
+    except:
+        return None
 
 
 ### Initial Tool Validation ###
@@ -47,11 +96,13 @@ else:
 ### Input Parameters ###
 input_points = GetParameterAsText(0)
 input_dem = GetParameterAsText(1)
-elevation_units = GetParameterAsText(2)
-output_sr = GetParameterAsText(4)
-transformation = GetParameterAsText(5)
-output_points_name = GetParameterAsText(6).replace(' ','_')
-output_text = GetParameter(7)
+input_elevation_units = normalizeVerticalUnits(GetParameterAsText(2))
+output_elevation_units = normalizeVerticalUnits(GetParameterAsText(3))
+GetParameterAsText(4)  # Display-only input coordinate system parameter populated by the tool validator.
+output_sr = GetParameterAsText(5)
+transformation = GetParameterAsText(6)
+output_points_name = GetParameterAsText(7).replace(' ','_')
+output_text = GetParameter(8)
 
 ### Locate Project GDB ###
 points_path = Describe(input_points).catalogPath
@@ -87,15 +138,15 @@ env.pyramid = 'PYRAMIDS -1 BILINEAR DEFAULT 75 NO_SKIP'
 env.parallelProcessingFactor = '75%'
 env.overwriteOutput = True
 
-# Set z-factor based on XYZ units of DEM
-if elevation_units == 'Meters':
-    z_factor = 3.28084
-else:
-    z_factor = 1
+# Set z-factor for converting DEM elevations to the requested output elevation units.
+z_factor = getVerticalConversionFactor(input_elevation_units, output_elevation_units)
+if z_factor is None:
+    AddMsgAndPrint(f"\nUnable to determine the correct vertical unit conversion using DEM elevation units ({input_elevation_units}) and requested output elevation units ({output_elevation_units}). Exiting...", 2)
+    exit()
 
 try:
     removeMapLayers(map, [output_points_name])
-    logBasicSettings(log_file_path, input_points, input_dem, elevation_units, output_sr, transformation, output_points_name, output_text)
+    logBasicSettings(log_file_path, input_points, input_dem, input_elevation_units, output_elevation_units, output_sr, transformation, output_points_name, output_text, z_factor)
 
     ### Create GIS_Output Folder ###
     if not Exists(gis_output_dir):
@@ -135,7 +186,7 @@ try:
                     f.write(f"{row[0]},{row[1]},{row[2]},{row[3]},{row[4]}\n")
 
     ### Add Outputs to Map ###
-    SetParameterAsText(8, output_points_path)
+    SetParameterAsText(9, output_points_path)
 
     ### Compact Project GDB ###
     try:
